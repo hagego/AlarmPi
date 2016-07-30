@@ -51,8 +51,7 @@ public class AlarmPi {
 		Configuration configuration = Configuration.getConfiguration();
 		
 		// create the user thread to manage alarms and HW buttons
-		// TODO: enable controller
-		//final Controller controller = new Controller();
+		final Controller controller = new Controller();
 		
 		// start TCP server to listen for external commands
 		if(configuration.getPort()==0) {
@@ -64,8 +63,6 @@ public class AlarmPi {
 				final ServerSocket serverSocket  = new ServerSocket(configuration.getPort());
 				final ExecutorService threadPool = Executors.newCachedThreadPool();
 				
-				// TODO: enble TCP server and control loop
-				/*
 				Thread serverThread = new Thread(new TcpServer(controller,serverSocket,threadPool));
 				serverThread.setDaemon(true);
 				serverThread.start();
@@ -74,17 +71,18 @@ public class AlarmPi {
 				controllerThread.setDaemon(false);
 				controllerThread.start();
 				
-				// add hook to shut down server at a CTRL-C
+				// add hook to shut down server at a CTRL-C or system shutdown
+				// actually copy & paste code from some forum on the web - no idea if it is working
 			    Runtime.getRuntime().addShutdownHook( new Thread() {
 					public void run() {
-						log.info("CTRL-C - shutting down");
-						//SoundControl.getSoundControl().off();
-						controller.getSoundControl().off();
-						controller.getLightControl().off();
+						log.info("shutdown hook started");
+						
+						// switch all lights and alarms off
+						controller.allOff();
 						threadPool.shutdownNow(); // don't accept new requests
 						try {
-							// wait max. 2 seconds for termination of all threads
-							threadPool.awaitTermination(2L, TimeUnit.SECONDS);
+							// wait max. 1 second for termination of all threads
+							threadPool.awaitTermination(1L, TimeUnit.SECONDS);
 							if (!serverSocket.isClosed()) {
 								log.info("shutting down server");
 								serverSocket.close();
@@ -97,7 +95,6 @@ public class AlarmPi {
 						}
 					}
 				});
-				*/
 			    
 			} catch (IOException e) {
 				log.severe("Unable to create server socket for remote client access on port "+configuration.getPort());

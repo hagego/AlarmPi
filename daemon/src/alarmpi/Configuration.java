@@ -68,10 +68,10 @@ public class Configuration {
 		};
 		
 		Type    type;                  // light control type used
-		int     address;               // sub-address of light (only PCA9685) 
 		int     pwmOffset;             // pwm value at which light starts to glow
 		int     pwmFullScale;          // pwm full scale
 		boolean pwmInversion = false;  // invert PWM value if set to true
+		ArrayList<Integer> addresses;  // sub-addresses of lights (only PCA9685)
 	}
 	
 	/**
@@ -175,8 +175,8 @@ public class Configuration {
 		soundList            = new ArrayList<Sound>();
 		alarmList            = new LinkedList<Alarm>();
 		alarmProcessQueue    = new ConcurrentLinkedQueue<Integer>();
-		lightControlList        = new ArrayList<LightControlSettings>();
-		pushButtonList          = new LinkedList<PushButtonSettings>();
+		lightControlSettings = new LightControlSettings();
+		pushButtonList       = new LinkedList<PushButtonSettings>();
         openhabCommands      = new LinkedList<String>();
         
         
@@ -226,11 +226,15 @@ public class Configuration {
     	alarmSettings.lightDimUpBrightness = sectionAlarm.get("lightDimUpBrightness", Integer.class, 50);
         
         // light control
-        Ini.Section sectionLightControl;
-        index=1;
-        while((sectionLightControl=ini.get("light"+index)) != null) {
+        Ini.Section sectionLightControl=ini.get("light");
+        if(sectionLightControl==null) {
+        	log.warning("No light section in configuration file");
+        }
+        else {
+        	lightControlSettings = new LightControlSettings();
+        	lightControlSettings.addresses = new ArrayList<Integer>();
+        	
 	        String pwmType = sectionLightControl.get("type", String.class, "gpio18");
-	        LightControlSettings lightControlSettings = new LightControlSettings();
 	    	if(pwmType!=null) {
 	    		if(pwmType.equalsIgnoreCase("gpio18")) {
 	    			lightControlSettings.type = LightControlSettings.Type.RASPBERRY;
@@ -243,14 +247,15 @@ public class Configuration {
 	    		}
 	    	}
         
-    	
-	    	lightControlSettings.address      = sectionLightControl.get("address", Integer.class, 0);
 	    	lightControlSettings.pwmInversion = sectionLightControl.get("pwmInversion", Boolean.class, false);
 	    	lightControlSettings.pwmOffset    = sectionLightControl.get("pwmOffset", Integer.class, 0);
 	    	lightControlSettings.pwmFullScale = sectionLightControl.get("pwmFullScale", Integer.class, 0);
-	    	
-	    	lightControlList.add(lightControlSettings);
-	    	index++;
+	    
+	    	int address=1;
+	    	while(sectionLightControl.get("address"+address, Integer.class) != null ) {
+	    		lightControlSettings.addresses.add(sectionLightControl.get("address"+address, Integer.class));
+	    		address++;
+	    	}
         }
     	
     	// push buttons
@@ -401,8 +406,8 @@ public class Configuration {
 	/**
 	 * @return light control settings as read-only object
 	 */
-	final List<LightControlSettings> getLightControls() {
-		return lightControlList;
+	final LightControlSettings getLightControlSettings() {
+		return lightControlSettings;
 	}
 
 	/**
@@ -664,10 +669,11 @@ public class Configuration {
 		dump += "  mpdFiles="+mpdFiles+" mpdTmpSubDir="+mpdTmpSubDir+"\n";
 		dump += "  port="+port+"\n";
 		dump += "  weather location="+weatherLocation+"\n";
-		dump += "  light control:\n";
-		for(LightControlSettings lightControlSettings:lightControlList) {
-			dump += "    type="+lightControlSettings.type+" address="+lightControlSettings.address+" pwmOffset="+lightControlSettings.pwmOffset+" pwmFullScale="+lightControlSettings.pwmFullScale+"\n";
+		dump += "  light control: type="+lightControlSettings.type+" pwmOffset="+lightControlSettings.pwmOffset+" pwmFullScale="+lightControlSettings.pwmFullScale+" addresses: ";
+		for(Integer address:lightControlSettings.addresses) {
+			dump += address+" ";
 		}
+		dump += "\n";
 		dump += "  Sounds:\n";
 		for(Sound sound:soundList) {
 			dump += "    name="+sound.name+"  type="+sound.type+"  source="+sound.source+"\n";
@@ -711,7 +717,7 @@ public class Configuration {
 	private String                           mpdTmpSubDir;          // subdirectory for MPD temporary sound files
 	private String                           weatherLocation;       // Open Weather Map location for weather forecast
 	private Alarm                            alarmSettings;         // dummy alarm object with default settings
-	private ArrayList<LightControlSettings>  lightControlList;      // light control settings
+	private LightControlSettings             lightControlSettings;  // light control settings
 	private ArrayList<Sound>                 soundList;             // list with available sounds (as defined in configuration)
 	private LinkedList<PushButtonSettings>   pushButtonList;        // pushbutton settings
 	private String                           googleCalendarSummary; // summary name of google calendar (or null)
