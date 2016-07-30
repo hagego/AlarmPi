@@ -13,7 +13,7 @@ import java.util.logging.Logger;
 /**
  * The main class for the AlarmPi daemon application.
  * Reads the configuration files, spawns a thread for the TCP server
- * and then executes the Controller loop in this thread
+ * and then executes the Controller endless loop in a new thread
  * 
  */
 public class AlarmPi {
@@ -51,7 +51,8 @@ public class AlarmPi {
 		Configuration configuration = Configuration.getConfiguration();
 		
 		// create the user thread to manage alarms and HW buttons
-		final Controller controller = new Controller();
+		// TODO: enable controller
+		//final Controller controller = new Controller();
 		
 		// start TCP server to listen for external commands
 		if(configuration.getPort()==0) {
@@ -63,6 +64,8 @@ public class AlarmPi {
 				final ServerSocket serverSocket  = new ServerSocket(configuration.getPort());
 				final ExecutorService threadPool = Executors.newCachedThreadPool();
 				
+				// TODO: enble TCP server and control loop
+				/*
 				Thread serverThread = new Thread(new TcpServer(controller,serverSocket,threadPool));
 				serverThread.setDaemon(true);
 				serverThread.start();
@@ -94,6 +97,7 @@ public class AlarmPi {
 						}
 					}
 				});
+				*/
 			    
 			} catch (IOException e) {
 				log.severe("Unable to create server socket for remote client access on port "+configuration.getPort());
