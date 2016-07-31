@@ -4,5 +4,6 @@
 	<classpathentry kind="con" path="org.eclipse.jdt.launching.JRE_CONTAINER"/>
 	<classpathentry kind="lib" path="lib/ini4j-0.5.4/ini4j-0.5.4-jdk14.jar"/>
 	<classpathentry kind="lib" path="lib/ini4j-0.5.4/ini4j-0.5.4.jar"/>
+	<classpathentry kind="lib" path="lib/pi4j/pi4j-core.jar"/>
 	<classpathentry kind="output" path="bin"/>
 </classpath>
