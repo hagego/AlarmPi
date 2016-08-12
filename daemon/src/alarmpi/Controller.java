@@ -25,7 +25,8 @@ import com.pi4j.io.gpio.event.GpioPinDigitalStateChangeEvent;
 import com.pi4j.io.gpio.event.GpioPinListenerDigital;
 
 /**
- * controls events (alarms) and all HW related to AlarmPi
+ * This class implements the main endless control loop that gets started
+ * out of main in its own thread
  */
 class Controller implements Runnable {
 
@@ -34,92 +35,110 @@ class Controller implements Runnable {
 	 */
 	public Controller() {
 		configuration       = Configuration.getConfiguration();
-		soundControl        = SoundControl.getSoundControl();
 		eventList           = new LinkedList<Event>();
 		dataExecutorService = Executors.newSingleThreadExecutor();
 		
 		// initialize pi4j objects for GPIO handling
 		if(configuration.getRunningOnRaspberry()) {
-			log.info("running on Raspberry - initializing GPIOs");
-			GpioController gpioController       = GpioFactory.getInstance();
+			log.info("running on Raspberry - initializing WiringPi");
 			
 			// initialize wiringPi library
-			com.pi4j.wiringpi.Gpio.wiringPiSetup();
+			// I get a crash when calling this - something changed in the new rev of pi4j
+			// com.pi4j.wiringpi.Gpio.wiringPiSetup();
+			GpioController gpioController       = GpioFactory.getInstance();
+			
+			log.info("running on Raspberry - initializing WiringPi done.");
 			
 			// instantiate light control
 			if(configuration.getLightControlSettings().type==Configuration.LightControlSettings.Type.RASPBERRY) {
-				lightControl = new LightControlRaspiPwm();
+				lightControl = new LightControlRaspiPwm(configuration.getLightControlSettings());
 			}
 			else if(configuration.getLightControlSettings().type==Configuration.LightControlSettings.Type.PCA9685) {
-				lightControl = new LightControlPCA9685();
+				lightControl = new LightControlPCA9685(configuration.getLightControlSettings());
 			}
 			else {
 				// dummy implementation - does nothing
 				lightControl = new LightControlNone();
 			}
 			
-			// switch light off
+			// switch light & sound off
 			lightControl.off();
+			SoundControl.getSoundControl().off();
 			
-			// configure key input pin GPIO06 (BRCM GPIO 25)
-			GpioPinDigitalInput input = gpioController.provisionDigitalInputPin (RaspiPin.GPIO_06, PinPullResistance.PULL_UP);
-			
-			// add pin listener
-			input.addListener(new GpioPinListenerDigital() {
-	            @Override
-	            public void handleGpioPinDigitalStateChangeEvent(GpioPinDigitalStateChangeEvent event) {
-	            	log.fine("LED control button state change on GPIO address "+event.getPin().getPin().getAddress()+" state="+event.getState());
-	            	if(event.getState()==PinState.LOW) {
-	            		start = System.currentTimeMillis();
-	            		boolean longClick = false;
-	            		while(input.getState()==PinState.LOW) {
-	            			try {
-								TimeUnit.MILLISECONDS.sleep(50);
-			            		if(System.currentTimeMillis()-start > 500) {
-			            			// long click. Turn off everything
-			            			log.info("long click");
-			            			longClick = true;
-			            			stopAlarm();
-			            			lightControl.off();
-			            			soundControl.stop();
-			            			soundControl.off();
-			            			
-			            			final String cmd = "light_bedroom_off";
-			            			if(configuration.getOpenhabCommands().contains(cmd)) {
-			            				log.info("sending openhab command: "+cmd);
-			            				OpenhabClient client = new OpenhabClient();
-				        				String error = null;
-				        				if( !client.sendCommand(cmd, error) ) {
-				        					log.severe("error sending openhab command "+cmd+" : "+error);
-				        				}
-			            			}
-			        				
-			            			break;
+			// configure input key pins as input pins
+			// default: key1=GPIO06 (BRCM GPIO 25)
+			//          key2=GPIO05 (BRCM GPIO 24)
+			for(Configuration.PushButtonSettings pushButtonSetting:configuration.getPushButtons()) {
+				if(pushButtonSetting.wiringpigpio!=0) {
+					GpioPinDigitalInput input = gpioController.provisionDigitalInputPin(RaspiPin.getPinByAddress(pushButtonSetting.wiringpigpio), PinPullResistance.PULL_UP);
+					
+					// add pin listener
+					input.addListener(new GpioPinListenerDigital() {
+			            @Override
+			            public void handleGpioPinDigitalStateChangeEvent(GpioPinDigitalStateChangeEvent event) {
+			            	log.fine("LED control button state change on GPIO address "+event.getPin().getPin().getAddress()+" state="+event.getState());
+			            	if(event.getState()==PinState.LOW) {
+			            		start = System.currentTimeMillis();
+			            		boolean longClick = false;
+			            		while(input.getState()==PinState.LOW) {
+			            			try {
+										TimeUnit.MILLISECONDS.sleep(50);
+					            		if(System.currentTimeMillis()-start > 400) {
+					            			// long click. Turn off everything
+					            			log.info("long click");
+					            			longClick = true;
+					            			allOff();
+					            			
+					            			final String cmd = "light_bedroom_off";
+					            			if(configuration.getOpenhabCommands().contains(cmd)) {
+					            				log.info("sending openhab command: "+cmd);
+					            				OpenhabClient client = new OpenhabClient();
+						        				String error = null;
+						        				if( !client.sendCommand(cmd, error) ) {
+						        					log.severe("error sending openhab command "+cmd+" : "+error);
+						        				}
+					            			}
+					        				
+					            			break;
+					            		}
+									} catch (InterruptedException e) {
+										log.severe(e.getMessage());
+									}
 			            		}
-							} catch (InterruptedException e) {
-								log.severe(e.getMessage());
-							}
-	            		}
-	            		if(!longClick) {
-	            			log.info("short click");
-	            			if(start-lastClick>400) {
-	            				// single click
-	            				log.info("single or first click");
-	            				singleClick = true;
-	            			}
-	            			else {
-	            				// double click
-	            				log.info("double click");
-	            				doubleClick = true;
-	            			}
-	            			
-	            			lastClick = start;
-	            		}
-	            	}
-	            }
-	            
-	            private long start = System.currentTimeMillis();
-	        });
+			            		if(!longClick) {
+			            			log.info("short click");
+			            			if(start-lastClick>300) {
+			            				// single click
+			        					log.info("processing single click");
+			        					lightControl.setBrightness(lightControl.getBrightness()+pushButtonSetting.brightnessIncrement);
+			            			}
+			            			else {
+			            				// double click
+			        					log.info("procesing double click");
+			        					if(soundControl.getVolume()>0) {
+			        						// sound already on - switch it off
+			        						soundControl.off();
+			        					}
+			        					else {
+			        						soundControl.on();
+			        						soundControl.playSound(pushButtonSetting.soundId, pushButtonSetting.soundVolume, false);
+			        						if(pushButtonSetting.soundTimer>0) {
+			        							setSoundTimer(pushButtonSetting.soundTimer*60);
+			        						}
+			        					}
+			            			}
+			            			
+			            			lastClick = start;
+			            		}
+			            	}
+			            }
+			            
+			            private long start = System.currentTimeMillis();
+			        });
+				}
+			}
+			
+
 
 			/*
 			LedStripControl ledControl = new LedStripControl();
@@ -129,6 +148,18 @@ class Controller implements Runnable {
 			ledControl.executePattern(pattern);
 			*/
 		}
+		
+		soundControl        = SoundControl.getSoundControl();
+	}
+	
+	/**
+	 * switches everything off
+	 */
+	void allOff() {
+		stopAlarm();
+		lightControl.off();
+		soundControl.stop();
+		soundControl.off();
 	}
 
 	
@@ -157,35 +188,10 @@ class Controller implements Runnable {
 					log.fine("New day detected, adding alarms for "+date);
 					
 					// create all the events for the alarms of today
+					deleteAlarmEvents();
 					for(Configuration.Alarm alarm:configuration.getAlarmList()) {
 						addAlarmEvents(alarm);
 					}
-				}
-				
-				// process push button events
-				if(doubleClick) {
-					log.info("procesing double click");
-					doubleClick = false;
-					singleClick = false;
-					
-					if(soundControl.getVolume()>0) {
-						// sound already on - switch it off
-						soundControl.off();
-					}
-					else {
-						Configuration.PushButtonSettings pushButtonSettings = configuration.getPushButtonSettings();
-						soundControl.on();
-						soundControl.playSound(pushButtonSettings.soundId, pushButtonSettings.soundVolume, false);
-						if(pushButtonSettings.soundTimer>0) {
-							setSoundTimer(pushButtonSettings.soundTimer*60);
-						}
-					}
-				}
-				if(singleClick && System.currentTimeMillis()-lastClick>400) {
-					log.info("processing single click");
-					singleClick = false;
-					
-					lightControl.setBrightness(lightControl.getBrightness()+configuration.getPushButtonSettings().ledIncrement);
 				}
 				
 				// check if an alarm was modified and the events need to be processed
@@ -214,8 +220,10 @@ class Controller implements Runnable {
 				log.warning("controller loop interrupted");
 			}
 		}
+		
 		log.info("controller thread terminating");
 	}
+	
 	
 	/**
 	 * checks if there are events to be processed and fires them
@@ -258,6 +266,18 @@ class Controller implements Runnable {
 	}
 
 	/**
+	 * deletes all alarm events
+	 */
+	synchronized private void deleteAlarmEvents() {
+		log.fine("deleting all alarm events");
+		eventList.clear();
+		
+		lightControl.off();
+		soundControl.off();
+		activeAlarmId = null;
+	}
+	
+	/**
 	 * deletes all events corresponding to this alarm
 	 * @param alarmId  alarm ID
 	 */
@@ -280,7 +300,7 @@ class Controller implements Runnable {
 	}
 	
 	/**
-	 * generates the events needed to process alarm
+	 * generates the events needed to process an alarm
 	 * @param alarm new alarm to process
 	 */
 	synchronized private void addAlarmEvents(Configuration.Alarm alarm) {
@@ -307,6 +327,7 @@ class Controller implements Runnable {
 		
 		log.fine("fade in start at: "+fadeInStart+" alarm at "+alarmDateTime+" stop at "+alarmDateTime.plusSeconds(alarm.duration));
 		
+		// create events only if alarm is still to come today
 		if(fadeInStart.isAfter(LocalDateTime.now())) {
 			Event eventStart = new Event();
 			eventStart.type      = Event.EventType.ALARM_START;
@@ -336,7 +357,7 @@ class Controller implements Runnable {
 		}
 		
 		// generate post fade-in events to increase volume and brightness
-		final int stepCountPostFadeIn         = 5;
+		final int    stepCountPostFadeIn      = 5;
 		final double postFadeInTimeInterval   = (double)alarm.duration/(double)stepCountPostFadeIn;    // in seconds
 		final double postFadeInVolumeInterval = (double)(alarm.volumeAlarmEnd-alarm.volumeFadeInEnd)/(double)stepCountPostFadeIn;
 		
@@ -348,7 +369,6 @@ class Controller implements Runnable {
 			eventVolume.time      = alarmDateTime.plusSeconds((long)(step*postFadeInTimeInterval));
 			eventVolume.paramInt1 = alarm.volumeFadeInEnd+(int)(step*postFadeInVolumeInterval);
 			eventList.add(eventVolume);
-			log.fine("Generating event at "+eventVolume.time);
 		}
 		
 		// generate main alarm and post alarm announcements
@@ -433,15 +453,18 @@ class Controller implements Runnable {
 	 * @param secondsFromNow time in seconds from now to switch off sound again
 	 */
 	synchronized void setSoundTimer(int secondsFromNow) {
-		// check if timer is already active
 		boolean found = false;
-		Iterator<Event> it = eventList.iterator();
-		while(it.hasNext()) {
-			if( it.next()==soundTimerEvent ) {
-				// sound timer already active, this is the stop event for it
-				// adopt time of the event
-				soundTimerEvent.time = LocalDateTime.now().plusSeconds(secondsFromNow);
-				found = true;
+		
+		// check if timer is already active
+		if(soundTimerEvent!=null) {
+			Iterator<Event> it = eventList.iterator();
+			while(it.hasNext()) {
+				if( it.next()==soundTimerEvent ) {
+					// sound timer already active, this is the stop event for it
+					// adopt time of the event
+					soundTimerEvent.time = LocalDateTime.now().plusSeconds(secondsFromNow);
+					found = true;
+				}
 			}
 		}
 		
@@ -470,6 +493,8 @@ class Controller implements Runnable {
 				break;
 			}
 		}
+		
+		soundTimerEvent = null;
 	}
 	
 	/**
@@ -480,11 +505,13 @@ class Controller implements Runnable {
 	synchronized int getSoundTimer() {
 		Integer secondsFromNow = 0;
 		
-		Iterator<Event> it = eventList.iterator();
-		while(it.hasNext()) {
-			if( it.next()==soundTimerEvent ) {
-				// this is the timer event
-				secondsFromNow = soundTimerEvent.time.get(ChronoField.SECOND_OF_DAY)-LocalDateTime.now().get(ChronoField.SECOND_OF_DAY);
+		if(soundTimerEvent!=null) {
+			Iterator<Event> it = eventList.iterator();
+			while(it.hasNext()) {
+				if( it.next()==soundTimerEvent ) {
+					// this is the timer event
+					secondsFromNow = soundTimerEvent.time.get(ChronoField.SECOND_OF_DAY)-LocalDateTime.now().get(ChronoField.SECOND_OF_DAY);
+				}
 			}
 		}
 		
@@ -567,7 +594,8 @@ class Controller implements Runnable {
 			// trigger weather data and calendar retrieval in an extra thread
 			weatherAnnouncementFile  = dataExecutorService.submit(new WeatherProvider());
 			if(Configuration.getConfiguration().getCalendarSummary()!=null) {
-				calendarAnnouncementFile = dataExecutorService.submit(new CalendarProvider());
+				// TODO add calendar announcements
+				// calendarAnnouncementFile = dataExecutorService.submit(new CalendarProvider());
 			}
 			
 			// if this alarm is one time only: disable it again
@@ -652,16 +680,13 @@ class Controller implements Runnable {
 	Configuration        configuration;         // configuration data
 	SoundControl         soundControl;          // proxy for sound control	
 	Integer              activeAlarmId;         // ID of active alarm (or null if no alarm is active)
-	int                  activeLedBrightness;   // actual LED brightness (PWM ratio) in percent, 0=off
-	Event                soundTimerEvent;      // event to switch off sound or null if no timer is active
+	Event                soundTimerEvent;       // event to switch off sound or null if no timer is active
 	
 	LightControl         lightControl;          // light control
 	
 	
 	
 	private long         lastClick;             // time in milliseconds since last push button click
-	private boolean      singleClick=false;     // set to true if a single click has been detected
-	private boolean      doubleClick=false;     // set to true if a double click has been detected
 	
 	ExecutorService      dataExecutorService;      // thread executor service to retrieve data like weather or calendar
 	Future<String>       weatherAnnouncementFile;  // future with filename of mp3 weather announcement

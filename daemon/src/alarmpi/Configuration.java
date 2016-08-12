@@ -78,6 +78,7 @@ public class Configuration {
 	 * local class used as structure to store push button settings
 	 */
 	class PushButtonSettings {
+		int wiringpigpio;         // WiringPi GPIO address of input key
 		int brightnessIncrement;  // LED control (single click): brightness increment in percent
 		int soundId;              // sound control (double click): sound to play
 		int soundVolume;          // sound control (double click): volume (in percent)
@@ -214,8 +215,8 @@ public class Configuration {
         // alarm settings
         alarmSettings            = new Alarm();
         Ini.Section sectionAlarm = ini.get("alarm");
-        alarmSettings.greeting   = sectionAlarm.get("greeting", String.class, "");
         
+        alarmSettings.greeting             = sectionAlarm.get("greeting", String.class, "");
     	alarmSettings.fadeInDuration       = sectionAlarm.get("fadeIn", Integer.class, 300);
     	alarmSettings.duration             = sectionAlarm.get("duration", Integer.class, 1800);
     	alarmSettings.reminderInterval     = sectionAlarm.get("reminderInterval", Integer.class, 300);
@@ -224,6 +225,7 @@ public class Configuration {
     	alarmSettings.volumeAlarmEnd       = sectionAlarm.get("volumeAlarmEnd", Integer.class, 70);
     	alarmSettings.lightDimUpDuration   = sectionAlarm.get("lightDimUpDuration", Integer.class, 600);
     	alarmSettings.lightDimUpBrightness = sectionAlarm.get("lightDimUpBrightness", Integer.class, 50);
+    	alarmSettings.sound                = sectionAlarm.get("sound", String.class, "alarm_5s.mp3");
         
         // light control
         Ini.Section sectionLightControl=ini.get("light");
@@ -263,6 +265,7 @@ public class Configuration {
         index=1;
         while((sectionButton=ini.get("button"+index)) != null) {
         	PushButtonSettings pushButtonSettings = new PushButtonSettings();
+        	pushButtonSettings.wiringpigpio        = sectionButton.get("wiringpigpio", Integer.class, 0);
 			pushButtonSettings.brightnessIncrement = sectionButton.get("brightnessIncrement", Integer.class, 10);
 			pushButtonSettings.soundId             = sectionButton.get("soundId", Integer.class, 0);
 			pushButtonSettings.soundVolume         = sectionButton.get("soundVolume", Integer.class, 40);

@@ -27,6 +27,10 @@ public class SoundControl {
 	 * @return the singleton object
 	 */
 	static SoundControl getSoundControl() {
+		if(object==null) {
+			object = new SoundControl();
+		}
+		
 		return object;
 	}
 	
@@ -300,8 +304,8 @@ public class SoundControl {
 	}
 
 	// private members
-	private static final Logger        log = Logger.getLogger( SoundControl.class.getName() );
-	private static final SoundControl  object = new SoundControl();        // singleton object
+	private static final Logger  log    = Logger.getLogger( SoundControl.class.getName() );
+	private static SoundControl  object = null;   // singleton object
 
 	private GpioPinDigitalOutput gpioPinAudioControl;   // WiringPi Pin GPIOO5 = BRCM GPIO 24, used to enable Audio 5V power
 	

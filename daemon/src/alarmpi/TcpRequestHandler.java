@@ -31,11 +31,11 @@ public class TcpRequestHandler implements Runnable {
 		commandHandlerList = new LinkedList<CommandHandler>();
 		commandHandlerList.add(new CommandLoglevel());
 		commandHandlerList.add(new CommandAlarm());
-//		commandHandlerList.add(new CommandSound());
-//		commandHandlerList.add(new CommandLightControl());
-//		commandHandlerList.add(new CommandTimer());
+		commandHandlerList.add(new CommandSound());
+		commandHandlerList.add(new CommandLightControl());
+		commandHandlerList.add(new CommandTimer());
 //		commandHandlerList.add(new CommandCalendar());
-//		commandHandlerList.add(new CommandOpenhab());
+		commandHandlerList.add(new CommandOpenhab());
 	}
 
 	@Override
@@ -443,8 +443,6 @@ public class TcpRequestHandler implements Runnable {
 	 * sound - controls sound
 	 */
 	
-	// TODO enable sound command
-	/*
 	private class CommandSound extends CommandHandler{
 
 		@Override
@@ -550,10 +548,7 @@ public class TcpRequestHandler implements Runnable {
 			return new ReturnCodeSuccess("");
 		}
 	};
-	*/
 	
-	// TODO enable light command
-	/*
 	private class CommandLightControl extends CommandHandler{
 
 		@Override
@@ -596,11 +591,8 @@ public class TcpRequestHandler implements Runnable {
 			return new ReturnCodeSuccess(String.valueOf(Math.round(controller.getLightControl().getBrightness())));
 		}
 	};
-	*/
 	
 	
-	// DODO enable timer command
-	/*
 	private class CommandTimer extends CommandHandler{
 
 		@Override
@@ -634,10 +626,7 @@ public class TcpRequestHandler implements Runnable {
 			return new ReturnCodeSuccess(String.valueOf(controller.getSoundTimer()));
 		}
 	};
-	*/
 	
-	// TODO enable openhab command
-	/*
 	private class CommandOpenhab extends CommandHandler{
 
 		@Override
@@ -688,9 +677,8 @@ public class TcpRequestHandler implements Runnable {
 			return new ReturnCodeSuccess(commands);
 		}
 	};
-	*/
 	
-	// TODO enaböe calendar command
+	// TODO enabje calendar command
 	/**
 	 * Deals with Google Calendar
 	 */

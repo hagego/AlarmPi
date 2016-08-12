@@ -79,9 +79,11 @@ public class AlarmPi {
 						
 						// switch all lights and alarms off
 						controller.allOff();
-						threadPool.shutdownNow(); // don't accept new requests
+						threadPool.shutdownNow(); // don't accept new TCP client requests
+						controllerThread.interrupt();
+						
 						try {
-							// wait max. 1 second for termination of all threads
+							// wait max. 1 second for termination of all TCP client threads
 							threadPool.awaitTermination(1L, TimeUnit.SECONDS);
 							if (!serverSocket.isClosed()) {
 								log.info("shutting down server");
