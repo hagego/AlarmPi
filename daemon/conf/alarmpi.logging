@@ -2,10 +2,10 @@ handlers=java.util.logging.FileHandler,java.util.logging.ConsoleHandler
 
 # possible levels:
 # OFF SEVERE WARNING INFO CONFIG FINE FINER FINEST ALL
-alarmpi.level=WARNING
+alarmpi.level=ALL
 
 java.util.logging.SimpleFormatter.format=%4$s: %5$s [%1$tc]%n
-java.util.logging.ConsoleHandler.level=OFF
+java.util.logging.ConsoleHandler.level=ALL
 java.util.logging.ConsoleHandler.formatter=java.util.logging.SimpleFormatter
 
 # Write 1MB before rotating this file
@@ -15,5 +15,6 @@ java.util.logging.FileHandler.limit=1000000
 java.util.logging.FileHandler.count=2
 
 java.util.logging.FileHandler.level=WARNING
-java.util.logging.FileHandler.pattern=/var/log/alarmpi/alarmpi.log
+#java.util.logging.FileHandler.pattern=/var/log/alarmpi/alarmpi.log
+java.util.logging.FileHandler.pattern=D:\\GitHub\\AlarmPi\\daemon\\tmp\\alarmpi.log
 java.util.logging.FileHandler.formatter=java.util.logging.SimpleFormatter
