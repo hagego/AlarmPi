@@ -594,8 +594,7 @@ class Controller implements Runnable {
 			// trigger weather data and calendar retrieval in an extra thread
 			weatherAnnouncementFile  = dataExecutorService.submit(new WeatherProvider());
 			if(Configuration.getConfiguration().getCalendarSummary()!=null) {
-				// TODO add calendar announcements
-				// calendarAnnouncementFile = dataExecutorService.submit(new CalendarProvider());
+				calendarAnnouncementFile = dataExecutorService.submit(new CalendarProvider());
 			}
 			
 			// if this alarm is one time only: disable it again

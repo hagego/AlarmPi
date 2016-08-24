@@ -34,7 +34,7 @@ public class TcpRequestHandler implements Runnable {
 		commandHandlerList.add(new CommandSound());
 		commandHandlerList.add(new CommandLightControl());
 		commandHandlerList.add(new CommandTimer());
-//		commandHandlerList.add(new CommandCalendar());
+		commandHandlerList.add(new CommandCalendar());
 		commandHandlerList.add(new CommandOpenhab());
 	}
 
@@ -101,6 +101,7 @@ public class TcpRequestHandler implements Runnable {
 						while(it.hasNext()) {
 							CommandHandler handler = it.next();
 							if(handler.getCommandName().equalsIgnoreCase(command)) {
+								log.fine("command match found: "+handler.getCommandName());
 								try {
 									ReturnCode rc = handler.process(isQuery);
 									log.fine("sending answer: >>"+rc+"<<");
@@ -175,9 +176,11 @@ public class TcpRequestHandler implements Runnable {
 		public ReturnCode process(final boolean isQuery) throws CommandHandlerException {
 			
 			if(isQuery) {
+				log.finest("calling get for command "+getCommandName());
 				return get();
 			}
 			else {
+				log.finest("calling set for command "+getCommandName());
 				return set();
 			}
 		}
@@ -678,11 +681,9 @@ public class TcpRequestHandler implements Runnable {
 		}
 	};
 	
-	// TODO enabje calendar command
 	/**
 	 * Deals with Google Calendar
 	 */
-	/*
 	private class CommandCalendar extends CommandHandler {
 		
 		@Override
@@ -741,7 +742,6 @@ public class TcpRequestHandler implements Runnable {
 		private GoogleCalendar calendar = null;
 		private String         url      = null;
 	};
-	*/
 	
 	//
 	// private data members

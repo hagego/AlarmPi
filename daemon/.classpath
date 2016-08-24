@@ -5,5 +5,11 @@
 	<classpathentry kind="lib" path="lib/ini4j-0.5.4/ini4j-0.5.4-jdk14.jar"/>
 	<classpathentry kind="lib" path="lib/ini4j-0.5.4/ini4j-0.5.4.jar"/>
 	<classpathentry kind="lib" path="lib/pi4j/pi4j-core.jar"/>
+	<classpathentry kind="lib" path="lib/google/google-api-client-1.19.1.jar"/>
+	<classpathentry kind="lib" path="lib/google/google-api-services-calendar-v3-rev115-1.19.1.jar"/>
+	<classpathentry kind="lib" path="lib/google/google-http-client-1.19.0.jar"/>
+	<classpathentry kind="lib" path="lib/google/google-http-client-jackson2-1.19.0.jar"/>
+	<classpathentry kind="lib" path="lib/google/google-oauth-client-1.19.0.jar"/>
+	<classpathentry kind="lib" path="lib/google/jackson-core-2.1.3.jar"/>
 	<classpathentry kind="output" path="bin"/>
 </classpath>
