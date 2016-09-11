@@ -1,5 +1,6 @@
 package alarmpi;
 
+import java.time.DayOfWeek;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
@@ -159,6 +160,19 @@ class Controller implements Runnable {
 		stopAlarm();
 		lightControl.off();
 		soundControl.stop();
+		
+		// announce next alarms before switching off
+		Configuration.Alarm alarm = getNextAlarmToday();
+		if(alarm!=null) {
+			
+		}
+		
+		alarm = getNextAlarmTomorrow();
+		if(alarm!=null) {
+			
+		}
+		
+		soundControl.stop();
 		soundControl.off();
 	}
 
@@ -297,6 +311,44 @@ class Controller implements Runnable {
 			soundControl.off();
 			activeAlarmId = null;
 		}
+	}
+	
+	/**
+	 * Returns the next active alarm today
+	 * @return
+	 */
+	Configuration.Alarm getNextAlarmToday() {
+		DayOfWeek today               = LocalDate.now().getDayOfWeek();
+		Configuration.Alarm nextAlarm = null;
+		
+		for(Configuration.Alarm alarm:configuration.getAlarmList()) {
+			if(alarm.enabled && alarm.weekDays.contains(today)) {
+				if(alarm.time.isAfter(LocalTime.now()) && (nextAlarm==null || alarm.time.isBefore(nextAlarm.time))) {
+					nextAlarm = alarm;
+				}
+			}
+		}
+		
+		return nextAlarm;
+	}
+	
+	/**
+	 * Returns the next active alarm tomorrow
+	 * @return
+	 */
+	Configuration.Alarm getNextAlarmTomorrow() {
+		DayOfWeek today               = LocalDate.now().getDayOfWeek().plus(1);
+		Configuration.Alarm nextAlarm = null;
+		
+		for(Configuration.Alarm alarm:configuration.getAlarmList()) {
+			if(alarm.enabled && alarm.weekDays.contains(today)) {
+				if(nextAlarm==null || alarm.time.isBefore(nextAlarm.time)) {
+					nextAlarm = alarm;
+				}
+			}
+		}
+		
+		return nextAlarm;
 	}
 	
 	/**
