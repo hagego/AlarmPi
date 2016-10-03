@@ -2,6 +2,12 @@ package alarmpi;
 
 import java.io.IOException;
 import java.util.logging.Logger;
+
+import com.pi4j.io.gpio.GpioController;
+import com.pi4j.io.gpio.GpioFactory;
+import com.pi4j.io.gpio.GpioPinDigitalOutput;
+import com.pi4j.io.gpio.PinState;
+import com.pi4j.io.gpio.RaspiPin;
 import com.pi4j.io.i2c.I2CBus;
 import com.pi4j.io.i2c.I2CDevice;
 import com.pi4j.io.i2c.I2CFactory;
@@ -17,18 +23,29 @@ public class LightControlPCA9685 implements LightControl,Runnable {
 	 */
 	public LightControlPCA9685(Configuration.LightControlSettings lightControlSettings) {
 		this.lightControlSettings = lightControlSettings;
+		
 		USABLE_SCALE = lightControlSettings.pwmFullScale-lightControlSettings.pwmOffset;
+
+		if(lightControlSettings.addresses.size()<1) {
+			log.severe("PCA9685 light control: No LEDs configured");
+			// create a single (dummy) ID
+			pwmValue     = new int[1];
+			pwmValue[0]  = lightControlSettings.pwmOffset;
+		}
+		else {
+			pwmValue     = new int[lightControlSettings.addresses.size()];
+			
+			for(int i=0 ; i<lightControlSettings.addresses.size() ; i++) {
+				pwmValue[i] = lightControlSettings.pwmOffset;
+			}
+		}
 		
 		if(Configuration.getConfiguration().getRunningOnRaspberry()) {
 			log.info("Initializing PCA9685 IIC Light Control");
 			
-			/**
-			not used - OE does not work as expected
-			
-			GpioController gpioController       = GpioFactory.getInstance();
-			GpioPinDigitalOutput output = gpioController.provisionDigitalOutputPin (RaspiPin.GPIO_16); // BRCM GPIO 15, UARTRX0
-			output.setState(PinState.HIGH);
-			**/
+			GpioController gpioController = GpioFactory.getInstance();
+			GpioPinDigitalOutput output   = gpioController.provisionDigitalOutputPin (RaspiPin.GPIO_27); 
+			output.setState(PinState.LOW);
 			
 			try {
 				I2CBus bus = I2CFactory.getInstance(I2CBus.BUS_1);
@@ -43,7 +60,7 @@ public class LightControlPCA9685 implements LightControl,Runnable {
 					log.severe("PCA9685: sleep exception "+e.getMessage());
 				}
 				
-				pca9685 = bus.getDevice(0x45);
+				pca9685 = bus.getDevice(lightControlSettings.address);
 				
 				// read status registers and dump to logfile
 				log.info("PCA9685: MODE1 register: "+pca9685.read(0x00));
@@ -77,10 +94,10 @@ public class LightControlPCA9685 implements LightControl,Runnable {
 		
 		if(pca9685!=null) {
 			try {
-				for(Integer address:lightControlSettings.addresses) {
-					pca9685.write(0x09+address*4,(byte) 0x10);
+				for(int i=0 ; i<lightControlSettings.addresses.size() ; i++) {
+					pca9685.write(0x09+lightControlSettings.addresses.get(i)*4,(byte) 0x10);
+					pwmValue[i] = 0;
 				}
-				pwmValue = 0;
 			} catch (IOException e) {
 				log.severe("Error during I2C write: "+e.getMessage());
 			}
@@ -89,6 +106,13 @@ public class LightControlPCA9685 implements LightControl,Runnable {
 	
 	@Override
 	public void setBrightness(double percentage) {
+		for(int id=0 ; id<lightControlSettings.addresses.size() ; id++) {
+			setBrightness(id, percentage);
+		}
+	}
+	
+	@Override
+	public void setBrightness(int lightId,double percentage) {
 		if(percentage<0) {
 			percentage = 0;
 		}
@@ -104,29 +128,41 @@ public class LightControlPCA9685 implements LightControl,Runnable {
 			pwm = lightControlSettings.pwmOffset+(int)(Math.pow((percentage+16.0)/116.0, 3.0)*(double)USABLE_SCALE);
 		}
 		
-		log.finest("PCA9685: setBrightness="+percentage+"% pwm="+pwm);;
-		setPwm(pwm);
+		log.finest("PCA9685: setBrightness on ID "+lightId+": "+percentage+"% pwm="+pwm);;
+		setPwm(lightId,pwm);
 	}
 
 	@Override
-	public double getBrightness() {
-		if((pwmValue-lightControlSettings.pwmOffset)<(int)((8.0/903.3)*(double)USABLE_SCALE)) {
-			return ((double)(pwmValue-lightControlSettings.pwmOffset)/(double)USABLE_SCALE)*903.3;
+	public double getBrightness(int lightId) {
+		double brightness;
+		
+		if((pwmValue[lightId]-lightControlSettings.pwmOffset)<(int)((8.0/903.3)*(double)USABLE_SCALE)) {
+			brightness = ((double)(pwmValue[lightId]-lightControlSettings.pwmOffset)/(double)USABLE_SCALE)*903.3;
 		}
 		else {
-			return 116.0*Math.pow((double)(pwmValue-lightControlSettings.pwmOffset)/(double)USABLE_SCALE, 1.0/3.0)-16.0;
+			brightness = 116.0*Math.pow((double)(pwmValue[lightId]-lightControlSettings.pwmOffset)/(double)USABLE_SCALE, 1.0/3.0)-16.0;
 		}
+		
+		log.finest("get Brightness for ID "+lightId+": returns "+brightness);
+		
+		return brightness;
 	}
 	
 	@Override
-	public void setPwm(int pwmValue) {
+	public double getBrightness() {
+		return getBrightness(0);
+	}
+	
+	@Override
+	public void setPwm(int lightId,int pwmValue) {
 		if(pwmValue<0) {
 			pwmValue = 0;
 		}
 		if(pwmValue>lightControlSettings.pwmFullScale) {
 			pwmValue = lightControlSettings.pwmFullScale;
 		}
-		log.fine("RaspiPwm: setPWM: pwm="+pwmValue);
+		int address = lightControlSettings.addresses.get(lightId);
+		log.fine("RaspiPwm: setPWM: lightId="+lightId+" address="+address+" pwm="+pwmValue);
 		
 		byte lsb = (byte)(pwmValue & 0x00FF);
 		byte msb = (byte)((pwmValue & 0x0F00) >> 8);
@@ -134,23 +170,28 @@ public class LightControlPCA9685 implements LightControl,Runnable {
 		
 		if(pca9685!=null) {
 			try {
-				for(Integer address:lightControlSettings.addresses) {
-					pca9685.write(0x06+4*address,(byte) 0x00);
-					pca9685.write(0x07+4*address,(byte) 0x00);
-					pca9685.write(0x08+4*address,(byte) lsb);
-					pca9685.write(0x09+4*address,(byte) msb);
-				}
+				pca9685.write(0x06+4*address,(byte) 0x00);
+				pca9685.write(0x07+4*address,(byte) 0x00);
+				pca9685.write(0x08+4*address,(byte) lsb);
+				pca9685.write(0x09+4*address,(byte) msb);
 				
-				this.pwmValue = pwmValue;
+				this.pwmValue[lightId] = pwmValue;
 			} catch (IOException e) {
 				log.severe("Error during I2C write: "+e.getMessage());
 			}
 		}
 	}
+	
+	@Override
+	public void setPwm(int pwmValue) {
+		for(int id=0 ; id<lightControlSettings.addresses.size() ; id++) {
+			setPwm(id, pwmValue);
+		}
+	}
 
 	@Override
 	public int getPwm() {
-		return pwmValue;
+		return pwmValue[0];
 	}
 	
 	@Override
@@ -198,7 +239,7 @@ public class LightControlPCA9685 implements LightControl,Runnable {
 	private final        int                                DIM_STEP_COUNT = 200;
 	
 	private I2CDevice           pca9685;
-	private int                 pwmValue;                // actual PWM value
+	private int                 pwmValue[];              // actual PWM value of each LED controlled thru me
 	private Thread              dimThread        = null; // thread used for dimming
 	private int                 dimDuration      = 0;    // duration for dim up
 	private double              dimTargetPercent = 0;    // target brightness in % for dim up

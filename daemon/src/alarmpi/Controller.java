@@ -61,10 +61,17 @@ class Controller implements Runnable {
 				// dummy implementation - does nothing
 				lightControl = new LightControlNone();
 			}
+			soundControl = SoundControl.getSoundControl();
 			
 			// switch light & sound off
 			lightControl.off();
-			SoundControl.getSoundControl().off();
+			soundControl.off();
+			
+			// update mpd with tmp files for next alarm announcement
+			new TextToSpeech().createTempFile("dummy", "nextAlarmToday.mp3");
+			new TextToSpeech().createTempFile("dummy", "nextAlarmTomorrow.mp3");
+			soundControl.update();
+			
 			
 			// configure input key pins as input pins
 			// default: key1=GPIO06 (BRCM GPIO 25)
@@ -77,7 +84,7 @@ class Controller implements Runnable {
 					input.addListener(new GpioPinListenerDigital() {
 			            @Override
 			            public void handleGpioPinDigitalStateChangeEvent(GpioPinDigitalStateChangeEvent event) {
-			            	log.fine("LED control button state change on GPIO address "+event.getPin().getPin().getAddress()+" state="+event.getState());
+			            	log.fine("LED control button state change on GPIO address "+event.getPin().getPin().getAddress()+" state="+event.getState()+" button ID="+pushButtonSetting.lightId);
 			            	if(event.getState()==PinState.LOW) {
 			            		start = System.currentTimeMillis();
 			            		boolean longClick = false;
@@ -88,7 +95,7 @@ class Controller implements Runnable {
 					            			// long click. Turn off everything
 					            			log.info("long click");
 					            			longClick = true;
-					            			allOff();
+					            			allOff(true);
 					            			
 					            			final String cmd = "light_bedroom_off";
 					            			if(configuration.getOpenhabCommands().contains(cmd)) {
@@ -111,7 +118,7 @@ class Controller implements Runnable {
 			            			if(start-lastClick>300) {
 			            				// single click
 			        					log.info("processing single click");
-			        					lightControl.setBrightness(lightControl.getBrightness()+pushButtonSetting.brightnessIncrement);
+			        					lightControl.setBrightness(pushButtonSetting.lightId,lightControl.getBrightness(pushButtonSetting.lightId)+pushButtonSetting.brightnessIncrement);
 			            			}
 			            			else {
 			            				// double click
@@ -149,30 +156,46 @@ class Controller implements Runnable {
 			ledControl.executePattern(pattern);
 			*/
 		}
-		
-		soundControl        = SoundControl.getSoundControl();
 	}
 	
 	/**
 	 * switches everything off
 	 */
-	void allOff() {
+	void allOff(boolean announceNextAlarm) {
 		stopAlarm();
 		lightControl.off();
 		soundControl.stop();
 		
-		// announce next alarms before switching off
-		Configuration.Alarm alarm = getNextAlarmToday();
-		if(alarm!=null) {
+		if(announceNextAlarm) {
+			// announce next alarms before switching off
+			Configuration.Alarm alarm = getNextAlarmToday();
+			if(alarm!=null) {
+				String text = "Der nächste Alarm ist heute um "+alarm.time.getHour()+" Uhr";
+				if(alarm.time.getMinute()!=0) {
+					text += alarm.time.getMinute();
+				}
+				String filename = new TextToSpeech().createTempFile(text, "nextAlarmToday.mp3");
+				soundControl.playFile(filename, null, false);
+			}
+			else {
+				alarm = getNextAlarmTomorrow();
+				if(alarm!=null) {
+					String text = "Der nächste Alarm ist morgen um "+alarm.time.getHour()+" Uhr";
+					if(alarm.time.getMinute()!=0) {
+						text += alarm.time.getMinute();
+					}
+					String filename = new TextToSpeech().createTempFile(text, "nextAlarmTomorrow.mp3");
+					soundControl.playFile(filename, null, false);
+				}
+			}
+			try {
+				Thread.sleep(5000);
+			} catch (InterruptedException e) {
+			}
 			
+			soundControl.stop();
 		}
 		
-		alarm = getNextAlarmTomorrow();
-		if(alarm!=null) {
-			
-		}
-		
-		soundControl.stop();
 		soundControl.off();
 	}
 

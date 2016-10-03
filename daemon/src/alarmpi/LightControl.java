@@ -11,10 +11,17 @@ interface LightControl {
 	void off();
 
 	/**
-	 * sets the brightness of the light in percent
+	 * sets the brightness of all lights in percent
 	 * @param percentage
 	 */
 	void setBrightness(double percentage);
+	
+	/**
+	 * sets the brightness of a single light in percent
+	 * @param lightId     ID of the light to change (ignored if only one light is controlled)
+	 * @param percentage
+	 */
+	void setBrightness(int lightId,double percentage);
 	
 	/**
 	 * returns the brightness in percent
@@ -23,10 +30,24 @@ interface LightControl {
 	double getBrightness();
 	
 	/**
-	 * sets the raw PWM value
+	 * returns the brightness in percent
+	 * @param lightId    ID of the light
+	 * @return brightness in percent
+	 */
+	double getBrightness(int lightId);
+	
+	/**
+	 * sets the raw PWM value of all lights
 	 * @param pwmValue
 	 */
 	void setPwm(int pwmValue);
+	
+	/**
+	 * sets the raw PWM value of a single light
+	 * @param lightId    ID of the light to change (ignored if only one light is controlled)
+	 * @param pwmValue
+	 */
+	void setPwm(int lightId,int pwmValue);
 	
 	/**
 	 * returns the raw PWM value
@@ -35,7 +56,7 @@ interface LightControl {
 	int getPwm();
 
 	/**
-	 * dims the light up from 0 to the specified final brightness 
+	 * dims all lights up from 0 to the specified final brightness 
 	 * @param finalPercent final brightness in percent
 	 * @param seconds      time from start to final brightness in seconds
 	 */

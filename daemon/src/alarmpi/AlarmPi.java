@@ -78,7 +78,7 @@ public class AlarmPi {
 						log.info("shutdown hook started");
 						
 						// switch all lights and alarms off
-						controller.allOff();
+						controller.allOff(false);
 						threadPool.shutdownNow(); // don't accept new TCP client requests
 						controllerThread.interrupt();
 						

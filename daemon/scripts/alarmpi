@@ -17,7 +17,8 @@
 APPNAME="AlarmPi"
 PIDFILE="/tmp/pidlist"
 BASEDIR="/opt/alarmpi"
-LOGFILE="/var/log/alarmpi/init.log"
+LOGDIR="/var/log/alarmpi"
+LOGFILE="$LOGDIR/init.log"
 JARFILE="$BASEDIR/alarmpi.jar"
 
 # Check the application status
@@ -47,6 +48,9 @@ check_status() {
 
 # Starts the application
 start() {
+  # make sure log dir exists
+  [ ! -d $LOGDIR  ] && mkdir $LOGDIR
+
   # At first checks if the application is already started calling check_status
   pid=$(check_status) 
 

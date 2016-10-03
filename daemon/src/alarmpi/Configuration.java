@@ -68,10 +68,11 @@ public class Configuration {
 		};
 		
 		Type    type;                  // light control type used
+		int     address;               // i2c address for PCA9685
 		int     pwmOffset;             // pwm value at which light starts to glow
 		int     pwmFullScale;          // pwm full scale
 		boolean pwmInversion = false;  // invert PWM value if set to true
-		ArrayList<Integer> addresses;  // sub-addresses of lights (only PCA9685)
+		ArrayList<Integer> addresses;  // sub-addresses of lights (PCA9685 only)
 	}
 	
 	/**
@@ -83,6 +84,7 @@ public class Configuration {
 		int soundId;              // sound control (double click): sound to play
 		int soundVolume;          // sound control (double click): volume (in percent)
 		int soundTimer;           // sound control (double click): timer to switch off in minutes (0 = no timer)
+		int lightId;              // light conrol: ID of associated light (PCA9685 only)
 	}
 	
 	/**
@@ -177,7 +179,7 @@ public class Configuration {
 		alarmList            = new LinkedList<Alarm>();
 		alarmProcessQueue    = new ConcurrentLinkedQueue<Integer>();
 		lightControlSettings = new LightControlSettings();
-		pushButtonList       = new LinkedList<PushButtonSettings>();
+		pushButtonList       = new ArrayList<PushButtonSettings>();
         openhabCommands      = new LinkedList<String>();
         
         
@@ -249,14 +251,15 @@ public class Configuration {
 	    		}
 	    	}
         
+	    	lightControlSettings.address      = sectionLightControl.get("address", Integer.class, 0);
 	    	lightControlSettings.pwmInversion = sectionLightControl.get("pwmInversion", Boolean.class, false);
 	    	lightControlSettings.pwmOffset    = sectionLightControl.get("pwmOffset", Integer.class, 0);
 	    	lightControlSettings.pwmFullScale = sectionLightControl.get("pwmFullScale", Integer.class, 0);
 	    
-	    	int address=1;
-	    	while(sectionLightControl.get("address"+address, Integer.class) != null ) {
-	    		lightControlSettings.addresses.add(sectionLightControl.get("address"+address, Integer.class));
-	    		address++;
+	    	index=1;
+	    	while(sectionLightControl.get("address"+index, Integer.class) != null ) {
+	    		lightControlSettings.addresses.add(sectionLightControl.get("address"+index, Integer.class));
+	    		index++;
 	    	}
         }
     	
@@ -267,11 +270,25 @@ public class Configuration {
         	PushButtonSettings pushButtonSettings = new PushButtonSettings();
         	pushButtonSettings.wiringpigpio        = sectionButton.get("wiringpigpio", Integer.class, 0);
 			pushButtonSettings.brightnessIncrement = sectionButton.get("brightnessIncrement", Integer.class, 10);
-			pushButtonSettings.soundId             = sectionButton.get("soundId", Integer.class, 0);
+			// config file starts counting from 1, internally we use array indexes (starting from 0)
+			pushButtonSettings.lightId             = sectionButton.get("lightId", Integer.class, 0)-1;
+			pushButtonSettings.soundId             = sectionButton.get("soundId", Integer.class, 0)-1;
 			pushButtonSettings.soundVolume         = sectionButton.get("soundVolume", Integer.class, 40);
 			pushButtonSettings.soundTimer          = sectionButton.get("soundTimer", Integer.class, 30);
 			
-			pushButtonList.add(pushButtonSettings);
+			// sanity checks
+			if(pushButtonSettings.lightId<0 || pushButtonSettings.lightId>=lightControlSettings.addresses.size()) {
+				log.severe("push button index "+index+" references invalid light ID");
+			}
+			else {
+				if(pushButtonSettings.soundId<0 || pushButtonSettings.soundId>=soundList.size()) {
+					log.severe("push button index "+index+" references invalid sound ID");
+				}
+				else {
+					pushButtonList.add(pushButtonSettings);
+				}
+			}
+			
 			index++;
         }
     	
@@ -672,7 +689,7 @@ public class Configuration {
 		dump += "  mpdFiles="+mpdFiles+" mpdTmpSubDir="+mpdTmpSubDir+"\n";
 		dump += "  port="+port+"\n";
 		dump += "  weather location="+weatherLocation+"\n";
-		dump += "  light control: type="+lightControlSettings.type+" pwmOffset="+lightControlSettings.pwmOffset+" pwmFullScale="+lightControlSettings.pwmFullScale+" addresses: ";
+		dump += "  light control: type="+lightControlSettings.type+" address=" + lightControlSettings.address+" pwmOffset="+lightControlSettings.pwmOffset+" pwmFullScale="+lightControlSettings.pwmFullScale+" addresses: ";
 		for(Integer address:lightControlSettings.addresses) {
 			dump += address+" ";
 		}
@@ -692,8 +709,8 @@ public class Configuration {
 		}
 		dump += "  push button configurations:\n";
 		for(PushButtonSettings pushButtonSettings:pushButtonList) {
-			dump += "    light increment="+pushButtonSettings.brightnessIncrement;
-			dump += "    sound: ID="+pushButtonSettings.soundId+" volume="+pushButtonSettings.soundVolume+" timer="+pushButtonSettings.soundTimer+"\n";
+			dump += "    light: internal ID="+pushButtonSettings.lightId+" increment="+pushButtonSettings.brightnessIncrement+"\n";
+			dump += "    sound: internal ID="+pushButtonSettings.soundId+" volume="+pushButtonSettings.soundVolume+" timer="+pushButtonSettings.soundTimer+"\n";
 		}
 		dump += "  openhab configuration:\n";
 		dump += "    address="+openhabAddress+" port="+openhabPort+"\n";
@@ -722,7 +739,7 @@ public class Configuration {
 	private Alarm                            alarmSettings;         // dummy alarm object with default settings
 	private LightControlSettings             lightControlSettings;  // light control settings
 	private ArrayList<Sound>                 soundList;             // list with available sounds (as defined in configuration)
-	private LinkedList<PushButtonSettings>   pushButtonList;        // pushbutton settings
+	private ArrayList<PushButtonSettings>    pushButtonList;        // pushbutton settings
 	private String                           googleCalendarSummary; // summary name of google calendar (or null)
 	private String                           openhabAddress;        // openhab server network address
 	private String                           openhabPort;           // openhab server port

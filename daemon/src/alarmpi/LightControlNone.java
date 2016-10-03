@@ -11,7 +11,10 @@ public class LightControlNone implements LightControl {
 
 	@Override
 	public void setBrightness(double percentage) {
-		
+	}
+	
+	@Override
+	public void setBrightness(int lightId,double percentage) {
 	}
 
 	@Override
@@ -20,7 +23,16 @@ public class LightControlNone implements LightControl {
 	}
 	
 	@Override
+	public double getBrightness(int lightId) {
+		return 0;
+	}
+	
+	@Override
 	public void setPwm(int pwmValue) {
+	}
+	
+	@Override
+	public void setPwm(int lightId,int pwmValue) {
 	}
 
 	@Override

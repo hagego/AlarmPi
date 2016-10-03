@@ -86,6 +86,11 @@ public class LightControlRaspiPwm implements LightControl,Runnable {
 		log.finest("RaspiPwm: setBrightness="+percentage+"% pwm="+pwm);;
 		setPwm(pwm);
 	}
+	
+	@Override
+	public void setBrightness(int lightId,double percentage) {
+		setBrightness(percentage);
+	}
 
 	@Override
 	public double getBrightness() {
@@ -95,6 +100,11 @@ public class LightControlRaspiPwm implements LightControl,Runnable {
 		else {
 			return 116.0*Math.pow((double)(pwmValue-lightControlSettings.pwmOffset)/(double)USABLE_SCALE, 1.0/3.0)-16.0;
 		}
+	}
+	
+	@Override
+	public double getBrightness(int lightId) {
+		return getBrightness();
 	}
 	
 	@Override
@@ -117,6 +127,11 @@ public class LightControlRaspiPwm implements LightControl,Runnable {
 				
 			this.pwmValue = pwmValue;
 		}
+	}
+	
+	@Override
+	public void setPwm(int lightId,int pwmValue) {
+		setPwm(pwmValue);
 	}
 	
 	@Override
