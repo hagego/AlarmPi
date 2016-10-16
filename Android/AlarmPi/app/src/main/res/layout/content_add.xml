@@ -1,0 +1,73 @@
+<?xml version="1.0" encoding="utf-8"?>
+<RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:id="@+id/content_add"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:paddingBottom="@dimen/activity_vertical_margin"
+    android:paddingLeft="@dimen/activity_horizontal_margin"
+    android:paddingRight="@dimen/activity_horizontal_margin"
+    android:paddingTop="@dimen/activity_vertical_margin"
+    app:layout_behavior="@string/appbar_scrolling_view_behavior"
+    tools:context="hagego.alarmpi.AddActivity"
+    tools:showIn="@layout/activity_add">
+
+    <TextView
+        android:text="@string/labelAddName"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:id="@+id/textViewAddName"
+        android:textAppearance="@android:style/TextAppearance.Material.Medium"
+        android:layout_alignParentStart="false"
+        android:layout_alignParentTop="true" />
+
+    <TextView
+        android:text="@string/labelAddHostname"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="41dp"
+        android:id="@+id/textViewAddHostname"
+        android:textAppearance="@android:style/TextAppearance.Material.Medium"
+        android:layout_below="@+id/textViewAddName"
+        android:layout_alignParentStart="true" />
+
+    <EditText
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:inputType="text"
+        android:ems="10"
+        android:id="@+id/editTextAddName"
+        android:layout_alignLeft="@+id/editTextAddHostname"
+        android:layout_alignBaseline="@+id/textViewAddName" />
+
+    <EditText
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:inputType="text"
+        android:ems="10"
+        android:id="@+id/editTextAddHostname"
+        android:layout_marginStart="22dp"
+        android:layout_toEndOf="@+id/textViewAddHostname"
+        android:layout_alignBaseline="@+id/textViewAddHostname" />
+
+    <Button
+        android:text="@android:string/cancel"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_alignTop="@+id/buttonAddOk"
+        android:layout_alignParentEnd="true"
+        android:layout_marginEnd="38dp"
+        android:id="@+id/buttonAddCancel" />
+
+    <Button
+        android:text="@android:string/ok"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="33dp"
+        android:layout_marginTop="62dp"
+        android:id="@+id/buttonAddOk"
+        android:layout_below="@+id/editTextAddHostname"
+        android:layout_alignParentStart="true" />
+
+</RelativeLayout>
