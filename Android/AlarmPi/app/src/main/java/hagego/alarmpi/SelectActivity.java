@@ -5,7 +5,6 @@ import android.content.Intent;
 import android.content.SharedPreferences;
 import android.os.Bundle;
 import android.support.design.widget.FloatingActionButton;
-import android.support.design.widget.Snackbar;
 import android.support.v7.app.AppCompatActivity;
 import android.support.v7.widget.Toolbar;
 import android.util.Log;
@@ -19,37 +18,33 @@ import android.widget.TextView;
 
 import java.util.ArrayList;
 
+/**
+ * Activity to select the AlarmPi
+ */
 public class SelectActivity extends AppCompatActivity {
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+
+        Log.d(Constants.LOG, "AlarmPi SelectActivity onCreate()");
+
         setContentView(R.layout.activity_select);
         Toolbar toolbar = (Toolbar) findViewById(R.id.toolbar);
         setSupportActionBar(toolbar);
 
         listViewAlarmPies = (ListView)findViewById(R.id.listViewSelect);
 
-        Log.d("alarmpi", "AlarmPi SelectActivity onCreate()");
-
-        ArrayList<AlarmPi> nameList = new ArrayList<>();
-        /*
-        nameList.add(new AlarmPi("AlarmPi 1",""));
-        nameList.add(new AlarmPi("AlarmPi 2",""));
-        nameList.add(new AlarmPi("AlarmPi 3",""));
-        */
-
         adapter = new AlarmPiListAdapter(this);
-
         listViewAlarmPies.setAdapter(adapter);
 
+        // floating button to add a new AlarmPi to the list of known ones
         FloatingActionButton fab = (FloatingActionButton) findViewById(R.id.fab);
         final AppCompatActivity activity = this;
 
         fab.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View view) {
-
                 startActivity (new Intent(activity, AddActivity.class));
             }
         });
@@ -58,8 +53,12 @@ public class SelectActivity extends AppCompatActivity {
 
     @Override
     protected void onResume() {
+        super.onResume();
+
+        Log.d(Constants.LOG, "AlarmPi SelectActivity onResume()");
+
         // populate list of known AlarmPies
-        SharedPreferences prefs = getSharedPreferences("hagego.alarmpi",MODE_PRIVATE);
+        SharedPreferences prefs = getSharedPreferences(Constants.PREFS_KEY,MODE_PRIVATE);
 
         ArrayList<AlarmPi> alarmPiList = new ArrayList<>(5);
 
@@ -70,8 +69,15 @@ public class SelectActivity extends AppCompatActivity {
 
         adapter.clear();
         adapter.addAll(alarmPiList);
+        for(AlarmPi alarmPi:alarmPiList) {
+            alarmPi.setActive(false);
+        }
 
-        super.onResume();
+        // mark active AlarmPi as selected
+        int active = prefs.getInt("active",-1);
+        if(active>0 && active<count) {
+            adapter.getItem(active).setActive(true);
+        }
     }
 
     // private members
@@ -79,7 +85,7 @@ public class SelectActivity extends AppCompatActivity {
     AlarmPiListAdapter  adapter;
 
     /**
-     * private class to model the data of an Alarmpi
+     * private class to model the data of an AlarmPi
      */
     private class AlarmPi {
         AlarmPi(String name,String hostname) {
@@ -96,15 +102,19 @@ public class SelectActivity extends AppCompatActivity {
             textView.setText(name);
         }
 
-        private void setChecked(boolean isChecked) {
-            radioButton.setChecked(isChecked);
+        private void setActive(boolean isChecked) {
+            active = isChecked;
+            if(radioButton!=null) {
+                radioButton.setChecked(isChecked);
+            }
         }
 
         // private members
         private String      name;
         private String      hostname;
-        private TextView textView;
-        private RadioButton radioButton;
+        private boolean     active       = false;
+        private TextView    textView     = null;
+        private RadioButton radioButton  = null;
     }
 
     /**
@@ -112,7 +122,7 @@ public class SelectActivity extends AppCompatActivity {
      */
     private class AlarmPiListAdapter extends ArrayAdapter<AlarmPi> {
         public AlarmPiListAdapter(Context context) {
-            super(context,R.layout.listview_select, R.id.textViewSelect);
+            super(context,R.layout.listview_item_select, R.id.textViewSelect);
 
             this.context     = context;
         }
@@ -120,25 +130,31 @@ public class SelectActivity extends AppCompatActivity {
         @Override
         public View getView(final int position, View convertView, ViewGroup parent) {
             LayoutInflater inflater = (LayoutInflater) context.getSystemService(Context.LAYOUT_INFLATER_SERVICE);
-            final View rowView = inflater.inflate(R.layout.listview_select, parent, false);
+            final View rowView = inflater.inflate(R.layout.listview_item_select, parent, false);
 
             final AlarmPi alarmPi = getItem(position);
             alarmPi.radioButton = (RadioButton) rowView.findViewById(R.id.radioButtonSelect);
             alarmPi.textView    = (TextView)    rowView.findViewById(R.id.textViewSelect);
             alarmPi.setText();
 
+            alarmPi.radioButton.setChecked(alarmPi.active);
+
             rowView.setOnClickListener(new View.OnClickListener() {
                 @Override
                 public void onClick(View v) {
                     for(int i=0 ; i<getCount() ; i++) {
                         if(i==position) {
-                            getItem(i).setChecked(true);
+                            getItem(i).setActive(true);
+
+                            SharedPreferences prefs = getSharedPreferences(Constants.PREFS_KEY,MODE_PRIVATE);
+                            SharedPreferences.Editor editor = prefs.edit();
+                            editor.putInt("active",i);
+                            editor.commit();
                         }
                         else {
-                            getItem(i).setChecked(false);
+                            getItem(i).setActive(false);
                         }
                     }
-
                 }
             });
 

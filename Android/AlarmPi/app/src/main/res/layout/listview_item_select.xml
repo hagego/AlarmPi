@@ -8,7 +8,8 @@
     <RadioButton
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:id="@+id/radioButtonSelect" />
+        android:id="@+id/radioButtonSelect"
+        android:clickable="false" />
 
     <TextView
         android:text="@string/title_activity_select"
