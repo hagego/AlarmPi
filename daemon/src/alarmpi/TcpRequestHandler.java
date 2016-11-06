@@ -32,6 +32,7 @@ public class TcpRequestHandler implements Runnable {
 		commandHandlerList.add(new CommandLoglevel());
 		commandHandlerList.add(new CommandAlarm());
 		commandHandlerList.add(new CommandSound());
+		commandHandlerList.add(new CommandLightControlOld());
 		commandHandlerList.add(new CommandLightControl());
 		commandHandlerList.add(new CommandTimer());
 		commandHandlerList.add(new CommandCalendar());
@@ -552,7 +553,7 @@ public class TcpRequestHandler implements Runnable {
 		}
 	};
 	
-	private class CommandLightControl extends CommandHandler{
+	private class CommandLightControlOld extends CommandHandler{
 
 		@Override
 		protected String getCommandName() {
@@ -592,6 +593,54 @@ public class TcpRequestHandler implements Runnable {
 		@Override
 		protected ReturnCode get() throws CommandHandlerException {
 			return new ReturnCodeSuccess(String.valueOf(Math.round(controller.getLightControl().getBrightness())));
+		}
+	};
+	
+	private class CommandLightControl extends CommandHandler{
+
+		@Override
+		protected String getCommandName() {
+			return "lights";
+		}
+
+		@Override
+		public ReturnCode set() throws CommandHandlerException{
+			if(parameters==null || parameters.length!=1) {
+				return new ReturnCodeError("light: invalid parameter count ("+parameters.length+"). Syntax: light <pwm value>");
+			}
+			
+			if(parameters[0].equalsIgnoreCase("off")) {
+				controller.getLightControl().off();
+			}
+			else if(parameters[0].equalsIgnoreCase("dim")) {
+				controller.getLightControl().dimUp(100, 600);
+			}
+			else {
+				try {
+					int percentage = Integer.parseInt(parameters[0]);
+					if(percentage>=0) {
+						controller.getLightControl().setBrightness(percentage);
+					}
+					else {
+						// debugging only. If number is negative, set raw PWM value
+						controller.getLightControl().setPwm(-percentage);
+					}
+				} catch(NumberFormatException e) {
+					return new ReturnCodeError("unable to parse light pwm percentage value");
+				}
+			}
+			
+			return new ReturnCodeSuccess();
+		}
+		
+		@Override
+		protected ReturnCode get() throws CommandHandlerException {
+			LightControl lightControl = controller.getLightControl();
+			String answer = lightControl.getCount()+" ";
+			for(int i=0 ; i<lightControl.getCount() ; i++) {
+				answer += String.valueOf(Math.round(lightControl.getBrightness(i))+" ");
+			}
+			return new ReturnCodeSuccess(answer);
 		}
 	};
 	

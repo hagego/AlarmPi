@@ -8,6 +8,11 @@ public class LightControlNone implements LightControl {
 	@Override
 	public void off() {
 	}
+	
+	@Override
+	public int getCount() {
+		return 0;
+	}
 
 	@Override
 	public void setBrightness(double percentage) {

@@ -157,6 +157,31 @@ public class Alarm implements TimePicker.OnTimeChangedListener,CheckBox.OnChecke
     }
 
     /**
+     * returns the active days as list of coma-separated strings
+     * @return
+     */
+    String getWeekDays() {
+        String weekdays = new String();
+
+        for( DayOfWeek dayOfWeek:DayOfWeek.values()) {
+            if(weekDays.contains(dayOfWeek)) {
+                if(weekdays.isEmpty()) {
+                    weekdays=dayOfWeek.toString();
+                }
+                else {
+                    weekdays += ","+dayOfWeek.toString();
+                }
+            }
+        }
+
+        if(weekdays.isEmpty()) {
+            weekdays = "-";
+        }
+
+        return weekdays;
+    }
+
+    /**
      * returns if the alarm got modified locally and is not yet updated on AlarmPi
      * @return true if alarm has been modified locally
      */

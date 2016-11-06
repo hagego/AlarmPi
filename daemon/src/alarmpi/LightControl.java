@@ -9,6 +9,12 @@ interface LightControl {
 	 * switches the light off
 	 */
 	void off();
+	
+	/**
+	 * returns the number of lights that are available
+	 * @return number of available lights
+	 */
+	int getCount();
 
 	/**
 	 * sets the brightness of all lights in percent

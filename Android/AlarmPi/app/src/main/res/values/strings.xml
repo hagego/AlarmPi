@@ -22,5 +22,8 @@
     <string name="stringWeekdaySunday">Sonntag</string>
     <string name="oneTime">einmalig</string>
     <string name="labelAlarmOneTime">einmalig</string>
+    <string name="stringErrorConnect">Verbindung zu AlarmPi nicht möglich</string>
+    <string name="stringConnectionSuccess">Verbindung zu AlarmPi erfolgreich</string>
+    <string name="stringConnectionError">Verbindung zu AlarmPi nicht möglich</string>
 
 </resources>

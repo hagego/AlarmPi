@@ -50,6 +50,11 @@ public class LightControlRaspiPwm implements LightControl,Runnable {
 	}
 	
 	@Override
+	public int getCount() {
+		return 1;
+	}
+	
+	@Override
 	public void off() {
 		log.info("RaspiPwm: setting off");
 		

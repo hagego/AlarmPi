@@ -1,8 +1,10 @@
 package hagego.alarmpi;
 
 import android.app.Activity;
+import android.content.Context;
 import android.content.SharedPreferences;
 import android.content.res.Resources;
+import android.os.Message;
 import android.preference.PreferenceManager;
 import android.util.Log;
 
@@ -19,6 +21,9 @@ import java.io.DataOutputStream;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.net.Socket;
+import java.util.logging.Handler;
+
+import static android.content.Context.MODE_PRIVATE;
 
 /**
  * this class acts as a proxy to the AlarmPi server
@@ -36,7 +41,9 @@ class Proxy {
      * returns the singleton object
      * @return singleton object
      */
-    static Proxy getProxy() {
+    static Proxy getProxy(Context context, android.os.Handler handler) {
+        object.context=context;
+        object.handler = handler;
         return object;
     }
 
@@ -80,11 +87,24 @@ class Proxy {
     }
 
     /**
-     * returns the LED brightness in %
-     * @return LED brightness in percent (0 means LED is off)
+     * returns the number of lights controlled by this AlarmPi
+     * @return number of lights
      */
-    int getLedBrightness() {
-        return ledBrightness;
+    int getLightCount() {
+        return lightCount;
+    }
+    /**
+     * returns the  brightness in %
+     * @param  lightId    light ID
+     * @return brightness in percent (0 means LED is off)
+     */
+    int getBrightness(int lightId) {
+        if(lightId<brightness.length) {
+            return brightness[lightId];
+        }
+        else {
+            return 0;
+        }
     }
 
     /**
@@ -170,13 +190,24 @@ class Proxy {
     private class Connect implements Callable<Boolean> {
         @Override
         public Boolean call() {
-            SharedPreferences prefs = PreferenceManager.getDefaultSharedPreferences(mainActivity.getApplicationContext());
-            String name = prefs.getString(mainActivity.getResources().getString(R.string.pref_key_alarmpi_name),"");
-            String addr = prefs.getString(mainActivity.getResources().getString(R.string.pref_key_alarmpi_ipaddr),"");
+            SharedPreferences prefs = context.getSharedPreferences(Constants.PREFS_KEY,MODE_PRIVATE);
+            int active = prefs.getInt("active",-1);
+            if(active==-1) {
+                Log.e(Constants.LOG,"No active AlarmPi set in SharedPreferences");
+                return false;
+            }
+
+            String name = prefs.getString("name"+active,"");
+            String addr = prefs.getString("hostname"+active,"");
+
+            if(addr.isEmpty()) {
+                Log.e(Constants.LOG,"No hostname found in SharedPrefs for AlarmPi index "+active);
+                return false;
+            }
             Log.d(Constants.LOG, "trying to connect to AlarmPi "+name+" at address "+addr);
 
             try {
-                socket = new Socket(addr, 3947); // bedroom
+                socket = new Socket(addr, Constants.PORT);
                 alarmPiOut = new BufferedOutputStream(socket.getOutputStream());
                 alarmPiIn = new BufferedReader(new InputStreamReader(socket.getInputStream()));
                 // synchronize prompt
@@ -205,9 +236,9 @@ class Proxy {
                     alarmPiOut.flush();
 
                     socket.close();
-                    socket = null;
+                    socket     = null;
                     alarmPiOut = null;
-                    alarmPiIn = null;
+                    alarmPiIn  = null;
                     Log.d(Constants.LOG, "disconnected from AlarmPi");
                 } catch (IOException e) {
                     Log.e(Constants.LOG, "Unable to disconnect from AlarmPi", e);
@@ -245,30 +276,41 @@ class Proxy {
                         String items[] = line.trim().split(" ");
                         if (items.length == 6) {
                             // this is a line with alarm data
-                            Alarm alarm = new Alarm(Integer.parseInt(items[0]), Boolean.parseBoolean(items[1]),
-                                    items[2], items[3], Integer.parseInt(items[4]),Boolean.parseBoolean(items[5]));
+                            Alarm alarm = new Alarm(Integer.parseInt(items[0]), Boolean.parseBoolean(items[1]),items[2], items[3], Integer.parseInt(items[4]),Boolean.parseBoolean(items[5]));
                             Log.d(Constants.LOG, "synchronized alarm: id=" + alarm.getId() + " " + alarm.toString());
                             alarmList.add(alarm);
                         }
                     }
 
-                    // get LED setting
-                    alarmPiOut.write("light?".getBytes());
+
+                    // get light settings
+                    alarmPiOut.write("lights?".getBytes());
                     alarmPiOut.flush();
 
                     status = alarmPiIn.readLine();
                     if(!status.endsWith("OK")) {
-                        Log.e(Constants.LOG, "Unable to synchronize LED data from AlarmPi: "+readData());
+                        Log.e(Constants.LOG, "Unable to synchronize lights data from AlarmPi: "+readData());
                         return false;
                     }
-                    String ledData = readData();
+                    String lightData = readData();
+                    brightness = new int[0];
                     try {
-                        ledBrightness = Integer.parseInt(ledData.substring(0, ledData.indexOf('\n')));
-                        Log.d(Constants.LOG, "synchronized LED brightness: " + ledBrightness);
-                    } catch (NumberFormatException e) {
-                        Log.e(Constants.LOG, "Exception while parsing LED brightness value: ", e);
-                        ledBrightness = 0;
+                        String parts[] = lightData.split(" +");
+                        lightCount = Integer.parseInt(parts[0]);
+                        Log.d(Constants.LOG, "synchronized light count: " + lightCount);
+                        brightness = new int[lightCount];
+                        for(int i=0 ; i<lightCount ; i++) {
+                            brightness[i] = Integer.parseInt(parts[i+1]);
+                            Log.d(Constants.LOG, "synchronized brightness for light ID " + i + " : "+brightness[i]);
+                        }
+                    } catch (NumberFormatException e ) {
+                        Log.e(Constants.LOG, "Exception while parsing light data: ", e);
                         return false;
+                    }
+                    catch (IndexOutOfBoundsException e) {
+                        Log.e(Constants.LOG, "Exception while parsing light data: ", e);
+                        return false;
+
                     }
 
                     // get active sound and sound list
@@ -316,6 +358,7 @@ class Proxy {
                 return false;
             }
 
+            handler.sendEmptyMessage(Constants.MESSAGE_PROXY_SYNCHRONIZED);
             return true;
         }
     }
@@ -445,6 +488,8 @@ class Proxy {
     // private members
     //
     private static Proxy          object = new Proxy();         // singleton object
+    private Context               context;                      // Android application context
+    private android.os.Handler    handler;                      // handler to update GUI after synchronization
     private ExecutorService       threadExecutor = Executors.newSingleThreadExecutor();
 
 
@@ -458,7 +503,8 @@ class Proxy {
     // read-only list with possible sounds (radio stations or playlists)
     private ArrayList<String>           soundList   = new ArrayList<String>();
 
-    private int     ledBrightness;               // active LED brightness (PWM) in percent
+    private int     lightCount;                  // number of lights controlled by this AlarmPi
+    private int[]   brightness;                  // LED brightness in percent
     private int     activeVolume;                // active activeVolume in percent (0 = off)
     private Integer activeSound;                 // active activeSound or null
     private Integer activeTimer;                 // active 'sound off' timer (in seconds) or null

@@ -81,73 +81,10 @@ class Controller implements Runnable {
 					GpioPinDigitalInput input = gpioController.provisionDigitalInputPin(RaspiPin.getPinByAddress(pushButtonSetting.wiringpigpio), PinPullResistance.PULL_UP);
 					
 					// add pin listener
-					input.addListener(new GpioPinListenerDigital() {
-			            @Override
-			            public void handleGpioPinDigitalStateChangeEvent(GpioPinDigitalStateChangeEvent event) {
-			            	log.fine("LED control button state change on GPIO address "+event.getPin().getPin().getAddress()+" state="+event.getState()+" button ID="+pushButtonSetting.lightId);
-			            	if(event.getState()==PinState.LOW) {
-			            		start = System.currentTimeMillis();
-			            		boolean longClick = false;
-			            		while(input.getState()==PinState.LOW) {
-			            			try {
-										TimeUnit.MILLISECONDS.sleep(50);
-					            		if(System.currentTimeMillis()-start > 400) {
-					            			// long click. Turn off everything
-					            			log.info("long click");
-					            			longClick = true;
-					            			allOff(true);
-					            			
-					            			final String cmd = "light_bedroom_off";
-					            			if(configuration.getOpenhabCommands().contains(cmd)) {
-					            				log.info("sending openhab command: "+cmd);
-					            				OpenhabClient client = new OpenhabClient();
-						        				String error = null;
-						        				if( !client.sendCommand(cmd, error) ) {
-						        					log.severe("error sending openhab command "+cmd+" : "+error);
-						        				}
-					            			}
-					        				
-					            			break;
-					            		}
-									} catch (InterruptedException e) {
-										log.severe(e.getMessage());
-									}
-			            		}
-			            		if(!longClick) {
-			            			log.info("short click");
-			            			if(start-lastClick>300) {
-			            				// single click
-			        					log.info("processing single click");
-			        					lightControl.setBrightness(pushButtonSetting.lightId,lightControl.getBrightness(pushButtonSetting.lightId)+pushButtonSetting.brightnessIncrement);
-			            			}
-			            			else {
-			            				// double click
-			        					log.info("procesing double click");
-			        					if(soundControl.getVolume()>0) {
-			        						// sound already on - switch it off
-			        						soundControl.off();
-			        					}
-			        					else {
-			        						soundControl.on();
-			        						soundControl.playSound(pushButtonSetting.soundId, pushButtonSetting.soundVolume, false);
-			        						if(pushButtonSetting.soundTimer>0) {
-			        							setSoundTimer(pushButtonSetting.soundTimer*60);
-			        						}
-			        					}
-			            			}
-			            			
-			            			lastClick = start;
-			            		}
-			            	}
-			            }
-			            
-			            private long start = System.currentTimeMillis();
-			        });
+					input.addListener(new PushButtonListener(pushButtonSetting,input));
 				}
+
 			}
-			
-
-
 			/*
 			LedStripControl ledControl = new LedStripControl();
 			LedStripControl.LedPattern pattern = ledControl.new LedPatternRainbow1(1000, 1.0);
@@ -175,6 +112,7 @@ class Controller implements Runnable {
 					text += alarm.time.getMinute();
 				}
 				String filename = new TextToSpeech().createTempFile(text, "nextAlarmToday.mp3");
+				soundControl.on();
 				soundControl.playFile(filename, null, false);
 			}
 			else {
@@ -185,6 +123,7 @@ class Controller implements Runnable {
 						text += alarm.time.getMinute();
 					}
 					String filename = new TextToSpeech().createTempFile(text, "nextAlarmTomorrow.mp3");
+					soundControl.on();
 					soundControl.playFile(filename, null, false);
 				}
 			}
@@ -360,11 +299,11 @@ class Controller implements Runnable {
 	 * @return
 	 */
 	Configuration.Alarm getNextAlarmTomorrow() {
-		DayOfWeek today               = LocalDate.now().getDayOfWeek().plus(1);
+		DayOfWeek tomorrow            = LocalDate.now().getDayOfWeek().plus(1);
 		Configuration.Alarm nextAlarm = null;
 		
 		for(Configuration.Alarm alarm:configuration.getAlarmList()) {
-			if(alarm.enabled && alarm.weekDays.contains(today)) {
+			if(alarm.enabled && alarm.weekDays.contains(tomorrow)) {
 				if(nextAlarm==null || alarm.time.isBefore(nextAlarm.time)) {
 					nextAlarm = alarm;
 				}
@@ -748,6 +687,82 @@ class Controller implements Runnable {
 		public int compareTo(Event e) {
 			return time.compareTo(e.time);
 		}
+	}
+	
+	/**
+	 * private class implementing Listener for PushButton
+	 */
+	private class PushButtonListener implements GpioPinListenerDigital {
+		public PushButtonListener(Configuration.PushButtonSettings pushButtonSetting,GpioPinDigitalInput inputPin) {
+			this.pushButtonSetting = pushButtonSetting;
+			this.inputPin          = inputPin;
+			
+			log.fine("Creating PushButtonListener for button with WiringPi IO="+pushButtonSetting.wiringpigpio+" light ID="+pushButtonSetting.lightId);
+		}
+		
+        @Override
+        public void handleGpioPinDigitalStateChangeEvent(GpioPinDigitalStateChangeEvent event) {
+        	log.fine("LED control button state change on GPIO address "+event.getPin().getPin().getAddress()+" state="+event.getState()+" light ID="+pushButtonSetting.lightId);
+        	if(event.getState()==PinState.LOW) {
+        		start = System.currentTimeMillis();
+        		boolean longClick = false;
+        		while(inputPin.getState()==PinState.LOW) {
+        			try {
+						TimeUnit.MILLISECONDS.sleep(50);
+	            		if(System.currentTimeMillis()-start > 400) {
+	            			// long click. Turn off everything
+	            			log.info("long click");
+	            			longClick = true;
+	            			
+	            			final String cmd = "light_bedroom_off";
+	            			if(configuration.getOpenhabCommands().contains(cmd)) {
+	            				log.info("sending openhab command: "+cmd);
+	            				OpenhabClient client = new OpenhabClient();
+		        				String error = null;
+		        				if( !client.sendCommand(cmd, error) ) {
+		        					log.severe("error sending openhab command "+cmd+" : "+error);
+		        				}
+	            			}
+	            			
+	            			allOff(true);
+	        				
+	            			break;
+	            		}
+					} catch (InterruptedException e) {
+						log.severe(e.getMessage());
+					}
+        		}
+        		if(!longClick) {
+        			log.info("short click");
+        			if(start-lastClick>300) {
+        				// single click
+    					log.info("processing single click");
+    					lightControl.setBrightness(pushButtonSetting.lightId,lightControl.getBrightness(pushButtonSetting.lightId)+pushButtonSetting.brightnessIncrement);
+        			}
+        			else {
+        				// double click
+    					log.info("procesing double click");
+    					if(soundControl.getVolume()>0) {
+    						// sound already on - switch it off
+    						soundControl.off();
+    					}
+    					else {
+    						soundControl.on();
+    						soundControl.playSound(pushButtonSetting.soundId, pushButtonSetting.soundVolume, false);
+    						if(pushButtonSetting.soundTimer>0) {
+    							setSoundTimer(pushButtonSetting.soundTimer*60);
+    						}
+    					}
+        			}
+        			
+        			lastClick = start;
+        		}
+        	}
+        }
+        
+        private long                             start = System.currentTimeMillis();
+        private Configuration.PushButtonSettings pushButtonSetting;
+        private GpioPinDigitalInput              inputPin;
 	}
 	
 	LinkedList<Event>    eventList;             // list of events to process, sorted by fire time

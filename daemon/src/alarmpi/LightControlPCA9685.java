@@ -66,9 +66,14 @@ public class LightControlPCA9685 implements LightControl,Runnable {
 				log.info("PCA9685: MODE1 register: "+pca9685.read(0x00));
 				log.info("PCA9685: MODE2 register: "+pca9685.read(0x01));
 				
-				// turn oscillator and inversion on
+				// turn oscillator on, inversion depends on configuration
 				pca9685.write(0x00,(byte) 0x00);
-				pca9685.write(0x01,(byte) 0x14);
+				if(lightControlSettings.pwmInversion) {
+					pca9685.write(0x01,(byte) 0x14);
+				}
+				else {
+					pca9685.write(0x01,(byte) 0x04);
+				}
 			} catch (IOException | UnsupportedBusNumberException e) {
 				log.severe("PCA9685 light control: Unable to initialize: "+e.getMessage());
 				pca9685 = null;
@@ -78,6 +83,11 @@ public class LightControlPCA9685 implements LightControl,Runnable {
 			pca9685 = null;
 		}
 
+	}
+	
+	@Override
+	public int getCount() {
+		return lightControlSettings.addresses.size();
 	}
 	
 	@Override
@@ -164,8 +174,8 @@ public class LightControlPCA9685 implements LightControl,Runnable {
 		int address = lightControlSettings.addresses.get(lightId);
 		log.fine("RaspiPwm: setPWM: lightId="+lightId+" address="+address+" pwm="+pwmValue);
 		
-		byte lsb = (byte)(pwmValue & 0x00FF);
-		byte msb = (byte)((pwmValue & 0x0F00) >> 8);
+		int lsb = (byte)(pwmValue & 0x00FF);
+		int msb = (byte)((pwmValue & 0x0F00) >> 8);
 		log.fine("PCA9685: setPWM: pwm="+pwmValue+" msb="+msb+" lsb="+lsb);
 		
 		if(pca9685!=null) {
@@ -236,7 +246,7 @@ public class LightControlPCA9685 implements LightControl,Runnable {
 	private static final Logger log = Logger.getLogger( LightControlPCA9685.class.getName() );
 	private final        Configuration.LightControlSettings lightControlSettings;
 	private final        int                                USABLE_SCALE;
-	private final        int                                DIM_STEP_COUNT = 200;
+	private final        int                                DIM_STEP_COUNT = 150;
 	
 	private I2CDevice           pca9685;
 	private int                 pwmValue[];              // actual PWM value of each LED controlled thru me

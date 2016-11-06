@@ -1,7 +1,9 @@
 package hagego.alarmpi;
 
+import android.app.Activity;
 import android.content.Intent;
 import android.content.SharedPreferences;
+import android.content.res.Resources;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Message;
@@ -10,14 +12,23 @@ import android.support.v7.widget.Toolbar;
 import android.util.Log;
 import android.view.Menu;
 import android.view.MenuItem;
+import android.view.View;
+import android.widget.AdapterView;
+import android.widget.ArrayAdapter;
 import android.widget.RadioButton;
 import android.widget.SeekBar;
+import android.widget.Spinner;
 import android.widget.TextView;
 import android.graphics.Color;
+import android.widget.Toast;
 
+import java.util.ArrayList;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Future;
 
-public class MainActivity extends AppCompatActivity {
+import static android.R.id.list;
+
+public class MainActivity extends AppCompatActivity implements AdapterView.OnItemSelectedListener,View.OnClickListener {
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -27,6 +38,8 @@ public class MainActivity extends AppCompatActivity {
         setContentView(R.layout.activity_main);
         Toolbar toolbar = (Toolbar) findViewById(R.id.toolbar);
         setSupportActionBar(toolbar);
+
+        Alarm.setApplicationContext(this);
 
         // create widgets
         textViewConnectionState = (TextView) findViewById(R.id.textViewConnection);
@@ -40,13 +53,152 @@ public class MainActivity extends AppCompatActivity {
         radioButtonSoundOn      = (RadioButton)findViewById(R.id.radioSoundOn);
         radioButtonSoundOff     = (RadioButton)findViewById(R.id.radioSoundOff);
         seekBarSound            = (SeekBar)findViewById(R.id.seekBarSound);
+        spinnerSoundList        = (Spinner)findViewById(R.id.spinnerSoundList);
 
-        proxyStatusSynchronizeHandler = new Handler() {
+
+        /*
+        ArrayList<String> dummy = new ArrayList<>();
+        dummy.add("a");
+        dummy.add("b");
+        dummy.add("c");
+        soundListAdapter = new ArrayAdapter<String>(getApplicationContext(), android.R.layout.simple_spinner_item,dummy);
+        soundListAdapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
+        spinnerSoundList.setAdapter(soundListAdapter);
+        */
+
+        final Activity activity=this;
+
+        // setup a handler to check for completion of synchronization with AlarmPi
+        // handler gets triggered out of onResume and then every 200ms until query finishes
+        handler = new Handler() {
             @Override
             public void handleMessage(Message msg) {
+                Log.d(Constants.LOG, "message handler called with what="+msg.what);
+                if(msg.what==Constants.MESSAGE_PROXY_SYNCHRONIZED) {
+                    Log.d(Constants.LOG, "checking proxy status");
+                    if (proxyStatusSynchronized.isDone()) {
+                        // proxy synchronization is done
+                        try {
+                            if (proxyStatusSynchronized.get()) {
+                                Log.d(Constants.LOG, "synchronization complete");
+                                Toast.makeText(getApplicationContext(), R.string.stringConnectionSuccess, Toast.LENGTH_SHORT).show();
 
+                                // display status
+                                SharedPreferences prefs = getSharedPreferences(Constants.PREFS_KEY, MODE_PRIVATE);
+                                int active = prefs.getInt("active", -1);
+                                if (active == -1) {
+                                    Log.e(Constants.LOG, "No active AlarmPi set in SharedPreferences");
+                                    // error during synchronization
+                                    Toast.makeText(getApplicationContext(), R.string.stringConnectionError, Toast.LENGTH_SHORT).show();
+                                    return;
+                                }
+
+                                // connection successful, update GUI with proxy data
+                                textViewConnectionState.setTextColor(Color.GREEN);
+                                textViewConnectionState.setText(R.string.labelConnected);
+                                textViewAlarmPiName.setText(prefs.getString("name" + active, ""));
+                                textViewAlarmPiName.setTextColor(Color.GREEN);
+
+                                if(proxy.getLightCount()>=1) {
+                                    radioButtonLight1Off.setEnabled(true);
+                                    radioButtonLight1On.setEnabled(true);
+
+                                    if(proxy.getBrightness(0)>0) {
+                                        // light 1 is on
+                                        radioButtonLight1Off.setChecked(false);
+                                        radioButtonLight1On.setChecked(true);
+                                        seekBarLight1.setEnabled(true);
+                                        seekBarLight1.setProgress(proxy.getBrightness(0));
+                                    }
+                                    else {
+                                        // light 1 is off
+                                        radioButtonLight1Off.setChecked(true);
+                                        radioButtonLight1On.setChecked(false);
+                                        seekBarLight1.setEnabled(false);
+                                        seekBarLight1.setProgress(0);
+                                    }
+                                }
+
+                                if(proxy.getLightCount()>=2) {
+                                    radioButtonLight2Off.setEnabled(true);
+                                    radioButtonLight2On.setEnabled(true);
+
+                                    if(proxy.getBrightness(1)>0) {
+                                        // light 2 is on
+                                        radioButtonLight2Off.setChecked(false);
+                                        radioButtonLight2On.setChecked(true);
+                                        seekBarLight2.setEnabled(true);
+                                        seekBarLight2.setProgress(proxy.getBrightness(1));
+                                    }
+                                    else {
+                                        // light 2 is off
+                                        radioButtonLight2Off.setChecked(true);
+                                        radioButtonLight2On.setChecked(false);
+                                        seekBarLight2.setEnabled(false);
+                                        seekBarLight2.setProgress(0);
+                                    }
+                                }
+
+                                radioButtonSoundOn.setEnabled(true);
+                                radioButtonSoundOff.setEnabled(true);
+
+                                //soundListAdapter.clear();
+                                //soundListAdapter.addAll(proxy.getSoundList());
+                                //soundListAdapter.notifyDataSetChanged();
+                                //spinnerSoundList.setSelection(0);
+
+                                ArrayAdapter<String> soundAdapter = new ArrayAdapter<String>(activity,
+                                        android.R.layout.simple_spinner_item, proxy.getSoundList());
+                                soundAdapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
+                                spinnerSoundList.setAdapter(soundAdapter);
+
+                                Integer soundIndex = proxy.getActiveSound();
+                                if(soundIndex!=null) {
+                                    spinnerSoundList.setSelection(proxy.getActiveSound(), false);
+                                }
+
+                                if (proxy.getActiveVolume() > 0) {
+                                    radioButtonSoundOn.setChecked(true);
+                                    radioButtonSoundOff.setChecked(false);
+                                    seekBarSound.setEnabled(true);
+                                    seekBarSound.setProgress(proxy.getActiveVolume());
+                                    //spinnerSoundList.setSelection(proxy.getActiveSound());
+                                    spinnerSoundList.setEnabled(true);
+                                } else {
+                                    radioButtonSoundOn.setChecked(false);
+                                    radioButtonSoundOff.setChecked(true);
+                                    seekBarSound.setProgress(0);
+                                    seekBarSound.setEnabled(false);
+                                    spinnerSoundList.setEnabled(false);
+                                }
+
+                                handler.sendEmptyMessageDelayed(Constants.MESSAGE_ENABLE_LISTENERS,250);
+                            } else {
+                                // error during synchronization
+                                Toast.makeText(getApplicationContext(), R.string.stringConnectionError, Toast.LENGTH_SHORT).show();
+                            }
+                        } catch (InterruptedException e) {
+                            Log.e(Constants.LOG, e.getMessage());
+                            Toast.makeText(getApplicationContext(), R.string.stringErrorConnect, Toast.LENGTH_SHORT).show();
+                        } catch (ExecutionException e) {
+                            Log.e(Constants.LOG, e.getMessage());
+                            Toast.makeText(getApplicationContext(), R.string.stringErrorConnect, Toast.LENGTH_SHORT).show();
+                        }
+                    }
+                }
+
+                if(msg.what==Constants.MESSAGE_ENABLE_LISTENERS) {
+                    // enable code in GUI widget listeners
+                    Log.d(Constants.LOG, "enabling GUI widget listeners");
+                    listenersEnabled = true;
+                }
             }
         };
+
+        // set widget callbacks
+        radioButtonSoundOn.setOnClickListener(this);
+        radioButtonSoundOff.setOnClickListener(this);
+        spinnerSoundList.setOnItemSelectedListener(this);
     }
 
     @Override
@@ -71,6 +223,32 @@ public class MainActivity extends AppCompatActivity {
         radioButtonSoundOn.setEnabled(false);
         radioButtonSoundOff.setEnabled(false);
         seekBarSound.setEnabled(false);
+        spinnerSoundList.setEnabled(false);
+
+        // connect to AlarmPi and synchronize data
+        // Proxy will serialize the 2 methods in a different thread
+        proxy = Proxy.getProxy(this,handler);
+        proxy.connect();
+        proxyStatusSynchronized = proxy.synchronize();
+        listenersEnabled = false;
+    }
+
+    @Override
+    public void onPause() {
+
+        Log.d(Constants.LOG,"AlarmPiFragment onPause()");
+        proxy = Proxy.getProxy(this,handler);
+        for( Alarm alarm:proxy.getAlarmList()) {
+            if(alarm.getHasChanged()) {
+                Log.d(Constants.LOG, "communicating alarm changes on ID "+alarm.getId()+" to AlarmPi");
+                proxyStatusAlarmUpdated = proxy.updateAlarm(alarm);
+            }
+        }
+
+        super.onPause();
+
+        // disconnect from AlarmPi
+        proxy.disconnect();
     }
 
     @Override
@@ -97,23 +275,70 @@ public class MainActivity extends AppCompatActivity {
     }
 
     //
+    // widget callbacks
+    //
+    @Override
+    public void onItemSelected(AdapterView<?> parent, View view, int position, long id) {
+        if(listenersEnabled) {
+            Log.d(Constants.LOG, "sound selected: ID=" + position);
+            proxy.playSound(position);
+        }
+    }
+
+    @Override
+    public void onNothingSelected(AdapterView<?> parent) {
+
+    }
+
+    @Override
+    public void onClick(View v) {
+        if(listenersEnabled) {
+            if (v == radioButtonSoundOn) {
+                Log.d(Constants.LOG, "sound on button clicked");
+                proxy.updateVolume(25);
+                //proxy.playSound(spinnerSoundList.getSelectedItemPosition());
+                seekBarSound.setEnabled(true);
+                seekBarSound.setProgress(25);
+                spinnerSoundList.setEnabled(true);
+            }
+
+            if (v == radioButtonSoundOff) {
+                Log.d(Constants.LOG, "sound off button clicked");
+                proxy.updateVolume(0);
+                seekBarSound.setEnabled(false);
+                seekBarSound.setProgress(0);
+                spinnerSoundList.setEnabled(false);
+            }
+        }
+    }
+
+    //
     // private members
     //
 
     // GUID widgets
-    private TextView    textViewConnectionState;          // label connection state
-    private TextView    textViewAlarmPiName;              // label AlarmPi name
-    private RadioButton radioButtonLight1On;              // radio button light1 on
-    private RadioButton radioButtonLight1Off;             // radio button light1 off
-    private SeekBar     seekBarLight1;                    // dimmer light 2
-    private RadioButton radioButtonLight2On;              // radio button light2 on
-    private RadioButton radioButtonLight2Off;             // radio button light2 off
-    private SeekBar     seekBarLight2;                    // dimmer light 2
-    private RadioButton radioButtonSoundOn;               // radio button light2 on
-    private RadioButton radioButtonSoundOff;              // radio button light2 off
-    private SeekBar     seekBarSound;                     // dimmer light 2
+    private TextView     textViewConnectionState;          // label connection state
+    private TextView     textViewAlarmPiName;              // label AlarmPi name
+    private RadioButton  radioButtonLight1On;              // radio button light1 on
+    private RadioButton  radioButtonLight1Off;             // radio button light1 off
+    private SeekBar      seekBarLight1;                    // dimmer light 2
+    private RadioButton  radioButtonLight2On;              // radio button light2 on
+    private RadioButton  radioButtonLight2Off;             // radio button light2 off
+    private SeekBar      seekBarLight2;                    // dimmer light 2
+    private RadioButton  radioButtonSoundOn;               // radio button light2 on
+    private RadioButton  radioButtonSoundOff;              // radio button light2 off
+    private SeekBar      seekBarSound;                     // dimmer light 2
+    private Spinner      spinnerSoundList;                 // sound list
+
+    ArrayAdapter<String> soundListAdapter;                 // data adapter for sound list spinner
+    boolean              listenersEnabled;                 // enables/disables GUI listeners
+
+    // other data
+    private Proxy       proxy;                            // proxy object for communication with AlarmPi
 
     // handlers
-    private Handler         proxyStatusSynchronizeHandler; // does GUI updates based on proxy status
-    private Future<Boolean> proxyStatusSynchronized;       // Future for synchronized status of AlarmPi
+    private Handler              handler;                 // does GUI updates based on proxy status
+    private Future<Boolean>      proxyStatusSynchronized;       // Future for synchronization status of AlarmPi
+    private Future<Boolean>      proxyStatusAlarmUpdated;       // Future for synchronization status of updated alarm
+
 }

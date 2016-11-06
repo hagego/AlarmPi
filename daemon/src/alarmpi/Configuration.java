@@ -271,18 +271,18 @@ public class Configuration {
         	pushButtonSettings.wiringpigpio        = sectionButton.get("wiringpigpio", Integer.class, 0);
 			pushButtonSettings.brightnessIncrement = sectionButton.get("brightnessIncrement", Integer.class, 10);
 			// config file starts counting from 1, internally we use array indexes (starting from 0)
-			pushButtonSettings.lightId             = sectionButton.get("lightId", Integer.class, 0)-1;
-			pushButtonSettings.soundId             = sectionButton.get("soundId", Integer.class, 0)-1;
+			pushButtonSettings.lightId             = sectionButton.get("light", Integer.class, 0)-1;
+			pushButtonSettings.soundId             = sectionButton.get("sound", Integer.class, 0)-1;
 			pushButtonSettings.soundVolume         = sectionButton.get("soundVolume", Integer.class, 40);
 			pushButtonSettings.soundTimer          = sectionButton.get("soundTimer", Integer.class, 30);
 			
 			// sanity checks
 			if(pushButtonSettings.lightId<0 || pushButtonSettings.lightId>=lightControlSettings.addresses.size()) {
-				log.severe("push button index "+index+" references invalid light ID");
+				log.severe("push button index "+index+" references invalid light "+pushButtonSettings.lightId+1);
 			}
 			else {
 				if(pushButtonSettings.soundId<0 || pushButtonSettings.soundId>=soundList.size()) {
-					log.severe("push button index "+index+" references invalid sound ID");
+					log.severe("push button index "+index+" references invalid sound "+pushButtonSettings.soundId+1);
 				}
 				else {
 					pushButtonList.add(pushButtonSettings);
@@ -689,7 +689,8 @@ public class Configuration {
 		dump += "  mpdFiles="+mpdFiles+" mpdTmpSubDir="+mpdTmpSubDir+"\n";
 		dump += "  port="+port+"\n";
 		dump += "  weather location="+weatherLocation+"\n";
-		dump += "  light control: type="+lightControlSettings.type+" address=" + lightControlSettings.address+" pwmOffset="+lightControlSettings.pwmOffset+" pwmFullScale="+lightControlSettings.pwmFullScale+" addresses: ";
+		dump += "  light control: type="+lightControlSettings.type+" address=" + lightControlSettings.address+"\n";
+		dump += "                 pwmInversion="+lightControlSettings.pwmInversion+" pwmOffset="+lightControlSettings.pwmOffset+" pwmFullScale="+lightControlSettings.pwmFullScale+" addresses: ";
 		for(Integer address:lightControlSettings.addresses) {
 			dump += address+" ";
 		}
