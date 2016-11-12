@@ -113,6 +113,7 @@ class Controller implements Runnable {
 				}
 				String filename = new TextToSpeech().createTempFile(text, "nextAlarmToday.mp3");
 				soundControl.on();
+				soundControl.setVolume(30);
 				soundControl.playFile(filename, null, false);
 			}
 			else {
@@ -124,6 +125,7 @@ class Controller implements Runnable {
 					}
 					String filename = new TextToSpeech().createTempFile(text, "nextAlarmTomorrow.mp3");
 					soundControl.on();
+					soundControl.setVolume(30);
 					soundControl.playFile(filename, null, false);
 				}
 			}

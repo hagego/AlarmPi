@@ -10,6 +10,10 @@ public class LightControlNone implements LightControl {
 	}
 	
 	@Override
+	public void off(int lightId) {
+	}
+	
+	@Override
 	public int getCount() {
 		return 0;
 	}

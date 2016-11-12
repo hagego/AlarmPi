@@ -72,6 +72,11 @@ public class LightControlRaspiPwm implements LightControl,Runnable {
 	}
 	
 	@Override
+	public void off(int lightId) {
+		off();
+	}
+	
+	@Override
 	public void setBrightness(double percentage) {
 		if(percentage<0) {
 			percentage = 0;

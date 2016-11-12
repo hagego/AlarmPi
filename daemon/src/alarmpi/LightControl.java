@@ -11,6 +11,12 @@ interface LightControl {
 	void off();
 	
 	/**
+	 * switches the light off
+	 * @param lightId ID of the light to switch off
+	 */
+	void off(int lightId);
+	
+	/**
 	 * returns the number of lights that are available
 	 * @return number of available lights
 	 */

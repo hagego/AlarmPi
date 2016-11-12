@@ -115,6 +115,28 @@ public class LightControlPCA9685 implements LightControl,Runnable {
 	}
 	
 	@Override
+	public synchronized void off(int lightId) {
+		log.info("pca9685: setting off");
+		
+		if(dimThread!=null) {
+			dimThread.interrupt();
+			try {
+				dimThread.join();
+				dimThread = null;
+			} catch (InterruptedException e) {}
+		}
+		
+		if(pca9685!=null) {
+			try {
+				pca9685.write(0x09+lightControlSettings.addresses.get(lightId)*4,(byte) 0x10);
+				pwmValue[lightId] = 0;
+			} catch (IOException e) {
+				log.severe("Error during I2C write: "+e.getMessage());
+			}
+		}
+	}
+	
+	@Override
 	public void setBrightness(double percentage) {
 		for(int id=0 ; id<lightControlSettings.addresses.size() ; id++) {
 			setBrightness(id, percentage);

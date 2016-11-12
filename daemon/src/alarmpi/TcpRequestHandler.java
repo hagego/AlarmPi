@@ -605,25 +605,27 @@ public class TcpRequestHandler implements Runnable {
 
 		@Override
 		public ReturnCode set() throws CommandHandlerException{
-			if(parameters==null || parameters.length!=1) {
-				return new ReturnCodeError("light: invalid parameter count ("+parameters.length+"). Syntax: light <pwm value>");
+			if(parameters==null || parameters.length!=2) {
+				return new ReturnCodeError("light: invalid parameter count ("+parameters.length+"). Syntax: lights <id> <brightness in percent>");
 			}
 			
-			if(parameters[0].equalsIgnoreCase("off")) {
-				controller.getLightControl().off();
+			int id = Integer.parseInt(parameters[0]);
+			
+			if(parameters[1].equalsIgnoreCase("off")) {
+				controller.getLightControl().off(id);
 			}
-			else if(parameters[0].equalsIgnoreCase("dim")) {
+			else if(parameters[1].equalsIgnoreCase("dim")) {
 				controller.getLightControl().dimUp(100, 600);
 			}
 			else {
 				try {
-					int percentage = Integer.parseInt(parameters[0]);
+					int percentage = Integer.parseInt(parameters[1]);
 					if(percentage>=0) {
-						controller.getLightControl().setBrightness(percentage);
+						controller.getLightControl().setBrightness(id,percentage);
 					}
 					else {
 						// debugging only. If number is negative, set raw PWM value
-						controller.getLightControl().setPwm(-percentage);
+						controller.getLightControl().setPwm(id,-percentage);
 					}
 				} catch(NumberFormatException e) {
 					return new ReturnCodeError("unable to parse light pwm percentage value");
