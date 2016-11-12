@@ -3,7 +3,6 @@ package hagego.alarmpi;
 import android.app.Activity;
 import android.content.Intent;
 import android.content.SharedPreferences;
-import android.content.res.Resources;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Message;
@@ -15,20 +14,19 @@ import android.view.MenuItem;
 import android.view.View;
 import android.widget.AdapterView;
 import android.widget.ArrayAdapter;
+import android.widget.ExpandableListView;
 import android.widget.RadioButton;
 import android.widget.SeekBar;
 import android.widget.Spinner;
 import android.widget.TextView;
 import android.graphics.Color;
 import android.widget.Toast;
-
-import java.util.ArrayList;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Future;
+import static java.lang.Math.abs;
 
-import static android.R.id.list;
-
-public class MainActivity extends AppCompatActivity implements AdapterView.OnItemSelectedListener,View.OnClickListener {
+public class MainActivity extends AppCompatActivity
+        implements AdapterView.OnItemSelectedListener,View.OnClickListener, SeekBar.OnSeekBarChangeListener {
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -54,17 +52,11 @@ public class MainActivity extends AppCompatActivity implements AdapterView.OnIte
         radioButtonSoundOff     = (RadioButton)findViewById(R.id.radioSoundOff);
         seekBarSound            = (SeekBar)findViewById(R.id.seekBarSound);
         spinnerSoundList        = (Spinner)findViewById(R.id.spinnerSoundList);
+        listViewAlarms          = (ExpandableListView)findViewById(R.id.listViewAlarms);
 
-
-        /*
-        ArrayList<String> dummy = new ArrayList<>();
-        dummy.add("a");
-        dummy.add("b");
-        dummy.add("c");
-        soundListAdapter = new ArrayAdapter<String>(getApplicationContext(), android.R.layout.simple_spinner_item,dummy);
-        soundListAdapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
-        spinnerSoundList.setAdapter(soundListAdapter);
-        */
+        proxy = Proxy.getProxy(this,handler);
+        AlarmListAdapter alarmListAdapter = new AlarmListAdapter(this,proxy);
+        listViewAlarms.setAdapter(alarmListAdapter);
 
         final Activity activity=this;
 
@@ -142,11 +134,6 @@ public class MainActivity extends AppCompatActivity implements AdapterView.OnIte
                                 radioButtonSoundOn.setEnabled(true);
                                 radioButtonSoundOff.setEnabled(true);
 
-                                //soundListAdapter.clear();
-                                //soundListAdapter.addAll(proxy.getSoundList());
-                                //soundListAdapter.notifyDataSetChanged();
-                                //spinnerSoundList.setSelection(0);
-
                                 ArrayAdapter<String> soundAdapter = new ArrayAdapter<String>(activity,
                                         android.R.layout.simple_spinner_item, proxy.getSoundList());
                                 soundAdapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
@@ -199,6 +186,14 @@ public class MainActivity extends AppCompatActivity implements AdapterView.OnIte
         radioButtonSoundOn.setOnClickListener(this);
         radioButtonSoundOff.setOnClickListener(this);
         spinnerSoundList.setOnItemSelectedListener(this);
+        seekBarSound.setOnSeekBarChangeListener(this);
+
+        radioButtonLight1On.setOnClickListener(this);
+        radioButtonLight1Off.setOnClickListener(this);
+        seekBarLight1.setOnSeekBarChangeListener(this);
+        radioButtonLight2On.setOnClickListener(this);
+        radioButtonLight2Off.setOnClickListener(this);
+        seekBarLight2.setOnSeekBarChangeListener(this);
     }
 
     @Override
@@ -227,7 +222,6 @@ public class MainActivity extends AppCompatActivity implements AdapterView.OnIte
 
         // connect to AlarmPi and synchronize data
         // Proxy will serialize the 2 methods in a different thread
-        proxy = Proxy.getProxy(this,handler);
         proxy.connect();
         proxyStatusSynchronized = proxy.synchronize();
         listenersEnabled = false;
@@ -296,7 +290,7 @@ public class MainActivity extends AppCompatActivity implements AdapterView.OnIte
             if (v == radioButtonSoundOn) {
                 Log.d(Constants.LOG, "sound on button clicked");
                 proxy.updateVolume(25);
-                //proxy.playSound(spinnerSoundList.getSelectedItemPosition());
+                proxy.playSound(spinnerSoundList.getSelectedItemPosition());
                 seekBarSound.setEnabled(true);
                 seekBarSound.setProgress(25);
                 spinnerSoundList.setEnabled(true);
@@ -309,6 +303,84 @@ public class MainActivity extends AppCompatActivity implements AdapterView.OnIte
                 seekBarSound.setProgress(0);
                 spinnerSoundList.setEnabled(false);
             }
+
+            if( v==radioButtonLight1On ) {
+                Log.d(Constants.LOG, "light 1 on button clicked");
+                proxy.updateBrightness(0,Constants.DEFAULT_BRIGHTNESS);
+                seekBarLight1.setProgress(Constants.DEFAULT_BRIGHTNESS);
+                seekBarLight1.setEnabled(true);
+            }
+
+            if( v==radioButtonLight1Off ) {
+                Log.d(Constants.LOG, "light 1 off button clicked");
+                proxy.updateBrightness(0,0);
+                seekBarLight1.setProgress(0);
+                seekBarLight1.setEnabled(false);
+            }
+
+            if( v==radioButtonLight2On ) {
+                Log.d(Constants.LOG, "light 2 on button clicked");
+                proxy.updateBrightness(1,Constants.DEFAULT_BRIGHTNESS);
+                seekBarLight2.setProgress(Constants.DEFAULT_BRIGHTNESS);
+                seekBarLight2.setEnabled(true);
+            }
+
+            if( v==radioButtonLight2Off ) {
+                Log.d(Constants.LOG, "light 2 off button clicked");
+                proxy.updateBrightness(1,0);
+                seekBarLight2.setProgress(0);
+                seekBarLight2.setEnabled(false);
+            }
+        }
+    }
+
+    @Override
+    public void onProgressChanged(SeekBar seekBar, int progress, boolean fromUser) {
+        if(listenersEnabled) {
+            if (seekBar == seekBarLight1) {
+                Log.d(Constants.LOG, "seekBar light 1 moved to " + progress);
+                if(abs(progress-proxy.getBrightness(0))>10) {
+                    proxy.updateBrightness(0, progress);
+                }
+            }
+
+            if (seekBar == seekBarLight2) {
+                Log.d(Constants.LOG, "seekBar light 2 moved to " + progress);
+                if(abs(progress-proxy.getBrightness(1))>10) {
+                    proxy.updateBrightness(1, progress);
+                }
+            }
+
+            if (seekBar == seekBarSound) {
+                Log.d(Constants.LOG, "seekBar sound moved to " + progress);
+                if(abs(progress-proxy.getActiveVolume())>10) {
+                    proxy.updateVolume(progress);
+                }
+            }
+        }
+    }
+
+    @Override
+    public void onStartTrackingTouch(SeekBar seekBar) {
+    }
+
+    @Override
+    public void onStopTrackingTouch(SeekBar seekBar) {
+        if(listenersEnabled) {
+            if (seekBar == seekBarLight1) {
+                Log.d(Constants.LOG, "seekBar light 1 tracking stop");
+                proxy.updateBrightness(0,seekBarLight1.getProgress());
+            }
+
+            if (seekBar == seekBarLight2) {
+                Log.d(Constants.LOG, "seekBar light 2 tracking stop");
+                proxy.updateBrightness(1,seekBarLight2.getProgress());
+            }
+
+            if (seekBar == seekBarSound) {
+                Log.d(Constants.LOG, "seekBar sound tracking stop");
+                proxy.updateVolume(seekBarSound.getProgress());
+            }
         }
     }
 
@@ -317,18 +389,19 @@ public class MainActivity extends AppCompatActivity implements AdapterView.OnIte
     //
 
     // GUID widgets
-    private TextView     textViewConnectionState;          // label connection state
-    private TextView     textViewAlarmPiName;              // label AlarmPi name
-    private RadioButton  radioButtonLight1On;              // radio button light1 on
-    private RadioButton  radioButtonLight1Off;             // radio button light1 off
-    private SeekBar      seekBarLight1;                    // dimmer light 2
-    private RadioButton  radioButtonLight2On;              // radio button light2 on
-    private RadioButton  radioButtonLight2Off;             // radio button light2 off
-    private SeekBar      seekBarLight2;                    // dimmer light 2
-    private RadioButton  radioButtonSoundOn;               // radio button light2 on
-    private RadioButton  radioButtonSoundOff;              // radio button light2 off
-    private SeekBar      seekBarSound;                     // dimmer light 2
-    private Spinner      spinnerSoundList;                 // sound list
+    private TextView           textViewConnectionState;    // label connection state
+    private TextView           textViewAlarmPiName;        // label AlarmPi name
+    private RadioButton        radioButtonLight1On;        // radio button light1 on
+    private RadioButton        radioButtonLight1Off;       // radio button light1 off
+    private SeekBar            seekBarLight1;              // dimmer light 2
+    private RadioButton        radioButtonLight2On;        // radio button light2 on
+    private RadioButton        radioButtonLight2Off;       // radio button light2 off
+    private SeekBar            seekBarLight2;              // dimmer light 2
+    private RadioButton        radioButtonSoundOn;         // radio button light2 on
+    private RadioButton        radioButtonSoundOff;        // radio button light2 off
+    private SeekBar            seekBarSound;               // dimmer light 2
+    private Spinner            spinnerSoundList;           // sound list
+    private ExpandableListView listViewAlarms;             // alarm list
 
     ArrayAdapter<String> soundListAdapter;                 // data adapter for sound list spinner
     boolean              listenersEnabled;                 // enables/disables GUI listeners
@@ -340,5 +413,6 @@ public class MainActivity extends AppCompatActivity implements AdapterView.OnIte
     private Handler              handler;                 // does GUI updates based on proxy status
     private Future<Boolean>      proxyStatusSynchronized;       // Future for synchronization status of AlarmPi
     private Future<Boolean>      proxyStatusAlarmUpdated;       // Future for synchronization status of updated alarm
+
 
 }

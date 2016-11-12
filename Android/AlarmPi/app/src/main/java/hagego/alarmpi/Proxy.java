@@ -142,11 +142,13 @@ class Proxy {
 
     /**
      * Updates the LED brightness on AlarmPi
-     * @param ledBrightness in percent (0 means off)
+     * @param lightId
+     * @param brightness in percent (0 means off)
      * @return Future of Boolean with the success of the update
      */
-    Future<Boolean> updateLedBrightness(int ledBrightness) {
-        String cmd = ledBrightness==0 ? "light off" : String.format("light %d", ledBrightness);
+    Future<Boolean> updateBrightness(int lightId,int brightness) {
+        this.brightness[lightId] = brightness;
+        String cmd = brightness==0 ? String.format("lights %d off", lightId) : String.format("lights %d %d", lightId,brightness);
         return threadExecutor.submit(new UpdateCommand(cmd));
     }
 
@@ -156,6 +158,7 @@ class Proxy {
      * @return Future of Boolean with the success of the update
      */
     Future<Boolean> updateVolume(int volume) {
+        activeVolume=volume;
         String cmd = volume==0 ? "sound off" : String.format("sound volume %d", volume);
         return threadExecutor.submit(new UpdateCommand(cmd));
     }

@@ -1,8 +1,8 @@
 <resources>
     <string name="app_name">AlarmPi</string>
     <string name="action_settings">Settings</string>
-    <string name="on">an</string>
-    <string name="off">aus</string>
+    <string name="on">An</string>
+    <string name="off">Aus</string>
     <string name="labelLight1">Licht 1</string>
     <string name="labelLight2">Licht 2</string>
     <string name="title_activity_select">AlarmPi auswählen</string>
@@ -20,8 +20,8 @@
     <string name="stringWeekdayFriday">Freitag</string>
     <string name="stringWeekdaySaturday">Samstag</string>
     <string name="stringWeekdaySunday">Sonntag</string>
-    <string name="oneTime">einmalig</string>
-    <string name="labelAlarmOneTime">einmalig</string>
+    <string name="oneTime">Einmalig</string>
+    <string name="labelAlarmOneTime">Einmalig</string>
     <string name="stringErrorConnect">Verbindung zu AlarmPi nicht möglich</string>
     <string name="stringConnectionSuccess">Verbindung zu AlarmPi erfolgreich</string>
     <string name="stringConnectionError">Verbindung zu AlarmPi nicht möglich</string>

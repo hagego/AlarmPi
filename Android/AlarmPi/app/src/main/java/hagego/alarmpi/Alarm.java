@@ -123,7 +123,7 @@ public class Alarm implements TimePicker.OnTimeChangedListener,CheckBox.OnChecke
                 weekdays += " ";
             }
         }
-        return String.format("%3s %s %02d:%02d",onOff,weekdays,hourOfDay,minuteOfDay);
+        return String.format(" %3s %s %02d:%02d",onOff,weekdays,hourOfDay,minuteOfDay);
     }
 
     /**
