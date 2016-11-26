@@ -158,16 +158,20 @@ public class MainActivity extends AppCompatActivity
                                     seekBarSound.setProgress(proxy.getActiveVolume());
                                     //spinnerSoundList.setSelection(proxy.getActiveSound());
                                     spinnerSoundList.setEnabled(true);
+
+                                    radioButtonTimerOn.setEnabled(true);
+                                    radioButtonTimerOff.setEnabled(true);
                                 } else {
                                     radioButtonSoundOn.setChecked(false);
                                     radioButtonSoundOff.setChecked(true);
                                     seekBarSound.setProgress(0);
                                     seekBarSound.setEnabled(false);
                                     spinnerSoundList.setEnabled(false);
+
+                                    radioButtonTimerOn.setEnabled(false);
+                                    radioButtonTimerOff.setEnabled(false);
                                 }
 
-                                radioButtonTimerOn.setEnabled(true);
-                                radioButtonTimerOff.setEnabled(true);
                                 if(proxy.getActiveTimer()>0) {
                                     // timer active
                                     radioButtonTimerOn.setChecked(true);
@@ -181,6 +185,13 @@ public class MainActivity extends AppCompatActivity
                                     // timer inactive
                                     radioButtonTimerOn.setChecked(false);
                                     radioButtonTimerOff.setChecked(true);
+                                }
+
+                                // update alarm data
+                                listViewAlarms.setEnabled(true);
+                                alarmListAdapter.notifyDataSetChanged();
+                                for(int group=0 ; group<proxy.getAlarmList().size() ; group++) {
+                                    listViewAlarms.collapseGroup(group);
                                 }
 
                                 handler.sendEmptyMessageDelayed(Constants.MESSAGE_ENABLE_LISTENERS,250);
@@ -283,8 +294,6 @@ public class MainActivity extends AppCompatActivity
         proxy.connect();
         proxyStatusSynchronized = proxy.synchronize(handler);
         listenersEnabled = false;
-
-
     }
 
     @Override
@@ -299,10 +308,10 @@ public class MainActivity extends AppCompatActivity
             }
         }
 
-        super.onPause();
-
         // disconnect from AlarmPi
         proxy.disconnect();
+
+        super.onPause();
     }
 
     @Override
