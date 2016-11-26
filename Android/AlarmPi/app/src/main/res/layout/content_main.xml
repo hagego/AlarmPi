@@ -32,7 +32,9 @@
                 android:id="@+id/textViewConnection"
                 android:textAppearance="@android:style/TextAppearance.Material.Medium"
                 android:singleLine="true"
-                android:layout_marginEnd="4dp" />
+                android:layout_marginEnd="4dp"
+                android:textStyle="normal|bold"
+                android:textSize="24sp" />
 
             <TextView
                 android:text="TextView"
@@ -41,7 +43,9 @@
                 android:id="@+id/textViewAlarmPiName"
                 android:layout_weight="1"
                 android:textAppearance="@android:style/TextAppearance.Material.Medium"
-                android:singleLine="true" />
+                android:singleLine="true"
+                android:textStyle="normal|bold"
+                android:textSize="24sp" />
         </LinearLayout>
 
         <LinearLayout
@@ -176,10 +180,70 @@
 
         </LinearLayout>
 
+        <LinearLayout
+            android:orientation="horizontal"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content">
+
+            <TextView
+                android:text="@string/labelTimer"
+                android:layout_width="wrap_content"
+                android:layout_height="match_parent"
+                android:layout_gravity="center_vertical"
+                android:gravity="center_vertical" />
+
+            <RadioGroup
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:orientation="horizontal">
+
+                <RadioButton
+                    android:text="@string/off"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:id="@+id/radioButtonTimerOff"
+                    android:layout_weight="1" />
+
+                <RadioButton
+                    android:text="@string/on"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:id="@+id/radioButtonTimerOn"
+                    android:layout_weight="1" />
+
+            </RadioGroup>
+            <TextView
+                android:text="0"
+                android:layout_width="wrap_content"
+                android:layout_height="match_parent"
+                android:id="@+id/textViewTimer"
+                android:layout_weight="1"
+                android:textAppearance="@android:style/TextAppearance.Material.Medium"
+                android:layout_gravity="center_vertical"
+                android:gravity="center_vertical" />
+
+            <ImageButton
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                app:srcCompat="@android:drawable/arrow_up_float"
+                android:id="@+id/buttonTimerIncrease"
+                android:layout_weight="1" />
+
+            <ImageButton
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                app:srcCompat="@android:drawable/arrow_down_float"
+                android:id="@+id/buttonTimerDecrease"
+                android:layout_weight="1" />
+        </LinearLayout>
+
         <ExpandableListView
             android:layout_width="match_parent"
             android:layout_height="match_parent"
             android:id="@+id/listViewAlarms"
-            android:layout_marginTop="10dp" />
+            android:layout_marginTop="10dp" >
+
+        </ExpandableListView>
     </LinearLayout>
 </RelativeLayout>

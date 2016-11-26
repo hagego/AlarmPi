@@ -34,6 +34,7 @@ public class AlarmListAdapter extends BaseExpandableListAdapter {
 
     @Override
     public long getChildId(int groupPosition, int childPosition) {
+        // only one child - always 0
         return childPosition;
     }
 
@@ -103,11 +104,13 @@ public class AlarmListAdapter extends BaseExpandableListAdapter {
 
     @Override
     public View getGroupView(int groupPosition, boolean isExpanded, View convertView, ViewGroup parent) {
+        Log.d(Constants.LOG, "AlarmListAdapter.getGroupView called for group postion "+groupPosition+", view="+convertView );
         Alarm alarm = (Alarm) getGroup(groupPosition);
         if (convertView == null) {
             LayoutInflater inflater = (LayoutInflater) this.context
                     .getSystemService(Context.LAYOUT_INFLATER_SERVICE);
             convertView = inflater.inflate(R.layout.listview_group_alarm, null);
+
         }
 
         CheckedTextView lblListHeader = (CheckedTextView) convertView.findViewById(R.id.checkedTextViewAlarmSummary);
@@ -119,7 +122,7 @@ public class AlarmListAdapter extends BaseExpandableListAdapter {
 
     @Override
     public boolean hasStableIds() {
-        return false;
+        return true;
     }
 
     @Override

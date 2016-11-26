@@ -41,9 +41,8 @@ class Proxy {
      * returns the singleton object
      * @return singleton object
      */
-    static Proxy getProxy(Context context, android.os.Handler handler) {
+    static Proxy getProxy(Context context) {
         object.context=context;
-        object.handler = handler;
         return object;
     }
 
@@ -66,8 +65,8 @@ class Proxy {
      * Updates proxy with data read from AlarmPi
      * @return Future Boolean indicating the success of the synchronization
      */
-    Future<Boolean> synchronize() {
-        return threadExecutor.submit(new Synchronize());
+    Future<Boolean> synchronize(android.os.Handler handler) {
+        return threadExecutor.submit(new Synchronize(handler));
     }
 
     /**
@@ -136,8 +135,8 @@ class Proxy {
      * @param alarm alarm to update
      * @return Future of Boolean with the success of the update
      */
-    Future<Boolean> updateAlarm(Alarm alarm) {
-        return threadExecutor.submit(new UpdateAlarm(alarm));
+    Future<Boolean> updateAlarm(Alarm alarm, android.os.Handler handler) {
+        return threadExecutor.submit(new UpdateAlarm(alarm,handler));
     }
 
     /**
@@ -255,6 +254,11 @@ class Proxy {
      * nested class implementing Callable for the synchronize method
      */
     private class Synchronize implements Callable<Boolean> {
+
+        Synchronize(android.os.Handler handler) {
+            this.handler = handler;
+        }
+
         @Override
         public Boolean call() {
             if(socket!=null) {
@@ -361,9 +365,15 @@ class Proxy {
                 return false;
             }
 
-            handler.sendEmptyMessage(Constants.MESSAGE_PROXY_SYNCHRONIZED);
+            Log.d(Constants.LOG, "sending synchonized complete message");
+            handler.obtainMessage(Constants.MESSAGE_PROXY_SYNCHRONIZED).sendToTarget();
+
+            //handler.sendEmptyMessage(Constants.MESSAGE_PROXY_SYNCHRONIZED);
+
             return true;
         }
+
+        android.os.Handler handler;
     }
 
     /**
@@ -375,12 +385,14 @@ class Proxy {
          * Constructor
          * @param alarm alarm to update
          */
-        UpdateAlarm(Alarm alarm) {
-            this.alarm = alarm;
+        UpdateAlarm(Alarm alarm, android.os.Handler handler) {
+            this.handler = handler;
+            this.alarm   = alarm;
         }
 
         @Override
         public Boolean call() {
+            boolean result = false;
             if(socket!=null) {
                 try {
                     // update alarm data
@@ -393,7 +405,7 @@ class Proxy {
                     if(status.endsWith("OK")) {
                         readData();
                         alarm.resetHasChanged();
-                        return true;
+                        result = true;
                     }
                     else {
                         String error = readData();
@@ -409,11 +421,13 @@ class Proxy {
             }
 
             // an error occured
-            return false;
+            handler.sendEmptyMessage(Constants.MESSAGE_PROXY_ALARM_UPDATED);
+            return result;
         }
 
         // private members
-        private Alarm alarm;             // alarm to update
+        private Alarm               alarm;             // alarm to update
+        private android.os.Handler  handler;
     }
 
     /**
@@ -492,7 +506,6 @@ class Proxy {
     //
     private static Proxy          object = new Proxy();         // singleton object
     private Context               context;                      // Android application context
-    private android.os.Handler    handler;                      // handler to update GUI after synchronization
     private ExecutorService       threadExecutor = Executors.newSingleThreadExecutor();
 
 

@@ -75,7 +75,7 @@ public class SelectActivity extends AppCompatActivity {
 
         // mark active AlarmPi as selected
         int active = prefs.getInt("active",-1);
-        if(active>0 && active<count) {
+        if(active>=0 && active<count) {
             adapter.getItem(active).setActive(true);
         }
     }

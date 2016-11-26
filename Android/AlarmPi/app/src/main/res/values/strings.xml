@@ -25,5 +25,8 @@
     <string name="stringErrorConnect">Verbindung zu AlarmPi nicht möglich</string>
     <string name="stringConnectionSuccess">Verbindung zu AlarmPi erfolgreich</string>
     <string name="stringConnectionError">Verbindung zu AlarmPi nicht möglich</string>
+    <string name="stringUpdateSuccess">Alarm update erfolgreich</string>
+    <string name="stringUpdateError">Alarm Update Fehler</string>
+    <string name="labelTimer">Timer</string>
 
 </resources>

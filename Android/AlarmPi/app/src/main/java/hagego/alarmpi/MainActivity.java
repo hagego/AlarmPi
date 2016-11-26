@@ -5,6 +5,7 @@ import android.content.Intent;
 import android.content.SharedPreferences;
 import android.os.Bundle;
 import android.os.Handler;
+import android.os.Looper;
 import android.os.Message;
 import android.support.v7.app.AppCompatActivity;
 import android.support.v7.widget.Toolbar;
@@ -15,6 +16,7 @@ import android.view.View;
 import android.widget.AdapterView;
 import android.widget.ArrayAdapter;
 import android.widget.ExpandableListView;
+import android.widget.ImageButton;
 import android.widget.RadioButton;
 import android.widget.SeekBar;
 import android.widget.Spinner;
@@ -26,7 +28,7 @@ import java.util.concurrent.Future;
 import static java.lang.Math.abs;
 
 public class MainActivity extends AppCompatActivity
-        implements AdapterView.OnItemSelectedListener,View.OnClickListener, SeekBar.OnSeekBarChangeListener {
+        implements AdapterView.OnItemSelectedListener,View.OnClickListener, SeekBar.OnSeekBarChangeListener, ExpandableListView.OnGroupCollapseListener {
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -40,29 +42,34 @@ public class MainActivity extends AppCompatActivity
         Alarm.setApplicationContext(this);
 
         // create widgets
-        textViewConnectionState = (TextView) findViewById(R.id.textViewConnection);
-        textViewAlarmPiName     = (TextView) findViewById(R.id.textViewAlarmPiName);
-        radioButtonLight1On     = (RadioButton)findViewById(R.id.radioLight1On);
-        radioButtonLight1Off    = (RadioButton)findViewById(R.id.radioLight1Off);
-        seekBarLight1           = (SeekBar)findViewById(R.id.seekBarLight1);
-        radioButtonLight2On     = (RadioButton)findViewById(R.id.radioLight2On);
-        radioButtonLight2Off    = (RadioButton)findViewById(R.id.radioLight2Off);
-        seekBarLight2           = (SeekBar)findViewById(R.id.seekBarLight2);
-        radioButtonSoundOn      = (RadioButton)findViewById(R.id.radioSoundOn);
-        radioButtonSoundOff     = (RadioButton)findViewById(R.id.radioSoundOff);
-        seekBarSound            = (SeekBar)findViewById(R.id.seekBarSound);
-        spinnerSoundList        = (Spinner)findViewById(R.id.spinnerSoundList);
-        listViewAlarms          = (ExpandableListView)findViewById(R.id.listViewAlarms);
+        textViewConnectionState  = (TextView) findViewById(R.id.textViewConnection);
+        textViewAlarmPiName      = (TextView) findViewById(R.id.textViewAlarmPiName);
+        radioButtonLight1On      = (RadioButton)findViewById(R.id.radioLight1On);
+        radioButtonLight1Off     = (RadioButton)findViewById(R.id.radioLight1Off);
+        seekBarLight1            = (SeekBar)findViewById(R.id.seekBarLight1);
+        radioButtonLight2On      = (RadioButton)findViewById(R.id.radioLight2On);
+        radioButtonLight2Off     = (RadioButton)findViewById(R.id.radioLight2Off);
+        seekBarLight2            = (SeekBar)findViewById(R.id.seekBarLight2);
+        radioButtonSoundOn       = (RadioButton)findViewById(R.id.radioSoundOn);
+        radioButtonSoundOff      = (RadioButton)findViewById(R.id.radioSoundOff);
+        seekBarSound             = (SeekBar)findViewById(R.id.seekBarSound);
+        spinnerSoundList         = (Spinner)findViewById(R.id.spinnerSoundList);
+        listViewAlarms           = (ExpandableListView)findViewById(R.id.listViewAlarms);
+        radioButtonTimerOn       = (RadioButton)findViewById(R.id.radioButtonTimerOn);
+        radioButtonTimerOff      = (RadioButton)findViewById(R.id.radioButtonTimerOff);
+        textViewTimerValue       = (TextView)findViewById(R.id.textViewTimer);
+        imageButtonTimerIncrease = (ImageButton)findViewById(R.id.buttonTimerIncrease);
+        imageButtonTimerDecrease = (ImageButton)findViewById(R.id.buttonTimerDecrease);
 
-        proxy = Proxy.getProxy(this,handler);
-        AlarmListAdapter alarmListAdapter = new AlarmListAdapter(this,proxy);
+        proxy = Proxy.getProxy(this);
+        alarmListAdapter = new AlarmListAdapter(this,proxy);
         listViewAlarms.setAdapter(alarmListAdapter);
 
         final Activity activity=this;
 
         // setup a handler to check for completion of synchronization with AlarmPi
         // handler gets triggered out of onResume and then every 200ms until query finishes
-        handler = new Handler() {
+        handler = new Handler(Looper.getMainLooper()) {
             @Override
             public void handleMessage(Message msg) {
                 Log.d(Constants.LOG, "message handler called with what="+msg.what);
@@ -159,6 +166,23 @@ public class MainActivity extends AppCompatActivity
                                     spinnerSoundList.setEnabled(false);
                                 }
 
+                                radioButtonTimerOn.setEnabled(true);
+                                radioButtonTimerOff.setEnabled(true);
+                                if(proxy.getActiveTimer()>0) {
+                                    // timer active
+                                    radioButtonTimerOn.setChecked(true);
+                                    radioButtonTimerOff.setChecked(false);
+                                    textViewTimerValue.setEnabled(true);
+                                    textViewTimerValue.setText(String.valueOf(proxy.getActiveTimer()/60));
+                                    imageButtonTimerIncrease.setEnabled(true);
+                                    imageButtonTimerDecrease.setEnabled(true);
+                                }
+                                else {
+                                    // timer inactive
+                                    radioButtonTimerOn.setChecked(false);
+                                    radioButtonTimerOff.setChecked(true);
+                                }
+
                                 handler.sendEmptyMessageDelayed(Constants.MESSAGE_ENABLE_LISTENERS,250);
                             } else {
                                 // error during synchronization
@@ -179,6 +203,27 @@ public class MainActivity extends AppCompatActivity
                     Log.d(Constants.LOG, "enabling GUI widget listeners");
                     listenersEnabled = true;
                 }
+
+                if(msg.what==Constants.MESSAGE_PROXY_ALARM_UPDATED) {
+                    // Alarm update finished
+                    Log.d(Constants.LOG, "alarm update finished");
+                    if(proxyStatusAlarmUpdated.isDone()) {
+                        try {
+                            if(proxyStatusAlarmUpdated.get()) {
+                                Toast.makeText(getApplicationContext(), R.string.stringUpdateSuccess, Toast.LENGTH_SHORT).show();
+                            }
+                            else {
+                                Toast.makeText(getApplicationContext(), R.string.stringUpdateError, Toast.LENGTH_SHORT).show();
+                            }
+                        } catch (InterruptedException e) {
+                            Log.e(Constants.LOG, e.getMessage());
+                            Toast.makeText(getApplicationContext(), R.string.stringUpdateError, Toast.LENGTH_SHORT).show();
+                        } catch (ExecutionException e) {
+                            Toast.makeText(getApplicationContext(), R.string.stringUpdateError, Toast.LENGTH_SHORT).show();
+                            Log.e(Constants.LOG, e.getMessage());
+                        }
+                    }
+                }
             }
         };
 
@@ -194,6 +239,13 @@ public class MainActivity extends AppCompatActivity
         radioButtonLight2On.setOnClickListener(this);
         radioButtonLight2Off.setOnClickListener(this);
         seekBarLight2.setOnSeekBarChangeListener(this);
+
+        radioButtonTimerOn.setOnClickListener(this);
+        radioButtonTimerOff.setOnClickListener(this);
+        imageButtonTimerIncrease.setOnClickListener(this);
+        imageButtonTimerDecrease.setOnClickListener(this);
+
+        listViewAlarms.setOnGroupCollapseListener(this);
     }
 
     @Override
@@ -219,23 +271,31 @@ public class MainActivity extends AppCompatActivity
         radioButtonSoundOff.setEnabled(false);
         seekBarSound.setEnabled(false);
         spinnerSoundList.setEnabled(false);
+        radioButtonTimerOn.setEnabled(false);
+        radioButtonTimerOff.setEnabled(false);
+        textViewTimerValue.setEnabled(false);
+        textViewTimerValue.setText("0");
+        imageButtonTimerIncrease.setEnabled(false);
+        imageButtonTimerDecrease.setEnabled(false);
 
         // connect to AlarmPi and synchronize data
         // Proxy will serialize the 2 methods in a different thread
         proxy.connect();
-        proxyStatusSynchronized = proxy.synchronize();
+        proxyStatusSynchronized = proxy.synchronize(handler);
         listenersEnabled = false;
+
+
     }
 
     @Override
     public void onPause() {
 
         Log.d(Constants.LOG,"AlarmPiFragment onPause()");
-        proxy = Proxy.getProxy(this,handler);
+        proxy = Proxy.getProxy(this);
         for( Alarm alarm:proxy.getAlarmList()) {
             if(alarm.getHasChanged()) {
                 Log.d(Constants.LOG, "communicating alarm changes on ID "+alarm.getId()+" to AlarmPi");
-                proxyStatusAlarmUpdated = proxy.updateAlarm(alarm);
+                proxyStatusAlarmUpdated = proxy.updateAlarm(alarm,handler);
             }
         }
 
@@ -294,6 +354,18 @@ public class MainActivity extends AppCompatActivity
                 seekBarSound.setEnabled(true);
                 seekBarSound.setProgress(25);
                 spinnerSoundList.setEnabled(true);
+
+                // enable timer
+                radioButtonTimerOn.setEnabled(true);
+                radioButtonTimerOff.setEnabled(true);
+                radioButtonTimerOn.setChecked(true);
+                radioButtonTimerOff.setChecked(false);
+                imageButtonTimerIncrease.setEnabled(true);
+                imageButtonTimerDecrease.setEnabled(true);
+                textViewTimerValue.setEnabled(true);
+                textViewTimerValue.setText(String.valueOf(Constants.DEFAULT_TIMER));
+
+                proxy.updateTimer(Constants.DEFAULT_TIMER*60);
             }
 
             if (v == radioButtonSoundOff) {
@@ -302,6 +374,18 @@ public class MainActivity extends AppCompatActivity
                 seekBarSound.setEnabled(false);
                 seekBarSound.setProgress(0);
                 spinnerSoundList.setEnabled(false);
+
+                // disable timer
+                radioButtonTimerOn.setEnabled(false);
+                radioButtonTimerOff.setEnabled(false);
+                radioButtonTimerOn.setChecked(false);
+                radioButtonTimerOff.setChecked(true);
+                imageButtonTimerIncrease.setEnabled(false);
+                imageButtonTimerDecrease.setEnabled(false);
+                textViewTimerValue.setEnabled(false);
+                textViewTimerValue.setText("0");
+
+                proxy.updateTimer(0);
             }
 
             if( v==radioButtonLight1On ) {
@@ -330,6 +414,52 @@ public class MainActivity extends AppCompatActivity
                 proxy.updateBrightness(1,0);
                 seekBarLight2.setProgress(0);
                 seekBarLight2.setEnabled(false);
+            }
+
+            if( v==radioButtonTimerOn) {
+                Log.d(Constants.LOG, "timer on button clicked");
+
+                imageButtonTimerIncrease.setEnabled(true);
+                imageButtonTimerDecrease.setEnabled(true);
+                textViewTimerValue.setEnabled(true);
+                textViewTimerValue.setText(String.valueOf(Constants.DEFAULT_TIMER));
+
+                proxy.updateTimer(Constants.DEFAULT_TIMER*60);
+            }
+
+            if( v==radioButtonTimerOff) {
+                Log.d(Constants.LOG, "timer off button clicked");
+
+                imageButtonTimerIncrease.setEnabled(false);
+                imageButtonTimerDecrease.setEnabled(false);
+                textViewTimerValue.setEnabled(false);
+                textViewTimerValue.setText("0");
+
+                proxy.updateTimer(0);
+            }
+
+            if( v==imageButtonTimerIncrease) {
+                Log.d(Constants.LOG, "timer increase button clicked");
+
+                Integer time = Integer.parseInt(textViewTimerValue.getText().toString())+5;
+                textViewTimerValue.setText(time.toString());
+                proxy.updateTimer(time*60);
+            }
+
+            if( v==imageButtonTimerDecrease) {
+                Log.d(Constants.LOG, "timer decrease button clicked");
+
+                Integer time = Integer.parseInt(textViewTimerValue.getText().toString())-5;
+                if(time<0) {
+                    time = 0;
+                    imageButtonTimerIncrease.setEnabled(false);
+                    imageButtonTimerDecrease.setEnabled(false);
+                    textViewTimerValue.setEnabled(false);
+                    radioButtonTimerOn.setChecked(false);
+                    radioButtonTimerOff.setChecked(true);
+                }
+                textViewTimerValue.setText(time.toString());
+                proxy.updateTimer(time*60);
             }
         }
     }
@@ -384,6 +514,17 @@ public class MainActivity extends AppCompatActivity
         }
     }
 
+    @Override
+    public void onGroupCollapse(int groupPosition) {
+        Log.d(Constants.LOG, "alarm list group collapsed, position="+groupPosition);
+
+        Alarm alarm = (Alarm)alarmListAdapter.getGroup(groupPosition);
+        if(alarm.getHasChanged()) {
+            Log.d(Constants.LOG, "alarm has changed - updating");
+            proxyStatusAlarmUpdated = proxy.updateAlarm(alarm,handler);
+        }
+    }
+
     //
     // private members
     //
@@ -402,17 +543,22 @@ public class MainActivity extends AppCompatActivity
     private SeekBar            seekBarSound;               // dimmer light 2
     private Spinner            spinnerSoundList;           // sound list
     private ExpandableListView listViewAlarms;             // alarm list
+    private RadioButton        radioButtonTimerOn;         // radio button timer on
+    private RadioButton        radioButtonTimerOff;        // radio button timer off
+    private TextView           textViewTimerValue;         // timer value
+    private ImageButton        imageButtonTimerIncrease;   // button for timer increase
+    private ImageButton        imageButtonTimerDecrease;   // button for timer decrease
 
     ArrayAdapter<String> soundListAdapter;                 // data adapter for sound list spinner
     boolean              listenersEnabled;                 // enables/disables GUI listeners
 
+    AlarmListAdapter alarmListAdapter;                     // Adapter for alarm list
+
     // other data
-    private Proxy       proxy;                            // proxy object for communication with AlarmPi
+    private Proxy       proxy;                             // proxy object for communication with AlarmPi
 
     // handlers
-    private Handler              handler;                 // does GUI updates based on proxy status
-    private Future<Boolean>      proxyStatusSynchronized;       // Future for synchronization status of AlarmPi
-    private Future<Boolean>      proxyStatusAlarmUpdated;       // Future for synchronization status of updated alarm
-
-
+    private static Handler       handler;                  // does GUI updates based on proxy status
+    private Future<Boolean>      proxyStatusSynchronized;  // Future for synchronization status of AlarmPi
+    private Future<Boolean>      proxyStatusAlarmUpdated;  // Future for synchronization status of updated alarm
 }
