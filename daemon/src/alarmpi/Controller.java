@@ -51,6 +51,7 @@ class Controller implements Runnable {
 			log.info("running on Raspberry - initializing WiringPi done.");
 			
 			// instantiate light control
+			log.info("running on Raspberry - initializing light control");
 			if(configuration.getLightControlSettings().type==Configuration.LightControlSettings.Type.RASPBERRY) {
 				lightControl = new LightControlRaspiPwm(configuration.getLightControlSettings());
 			}
@@ -61,11 +62,12 @@ class Controller implements Runnable {
 				// dummy implementation - does nothing
 				lightControl = new LightControlNone();
 			}
-			soundControl = SoundControl.getSoundControl();
-			
-			// switch light & sound off
 			lightControl.off();
-			soundControl.off();
+			log.info("running on Raspberry - initializing light control done");
+			
+			log.info("running on Raspberry - initializing sound control");
+			soundControl = SoundControl.getSoundControl();
+			log.info("running on Raspberry - initializing sound control done");
 			
 			// update mpd with tmp files for next alarm announcement
 			new TextToSpeech().createTempFile("dummy", "nextAlarmToday.mp3");
@@ -76,6 +78,7 @@ class Controller implements Runnable {
 			// configure input key pins as input pins
 			// default: key1=GPIO06 (BRCM GPIO 25)
 			//          key2=GPIO05 (BRCM GPIO 24)
+			log.info("running on Raspberry - initializing push buttons");
 			for(Configuration.PushButtonSettings pushButtonSetting:configuration.getPushButtons()) {
 				if(pushButtonSetting.wiringpigpio!=0) {
 					GpioPinDigitalInput input = gpioController.provisionDigitalInputPin(RaspiPin.getPinByAddress(pushButtonSetting.wiringpigpio), PinPullResistance.PULL_UP);
@@ -85,6 +88,7 @@ class Controller implements Runnable {
 				}
 
 			}
+			log.info("running on Raspberry - initializing push buttons done");
 			/*
 			LedStripControl ledControl = new LedStripControl();
 			LedStripControl.LedPattern pattern = ledControl.new LedPatternRainbow1(1000, 1.0);
@@ -92,6 +96,8 @@ class Controller implements Runnable {
 			pattern.setCorrectionFactors(1.0, 0.3, 0.3);
 			ledControl.executePattern(pattern);
 			*/
+			
+			log.info("running on Raspberry - initialization done");
 		}
 	}
 	

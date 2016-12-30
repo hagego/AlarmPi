@@ -44,7 +44,9 @@ public class SoundControl {
 		if(Configuration.getConfiguration().getRunningOnRaspberry()) {
 			log.info("initializing GPIO to control 5V supply");
 			GpioController gpioController = GpioFactory.getInstance();
+			log.fine("GpioController instance retrieved");
 			gpioPinAudioControl = gpioController.provisionDigitalOutputPin(RaspiPin.GPIO_04);
+			log.fine("GPIO_04 privisioned as output");
 		}
 		
 		stop();
@@ -79,6 +81,7 @@ public class SoundControl {
 	 * stops the current audio output
 	 */
 	void stop() {
+		log.fine("audio STOP");
 		try {
 			connect();
 			try {

@@ -103,6 +103,7 @@ public class OpenhabClient {
 		
 		try {
 			String response = sendQuery("temperature?");
+			log.fine("openhabe query temperature? returns: "+response);
 			if(response!=null) {
 				String[] fields = response.split(" ");
 				if(fields.length>1) {
@@ -111,6 +112,9 @@ public class OpenhabClient {
 				else {
 					temperature = Double.parseDouble(response);
 				}
+			}
+			else {
+				log.warning("openhab query temperature? returns null");
 			}
 		} catch (IOException e) {
 			log.severe("error during openhab temperature? query: "+e.getMessage());

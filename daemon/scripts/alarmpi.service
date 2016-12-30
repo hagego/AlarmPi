@@ -1,0 +1,21 @@
+# systemd service file for alarmpi
+# place in /usr/lib/systemd/system
+
+[Unit]
+Description=AlarmPi daemon
+After=mpd.service
+
+[Service]
+User=root
+Group=root
+WorkingDirectory=/opt/alarmpi
+#PermissionsStartOnly=true
+ExecStartPre=-/bin/mkdir -p /var/log/alarmpi
+ExecStart=/usr/bin/java -jar /opt/alarmpi/alarmpi.jar
+#ExecStop=
+# Shutdown delay in seconds, before process is tried to be killed with KILL (if configured)
+TimeoutStopSec=120
+Restart=on-failure
+
+[Install]
+WantedBy=multi-user.target
