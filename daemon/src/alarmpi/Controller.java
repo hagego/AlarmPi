@@ -570,11 +570,11 @@ class Controller implements Runnable {
 			if(weatherAnnouncementFile!=null && weatherAnnouncementFile.isDone()) {
 				try {
 					String file = weatherAnnouncementFile.get();
-					if(file != null) {
+					if(file!=null && !file.isEmpty()) {
 						soundControl.playFile(file, null, true);
 					}
 					else {
-						log.warning("weather announcement does not exist");
+						log.warning("weather announcement file does not exist");
 					}
 				} catch (InterruptedException | ExecutionException exception) {
 					log.severe("Unable to play weather announcement");
@@ -587,12 +587,12 @@ class Controller implements Runnable {
 			if(calendarAnnouncementFile!=null && calendarAnnouncementFile.isDone()) {
 				try {
 					String file = calendarAnnouncementFile.get();
-					if(file != null) {
+					if(file!=null && !file.isEmpty()) {
 						soundControl.playFile(file, null, true);
 					}
 					else {
 						// can be null in case no calendar entry exists
-						log.fine("calendar announcement does not exist");
+						log.fine("calendar announcement file does not exist");
 					}
 				} catch (InterruptedException | ExecutionException exception) {
 					log.severe("Unable to play calendar announcement");

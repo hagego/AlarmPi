@@ -155,6 +155,11 @@ public class SoundControl {
 	 *                 and the new sound will start after it finished
 	 */
 	void playFile(String filename,Integer volume,boolean append) {
+		if(filename==null || filename.isEmpty()) {
+			log.severe("playFile called with null or empty filename");
+			return;
+		}
+		
 		try {
 			connect();
 			// a file has no sound ID
