@@ -75,6 +75,7 @@ public class AlarmListAdapter extends BaseExpandableListAdapter {
 
             alarm.setCheckboxEnabled((CheckBox) convertView.findViewById(R.id.checkBoxAlarmOn));
             alarm.setCheckboxOneTimeOnly((CheckBox)convertView.findViewById(R.id.checkBoxAlarmOneTime));
+            alarm.setCheckboxSkipOnce((CheckBox)convertView.findViewById(R.id.checkBoxAlarmSkip));
         }
 
         return convertView;

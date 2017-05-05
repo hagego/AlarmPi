@@ -46,11 +46,13 @@ public class Alarm implements TimePicker.OnTimeChangedListener,CheckBox.OnChecke
      * @param time        alarm time in format HH:MM
      * @param sound       sound to play for the alarm (index into sound list)
      * @param oneTimeOnly oneTimeOnly flag (Alarm is only enabled one time, then gets disabled again automatically)
+     * @param skipOnce    skipOnce flag (Alarm is skipped one time)
      */
-    Alarm(int id,boolean enabled,String days,String time,Integer sound,boolean oneTimeOnly) {
+    Alarm(int id,boolean enabled,String days,String time,Integer sound,boolean oneTimeOnly,boolean skipOnce) {
         this.id          = id;
         this.enabled     = enabled;
         this.oneTimeOnly = oneTimeOnly;
+        this.skipOnce    = skipOnce;
 
         // parse string with active days
         for(String day:days.split(",")) {
@@ -149,6 +151,12 @@ public class Alarm implements TimePicker.OnTimeChangedListener,CheckBox.OnChecke
     public boolean getOneTimeOnly() { return oneTimeOnly; }
 
     /**
+     * returns if the alarm shall be skipped once
+     * @return skipOnce status of the alarm
+     */
+    public boolean getSkipOnce() { return skipOnce; }
+
+    /**
      * returns the alarm time as string in the format hh:mm
      * @return alarm time as string
      */
@@ -225,6 +233,16 @@ public class Alarm implements TimePicker.OnTimeChangedListener,CheckBox.OnChecke
     }
 
     /**
+     * sets the CheckBox GUI widget for the skipOnce property of this alarm
+     * and registers the alarm itself as handler for this checkbox
+     * @param checkbox CheckBox GUI widget
+     */
+    void setCheckboxSkipOnce(CheckBox checkbox) {
+        checkbox.setChecked(skipOnce);
+        checkbox.setOnCheckedChangeListener(this);
+    }
+
+    /**
      * sets the TimePicker GUI object for this alarm and registers the alarm itself as handler
      * for time changes
      * @param timePicker TimePicker GUI widget
@@ -259,6 +277,7 @@ public class Alarm implements TimePicker.OnTimeChangedListener,CheckBox.OnChecke
     private int                         id;                                          // alarm ID
     private boolean                     enabled;                                     // alarm enabled ?
     private boolean                     oneTimeOnly;                                 // one time only alarm ?
+    private boolean                     skipOnce;                                    // skip one alarm event ?
     private EnumSet<DayOfWeek>          weekDays = EnumSet.noneOf(DayOfWeek.class);  // weekdays when this alarm is active
     private int                         hourOfDay;                                   // alarm hour
     private int                         minuteOfDay;                                 // alarm minute
@@ -320,6 +339,11 @@ public class Alarm implements TimePicker.OnTimeChangedListener,CheckBox.OnChecke
         if(buttonView.getId()==R.id.checkBoxAlarmOneTime) {
             Log.d(Constants.LOG, "alarm oneTimeOnly set to "+isChecked);
             oneTimeOnly = isChecked;
+        }
+
+        if(buttonView.getId()==R.id.checkBoxAlarmSkip) {
+            Log.d(Constants.LOG, "alarm skipOnce set to "+isChecked);
+            skipOnce = isChecked;
         }
 
         hasChanged = true;

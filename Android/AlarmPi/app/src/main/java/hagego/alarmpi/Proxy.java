@@ -281,11 +281,14 @@ class Proxy {
                     // process answer
                     for (String line : alarmData.split("\n")) {
                         String items[] = line.trim().split(" ");
-                        if (items.length == 6) {
+                        if (items.length == 7) {
                             // this is a line with alarm data
-                            Alarm alarm = new Alarm(Integer.parseInt(items[0]), Boolean.parseBoolean(items[1]),items[2], items[3], Integer.parseInt(items[4]),Boolean.parseBoolean(items[5]));
-                            Log.d(Constants.LOG, "synchronized alarm: id=" + alarm.getId() + " " + alarm.toString());
+                            Alarm alarm = new Alarm(Integer.parseInt(items[0]), Boolean.parseBoolean(items[1]),items[2], items[3], Integer.parseInt(items[4]),Boolean.parseBoolean(items[5]),Boolean.parseBoolean(items[6]));
+                            Log.d(Constants.LOG, "synchronized alarm: id=" + alarm.getId() + " " + alarm.toString()+" oneTime="+ alarm.getOneTimeOnly()+" skip="+alarm.getSkipOnce());
                             alarmList.add(alarm);
+                        }
+                        else {
+                            Log.e(Constants.LOG, "Unable to synchronize lights data from AlarmPi: "+alarmData);
                         }
                     }
 
@@ -396,7 +399,7 @@ class Proxy {
             if(socket!=null) {
                 try {
                     // update alarm data
-                    String cmd = String.format("alarm modify %d %s %s %d %b %b",alarm.getId(),alarm.getWeekDays(),alarm.getTime(),alarm.getSound(),alarm.getEnabled(),alarm.getOneTimeOnly());
+                    String cmd = String.format("alarm modify %d %s %s %d %b %b %b",alarm.getId(),alarm.getWeekDays(),alarm.getTime(),alarm.getSound(),alarm.getEnabled(),alarm.getOneTimeOnly(),alarm.getSkipOnce());
                     Log.d(Constants.LOG, "Sending update cmd: "+cmd);
                     alarmPiOut.write(cmd.getBytes());
                     alarmPiOut.flush();

@@ -10,24 +10,31 @@
         android:layout_height="wrap_content">
 
         <LinearLayout
-            android:orientation="horizontal"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content">
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal">
 
             <CheckBox
-                android:text="@string/on"
+                android:id="@+id/checkBoxAlarmOn"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:id="@+id/checkBoxAlarmOn"
                 android:layout_weight="0.18"
+                android:text="@string/on"
                 tools:text="@string/on" />
 
             <CheckBox
+                android:id="@+id/checkBoxAlarmOneTime"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:id="@+id/checkBoxAlarmOneTime"
-                android:layout_weight="1"
+                android:layout_weight="0.55"
                 android:text="@string/labelAlarmOneTime" />
+
+            <CheckBox
+                android:id="@+id/checkBoxAlarmSkip"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_weight="0.18"
+                android:text="@string/labelAlarmSkip" />
 
         </LinearLayout>
 

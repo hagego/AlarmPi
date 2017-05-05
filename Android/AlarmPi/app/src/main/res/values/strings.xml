@@ -28,5 +28,6 @@
     <string name="stringUpdateSuccess">Alarm update erfolgreich</string>
     <string name="stringUpdateError">Alarm Update Fehler</string>
     <string name="labelTimer">Timer</string>
+    <string name="labelAlarmSkip">skip</string>
 
 </resources>
