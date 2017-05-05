@@ -266,7 +266,7 @@ public class TcpRequestHandler implements Runnable {
 				if(weekDays.isEmpty()) {
 					weekDays = "-";
 				}
-				answer += String.format("%4d %b %s %s %d %b\n",alarm.id,alarm.enabled,weekDays,alarm.time,alarm.soundId,alarm.oneTimeOnly);
+				answer += String.format("%4d %b %s %s %d %b %b\n",alarm.id,alarm.enabled,weekDays,alarm.time,alarm.soundId,alarm.oneTimeOnly,alarm.skipOnce);
 			}
 			return new ReturnCodeSuccess(answer);
 		}
@@ -326,8 +326,8 @@ public class TcpRequestHandler implements Runnable {
 		// modify - parameters are: <id> <days> <time> <sound ID> <enabled> <oneTimeOnly>
 		private ReturnCode modify() {
 			// check parameter count
-			if(parameters.length != 7) {
-				return new ReturnCodeError("alarm modify: invalid parameter count (expected <id> <days> <time> <sound ID> <enabled> <oneTimeOnly>): "+parameters.length);
+			if(parameters.length != 8) {
+				return new ReturnCodeError("alarm modify: invalid parameter count (expected <id> <days> <time> <sound ID> <enabled> <oneTimeOnly> <skip>): "+parameters.length);
 			}
 			// process parameters
 			// 1st parameter: alarm ID
@@ -371,13 +371,16 @@ public class TcpRequestHandler implements Runnable {
 			// 6th parameter: oneTimeOnly flag
 			boolean oneTimeOnly= Boolean.parseBoolean(parameters[6]);
 			
-			log.info("received alarm modify, days="+weekDays+" time="+time+" sound ID="+sound+" enabled="+enabled+" oneTimeOnly="+oneTimeOnly);
+			// 7th parameter: oneTimeOnly flag
+			boolean skipOnce= Boolean.parseBoolean(parameters[7]);
+			
+			log.info("received alarm modify, days="+weekDays+" time="+time+" sound ID="+sound+" enabled="+enabled+" oneTimeOnly="+oneTimeOnly+" skipOnce="+skipOnce);
 			
 			// execute in separate thread as alarm creation can take quite long
 			threadPool.execute(new Runnable() {
 				@Override
 				public void run() {
-					Configuration.getConfiguration().modifyAlarm(id,weekDays,time,sound,enabled,oneTimeOnly);
+					Configuration.getConfiguration().modifyAlarm(id,weekDays,time,sound,enabled,oneTimeOnly,skipOnce);
 				}
 			});
 			

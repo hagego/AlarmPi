@@ -156,6 +156,11 @@ class Controller implements Runnable {
 		
 		LocalDate date = LocalDate.now();
 		
+		// create all the events for the alarms of today
+		for(Configuration.Alarm alarm:configuration.getAlarmList()) {
+			addAlarmEvents(alarm);
+		}
+		
 		// create all the events for the alarms of today which are still in the future
 		for(Configuration.Alarm alarm:configuration.getAlarmList()) {
 			if(alarm.time.isAfter(LocalTime.now())) {
@@ -333,9 +338,23 @@ class Controller implements Runnable {
 			return;
 		}
 		
+		if(alarm.time.isBefore(LocalTime.now())) {
+			log.fine("alarm time has already passed");
+			return;
+		}
+		
 		if(!alarm.enabled) {
 			log.fine("alarm disabled");
 			return;
+		}
+		
+		if(alarm.skipOnce) {
+			log.fine("alarm skipOnce set, skipping");
+			alarm.skipOnce = false;
+			alarm.store();
+			
+			return;
+			
 		}
 		
 		// alarm time as LocalDateTime

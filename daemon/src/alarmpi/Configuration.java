@@ -94,6 +94,7 @@ public class Configuration {
 		EnumSet<DayOfWeek> weekDays = EnumSet.noneOf(DayOfWeek.class);  // weekdays when this alarm is active                
 		boolean            enabled          = false;     // on/off switch
 		boolean            oneTimeOnly      = false;     // automatically disable alarm again after it got executed once
+		boolean            skipOnce         = false;     // skip alarm one time
 		LocalTime          time;                         // alarm time
 		Integer            soundId;                      // ID of sound to play. Must be configured in configuration file
 		String             greeting;                     // greeting text
@@ -541,7 +542,7 @@ public class Configuration {
 		alarmList.add(alarm);
 		
 		// set remaining properties
-		modifyAlarm(alarm.id, days, time, soundId, false, false);
+		modifyAlarm(alarm.id,days,time,soundId,false,false,false);
 		
 		log.info("created and stored alarm with ID="+alarm.id);
 		return alarm.id;
@@ -555,9 +556,10 @@ public class Configuration {
 	 * @param  soundId     sound ID to play
 	 * @param  enabled     on/off switch 
 	 * @param  oneTimeOnly if true, alarm gets disabled again after executed once
-	 * @return alarm ID
+	 * @param  skipOnce    if true, alarm gest skipped on time
+	 * @return if alarm with this ID was found and modified
 	 */
-	synchronized boolean modifyAlarm(int alarmId,EnumSet<DayOfWeek> days,LocalTime time,Integer soundId,boolean enabled,boolean oneTimeOnly) {
+	synchronized boolean modifyAlarm(int alarmId,EnumSet<DayOfWeek> days,LocalTime time,Integer soundId,boolean enabled,boolean oneTimeOnly,boolean skipOnce) {
 		boolean found = false;
 		Iterator<Alarm> it = alarmList.iterator();
 		while(it.hasNext()) {
@@ -569,6 +571,7 @@ public class Configuration {
 				alarm.soundId     = soundId;
 				alarm.enabled     = enabled;
 				alarm.oneTimeOnly = oneTimeOnly;
+				alarm.skipOnce    = skipOnce;
 				
 				// add to queue of alarms that need to be processed
 				alarmProcessQueue.add(alarm.id);
@@ -706,7 +709,7 @@ public class Configuration {
 		dump += "         sound="+alarmSettings.sound+"\n";
 		dump += "  Stored alarms:\n";
 		for(Alarm alarm:alarmList) {
-			dump += "    id="+alarm.id+" enabled="+alarm.enabled+" oneTimeOnly="+alarm.oneTimeOnly+" time="+alarm.time+" days="+alarm.weekDays+"\n";
+			dump += "    id="+alarm.id+" enabled="+alarm.enabled+" oneTimeOnly="+alarm.oneTimeOnly+" skipOnce="+alarm.skipOnce+" time="+alarm.time+" days="+alarm.weekDays+"\n";
 		}
 		dump += "  push button configurations:\n";
 		for(PushButtonSettings pushButtonSettings:pushButtonList) {
