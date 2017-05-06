@@ -297,7 +297,7 @@ class Controller implements Runnable {
 		Configuration.Alarm nextAlarm = null;
 		
 		for(Configuration.Alarm alarm:configuration.getAlarmList()) {
-			if(alarm.enabled && alarm.weekDays.contains(today)) {
+			if(alarm.enabled && !alarm.skipOnce && alarm.weekDays.contains(today)) {
 				if(alarm.time.isAfter(LocalTime.now()) && (nextAlarm==null || alarm.time.isBefore(nextAlarm.time))) {
 					nextAlarm = alarm;
 				}
@@ -316,7 +316,7 @@ class Controller implements Runnable {
 		Configuration.Alarm nextAlarm = null;
 		
 		for(Configuration.Alarm alarm:configuration.getAlarmList()) {
-			if(alarm.enabled && alarm.weekDays.contains(tomorrow)) {
+			if(alarm.enabled && !alarm.skipOnce && alarm.weekDays.contains(tomorrow)) {
 				if(nextAlarm==null || alarm.time.isBefore(nextAlarm.time)) {
 					nextAlarm = alarm;
 				}
