@@ -81,13 +81,17 @@ public class WeatherProvider implements Callable<String> {
 			    }
 			    if(qName.equalsIgnoreCase("temperature")) {
 			    	if(today) {
-			    		log.fine( "temperature for today: "+atts.getValue("value") );
+			    		log.fine( "temperature for today: value="+atts.getValue("value")+" unit="+atts.getValue("unit") );
 			    		
-						if( minTemperature==null || Double.parseDouble(atts.getValue("value"))<minTemperature) {
-							minTemperature = (int)Double.parseDouble(atts.getValue("value"));
+			    		double value = Double.parseDouble(atts.getValue("value"));
+			    		if(atts.getValue("unit").equalsIgnoreCase("kelvin")) {
+			    			value -= 273.15;
+			    		}
+						if( minTemperature==null || value<minTemperature) {
+							minTemperature = (int)value;
 						}
-						if( maxTemperature==null || Double.parseDouble(atts.getValue("value"))>maxTemperature) {
-							maxTemperature = (int)Double.parseDouble(atts.getValue("value"));
+						if( maxTemperature==null || value>maxTemperature) {
+							maxTemperature = (int)value;
 						}
 			    	}
 			    }
