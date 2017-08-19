@@ -280,7 +280,7 @@ public class TcpRequestHandler implements Runnable {
 			}
 			// process parameters
 			// 1st parameter: list of weekdays
-			EnumSet<DayOfWeek> weekDays = EnumSet.noneOf(DayOfWeek.class);
+			final EnumSet<DayOfWeek> weekDays = EnumSet.noneOf(DayOfWeek.class);
 			if(!parameters[1].equals("-")) {
 				for(String day:parameters[1].split(",")) {
 					try {
@@ -294,7 +294,7 @@ public class TcpRequestHandler implements Runnable {
 			}
 			
 			// 2nd parameter: time
-			LocalTime time;
+			final LocalTime time;
 			try {
 				time = LocalTime.parse(parameters[2]);
 			}
@@ -331,7 +331,7 @@ public class TcpRequestHandler implements Runnable {
 			}
 			// process parameters
 			// 1st parameter: alarm ID
-			int id;
+			final int id;
 			try {
 				id = Integer.parseInt(parameters[1]);
 			}
@@ -340,7 +340,7 @@ public class TcpRequestHandler implements Runnable {
 			}
 			
 			// 2nd parameter: list of weekdays
-			EnumSet<DayOfWeek> weekDays = EnumSet.noneOf(DayOfWeek.class);
+			final EnumSet<DayOfWeek> weekDays = EnumSet.noneOf(DayOfWeek.class);
 			if(!parameters[2].equals("-")) {
 				for(String day:parameters[2].split(",")) {
 					try {
@@ -354,7 +354,7 @@ public class TcpRequestHandler implements Runnable {
 			}
 			
 			// 3rd parameter: time
-			LocalTime time;
+			final LocalTime time;
 			try {
 				time = LocalTime.parse(parameters[3]);
 			}
@@ -363,16 +363,16 @@ public class TcpRequestHandler implements Runnable {
 			}
 			
 			// 4th parameter: sound ID
-			int sound  = Integer.parseInt(parameters[4]);
+			final int sound  = Integer.parseInt(parameters[4]);
 			
 			// 5th parameter: enabled flag
-			boolean enabled = Boolean.parseBoolean(parameters[5]);
+			final boolean enabled = Boolean.parseBoolean(parameters[5]);
 			
 			// 6th parameter: oneTimeOnly flag
-			boolean oneTimeOnly= Boolean.parseBoolean(parameters[6]);
+			final boolean oneTimeOnly= Boolean.parseBoolean(parameters[6]);
 			
 			// 7th parameter: oneTimeOnly flag
-			boolean skipOnce= Boolean.parseBoolean(parameters[7]);
+			final boolean skipOnce= Boolean.parseBoolean(parameters[7]);
 			
 			log.info("received alarm modify, days="+weekDays+" time="+time+" sound ID="+sound+" enabled="+enabled+" oneTimeOnly="+oneTimeOnly+" skipOnce="+skipOnce);
 			
@@ -396,8 +396,8 @@ public class TcpRequestHandler implements Runnable {
 			
 			try {
 				// execute in separate thread as alarm creation can take several seconds
-				int     id      = Integer.parseInt(parameters[1]);
-				boolean enabled = Boolean.parseBoolean(parameters[2]);
+				final int     id      = Integer.parseInt(parameters[1]);
+				final boolean enabled = Boolean.parseBoolean(parameters[2]);
 				
 				threadPool.execute(new Runnable() {
 					@Override
@@ -422,7 +422,7 @@ public class TcpRequestHandler implements Runnable {
 			
 			try {
 				// execute in separate thread as alarm creation can take several seconds
-				int id = Integer.parseInt(parameters[1]);
+				final int id = Integer.parseInt(parameters[1]);
 				threadPool.execute(new Runnable() {
 					@Override
 					public void run() {

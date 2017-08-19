@@ -85,6 +85,7 @@ public class WeatherProvider implements Callable<String> {
 			    		
 			    		double value = Double.parseDouble(atts.getValue("value"));
 			    		if(atts.getValue("unit").equalsIgnoreCase("kelvin")) {
+			    			log.fine("temperature unit is Kelvin");
 			    			value -= 273.15;
 			    		}
 						if( minTemperature==null || value<minTemperature) {
@@ -93,6 +94,8 @@ public class WeatherProvider implements Callable<String> {
 						if( maxTemperature==null || value>maxTemperature) {
 							maxTemperature = (int)value;
 						}
+						
+						log.fine("setting temperature min="+minTemperature+" max="+maxTemperature);
 			    	}
 			    }
 			}

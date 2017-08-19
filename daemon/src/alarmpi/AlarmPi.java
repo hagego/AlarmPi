@@ -67,7 +67,7 @@ public class AlarmPi {
 				serverThread.setDaemon(true);
 				serverThread.start();
 				
-				Thread controllerThread = new Thread(controller);
+				final Thread controllerThread = new Thread(controller);
 				controllerThread.setDaemon(false);
 				controllerThread.start();
 				
