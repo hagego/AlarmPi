@@ -50,6 +50,8 @@ public class AlarmPi {
 		Configuration.read(configDir+"alarmpi.cfg");
 		Configuration configuration = Configuration.getConfiguration();
 		
+		log.info("configuration read successfully");
+		
 		// create the user thread to manage alarms and HW buttons
 		final Controller controller = new Controller();
 		

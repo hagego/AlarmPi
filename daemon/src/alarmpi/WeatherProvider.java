@@ -88,6 +88,7 @@ public class WeatherProvider implements Callable<String> {
 			    			log.fine("temperature unit is Kelvin");
 			    			value -= 273.15;
 			    		}
+
 						if( minTemperature==null || value<minTemperature) {
 							minTemperature = (int)value;
 						}
