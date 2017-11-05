@@ -48,7 +48,7 @@ public class GoogleCalendar {
     	
 		File dataStoreDir;
 		if(Configuration.getConfiguration().getRunningOnRaspberry()) {
-			dataStoreDir = new File("/var/opt", "alarmpi");
+			dataStoreDir = new File("/etc/alarmpi", ".google");
 		}
 		else {
 			dataStoreDir = new File(System.getProperty("user.home"), ".store/AlarmPi");

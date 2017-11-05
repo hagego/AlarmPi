@@ -2,14 +2,13 @@
 <classpath>
 	<classpathentry kind="src" path="src"/>
 	<classpathentry kind="con" path="org.eclipse.jdt.launching.JRE_CONTAINER"/>
-	<classpathentry kind="lib" path="lib/ini4j-0.5.4/ini4j-0.5.4-jdk14.jar"/>
-	<classpathentry kind="lib" path="lib/ini4j-0.5.4/ini4j-0.5.4.jar"/>
-	<classpathentry kind="lib" path="lib/pi4j/pi4j-core.jar"/>
-	<classpathentry kind="lib" path="lib/google/google-api-client-1.19.1.jar"/>
-	<classpathentry kind="lib" path="lib/google/google-api-services-calendar-v3-rev115-1.19.1.jar"/>
-	<classpathentry kind="lib" path="lib/google/google-http-client-1.19.0.jar"/>
-	<classpathentry kind="lib" path="lib/google/google-http-client-jackson2-1.19.0.jar"/>
-	<classpathentry kind="lib" path="lib/google/google-oauth-client-1.19.0.jar"/>
-	<classpathentry kind="lib" path="lib/google/jackson-core-2.1.3.jar"/>
+	<classpathentry kind="lib" path="lib/calendar/google-api-services-calendar-v3-rev263-1.23.0.jar"/>
+	<classpathentry kind="lib" path="lib/calendar/libs/google-http-client-jackson2-1.23.0.jar"/>
+	<classpathentry kind="lib" path="lib/calendar/libs/google-http-client-1.23.0.jar"/>
+	<classpathentry kind="lib" path="lib/calendar/libs/google-oauth-client-1.23.0.jar"/>
+	<classpathentry kind="lib" path="lib/calendar/libs/google-api-client-1.23.0.jar"/>
+	<classpathentry kind="lib" path="lib/ini4j/ini4j-0.5.4.jar"/>
+	<classpathentry kind="lib" path="lib/aws-java-sdk/lib/aws-java-sdk-1.11.221.jar"/>
+	<classpathentry kind="lib" path="lib/pi4j-1.2-SNAPSHOT/lib/pi4j-core.jar"/>
 	<classpathentry kind="output" path="bin"/>
 </classpath>
