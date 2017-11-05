@@ -14,7 +14,7 @@ ExecStartPre=-/bin/mkdir -p /var/log/alarmpi
 ExecStartPre=-/bin/chown alarmpi:alarmpi /var/log/alarmpi
 ExecStartPre=-/bin/chown mpd:audio /var/lib/mpd/music/tmp
 ExecStartPre=-/bin/chmod g+w /var/lib/mpd/music/tmp
-ExecStart=/usr/bin/sudo -u alarmpi /usr/bin/java -classpath '/opt/alarmpi/lib/ini4j/*:/opt/alarmpi/lib/pi4j/lib/*:/opt/alarmpi/lib/calendar/*:/opt/alarmpi/lib/calendar/libs/*:/opt/alarmpi/lib/aws-java-sdk/lib/*:/opt/alarmpi/bin/alarmpi.jar' alarmpi/AlarmPi
+ExecStart=/usr/bin/sudo -u alarmpi /usr/bin/java -classpath '/opt/alarmpi/lib/ini4j/*:/opt/alarmpi/lib/pi4j/lib/*:/opt/alarmpi/lib/aws-java-sdk/lib/*:/opt/alarmpi/lib/aws-java-sdk/third-party/lib/*:/opt/alarmpi/lib/calendar/*:/opt/alarmpi/lib/calendar/libs/*:/opt/alarmpi/bin/alarmpi.jar' alarmpi/AlarmPi
 #ExecStop=
 # Shutdown delay in seconds, before process is tried to be killed with KILL (if configured)
 TimeoutStopSec=120

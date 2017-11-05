@@ -80,11 +80,12 @@ public class Configuration {
 	 */
 	class PushButtonSettings {
 		int wiringpigpio;         // WiringPi GPIO address of input key
+		boolean useAws;           // if true, single click is triggers Amazon AWS speech control
 		int brightnessIncrement;  // LED control (single click): brightness increment in percent
 		int soundId;              // sound control (double click): sound to play
 		int soundVolume;          // sound control (double click): volume (in percent)
 		int soundTimer;           // sound control (double click): timer to switch off in minutes (0 = no timer)
-		int lightId;              // light conrol: ID of associated light (PCA9685 only)
+		int lightId;              // light control: ID of associated light (PCA9685 only)
 	}
 	
 	/**
@@ -270,6 +271,7 @@ public class Configuration {
         while((sectionButton=ini.get("button"+index)) != null) {
         	PushButtonSettings pushButtonSettings = new PushButtonSettings();
         	pushButtonSettings.wiringpigpio        = sectionButton.get("wiringpigpio", Integer.class, 0);
+        	pushButtonSettings.useAws              = sectionButton.get("useAws", Boolean.class, false);
 			pushButtonSettings.brightnessIncrement = sectionButton.get("brightnessIncrement", Integer.class, 10);
 			// config file starts counting from 1, internally we use array indexes (starting from 0)
 			pushButtonSettings.lightId             = sectionButton.get("light", Integer.class, 0)-1;
@@ -714,6 +716,7 @@ public class Configuration {
 		dump += "  push button configurations:\n";
 		for(PushButtonSettings pushButtonSettings:pushButtonList) {
 			dump += "    light: internal ID="+pushButtonSettings.lightId+" increment="+pushButtonSettings.brightnessIncrement+"\n";
+			dump += "    useAws="+pushButtonSettings.useAws+"\n";
 			dump += "    sound: internal ID="+pushButtonSettings.soundId+" volume="+pushButtonSettings.soundVolume+" timer="+pushButtonSettings.soundTimer+"\n";
 		}
 		dump += "  openhab configuration:\n";

@@ -1,5 +1,7 @@
 package alarmpi;
 
+import java.io.FileInputStream;
+import java.io.FileNotFoundException;
 import java.time.DayOfWeek;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -16,6 +18,16 @@ import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.logging.Logger;
 
+import com.amazonaws.auth.AWSCredentialsProvider;
+import com.amazonaws.auth.DefaultAWSCredentialsProviderChain;
+import com.amazonaws.services.lexruntime.AmazonLexRuntime;
+import com.amazonaws.services.lexruntime.AmazonLexRuntimeClient;
+import com.amazonaws.services.lexruntime.AmazonLexRuntimeClientBuilder;
+import com.amazonaws.services.lexruntime.model.PostContentRequest;
+import com.amazonaws.services.lexruntime.model.PostContentResult;
+import com.fasterxml.jackson.core.JsonFactory;
+import com.fasterxml.jackson.core.JsonParser;
+import com.fasterxml.jackson.core.JsonToken;
 import com.pi4j.io.gpio.GpioController;
 import com.pi4j.io.gpio.GpioFactory;
 import com.pi4j.io.gpio.GpioPinDigitalInput;
@@ -763,8 +775,81 @@ class Controller implements Runnable {
         			log.info("short click");
         			if(start-lastClick>300) {
         				// single click
-    					log.info("processing single click");
-    					lightControl.setBrightness(pushButtonSetting.lightId,lightControl.getBrightness(pushButtonSetting.lightId)+pushButtonSetting.brightnessIncrement);
+    					log.info("processing single click. useAws="+pushButtonSetting.useAws);
+    					
+    					if(pushButtonSetting.useAws) {
+    						final String tmpAwsLexFilename = "/tmp/alarmpiawslex.wav";
+    						
+    						log.fine("starting recording of AWS speech control to "+tmpAwsLexFilename);
+    						try {
+    					         ProcessBuilder pb = new ProcessBuilder("/usr/bin/arecord", "-f","S16_LE","-r","16000","-d","5","-vv","-D","plughw:1",tmpAwsLexFilename);
+    					         final Process p=pb.start();
+    				             p.waitFor();
+    				             log.fine("arecord exit code: "+p.exitValue());
+    				             
+    				     		FileInputStream inputStream;
+    				    		try {
+    				    			log.finest("processing speech control recording");
+    				    			
+    				    			AmazonLexRuntimeClientBuilder builder = AmazonLexRuntimeClient.builder();
+    				    			builder.setRegion("us-east-1");
+    				    			AmazonLexRuntime runtime = builder.build();
+    				    			PostContentRequest request = new PostContentRequest();
+    				    			
+    				    			inputStream = new FileInputStream(tmpAwsLexFilename);
+    				    			
+	    				    		AWSCredentialsProvider provider = new DefaultAWSCredentialsProviderChain();
+	    				    		request.setRequestCredentialsProvider(provider);
+	    				    		request.setBotName("AlarmPi");
+	    				    		request.setBotAlias("AlarmPiProd");
+	    				    		request.setUserId("AlarmPi");
+	    				    		request.setContentType("audio/l16; rate=16000; channels=1");
+	    				    		request.setInputStream(inputStream);
+	    				    		
+	    				    		log.finest("sending AWS request");
+	    				    		PostContentResult result = runtime.postContent(request);
+	    				    		
+	    				    		log.finest("transcript: "+result.getInputTranscript());
+	    				    		log.finest("dialog state: "+result.getDialogState());
+	    				    		log.finest("intent: "+result.getIntentName());
+	    				    		log.finest("message: "+result.getMessage());
+	    				    		log.finest("content: "+result.getContentType());
+	    				    		log.finest("attributes: "+result.getSessionAttributes());
+	    				    		log.finest("slots: "+result.getSlots());
+	    				    		
+	    				    		if(result.getIntentName().equalsIgnoreCase("SetNextAlarm")) {
+	    				    			log.fine("deteced intent: SetNextAlarm slots:"+result.getSlots());
+	    				    			
+	    				    			JsonFactory factory = new JsonFactory();
+	    				    			JsonParser parser = factory.createParser(result.getSlots());
+	    				    			
+	    				    			JsonToken token = parser.nextToken();
+	    				    			log.finest(token.toString()); // START_OBJECT
+	    				    			log.finest("name="+parser.getCurrentName());
+	    				    			log.finest("value1="+parser.getValueAsString());
+	    				    			
+	    				    			token = parser.nextToken();
+	    				    			log.finest(token.toString()); // FIELD_NAME
+	    				    			log.finest("name="+parser.getCurrentName());
+	    				    			log.finest("value1="+parser.getValueAsString());
+	    				    			
+	    				    			token = parser.nextToken();
+	    				    			log.finest(token.toString()); // VALUE_STRING
+	    				    			log.finest("name="+parser.getCurrentName());
+	    				    			log.finest("value1="+parser.getValueAsString());
+	    				    		}
+    				    		
+    				    		} catch (FileNotFoundException e) {
+    				    			log.severe("Unable to find AWS recording file: "+e.getMessage());
+    				    		}
+    					      } catch (Exception ex) {
+    					    	  log.severe("Exception during recording of AWS speech control command: "+ex.getMessage());
+    					      }
+    					}
+    					else {
+    						// no speech control - increase LED brightness
+    						lightControl.setBrightness(pushButtonSetting.lightId,lightControl.getBrightness(pushButtonSetting.lightId)+pushButtonSetting.brightnessIncrement);
+    					}
         			}
         			else {
         				// double click
