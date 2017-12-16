@@ -171,7 +171,10 @@ public class LightControlRaspiPwm implements LightControl,Runnable {
 		
 		log.fine("RaspiPwm: dim up thread stepSize="+stepSize+" sleep intervale="+sleepInterval);
 		for(double p=0 ; p<=dimTargetPercent ; p+=stepSize) {
-			setBrightness(p);
+			// only increase brightness
+			if(p>getBrightness()) {
+				setBrightness(p);
+			}
 			try {
 				Thread.sleep(sleepInterval);
 			} catch (InterruptedException e) {

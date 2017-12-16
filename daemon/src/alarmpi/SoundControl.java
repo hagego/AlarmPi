@@ -56,7 +56,7 @@ public class SoundControl {
 	/**
 	 * turns 5V audio power on
 	 */
-	void on() {
+	synchronized void on() {
 		log.fine("turning 5V audio supply ON");
 		stop();
 		if(Configuration.getConfiguration().getRunningOnRaspberry()) {
@@ -67,7 +67,7 @@ public class SoundControl {
 	/**
 	 * turns 5V audio power off
 	 */
-	void off() {
+	synchronized void off() {
 		log.fine("turning 5V audio supply OFF");
 		stop();
 		if(Configuration.getConfiguration().getRunningOnRaspberry()) {
@@ -80,7 +80,7 @@ public class SoundControl {
 	/**
 	 * stops the current audio output
 	 */
-	void stop() {
+	synchronized void stop() {
 		log.fine("audio STOP");
 		try {
 			connect();
@@ -102,7 +102,7 @@ public class SoundControl {
 	 * updates the mpd database. Must be called after a new file or playlist
 	 * was added
 	 */
-	void update() {
+	synchronized void update() {
 		try {
 			connect();
 			try {
@@ -124,7 +124,7 @@ public class SoundControl {
 	 * @param append   if true, the currently playing sounds gets not interrupted
 	 *                 and the new sound will start after it finished
 	 */
-	void playSound(int soundId,Integer volume,boolean append) {
+	synchronized void playSound(int soundId,Integer volume,boolean append) {
 		// get sound from configuration
 		activeSound = soundId;
 		Configuration.Sound sound=Configuration.getConfiguration().getSoundList().get(activeSound);
@@ -154,7 +154,7 @@ public class SoundControl {
 	 * @param append   if true, the currently playing sounds gets not interrupted
 	 *                 and the new sound will start after it finished
 	 */
-	void playFile(String filename,Integer volume,boolean append) {
+	synchronized void playFile(String filename,Integer volume,boolean append) {
 		if(filename==null || filename.isEmpty()) {
 			log.severe("playFile called with null or empty filename");
 			return;
@@ -190,7 +190,7 @@ public class SoundControl {
 	 * sets the volume
 	 * @param new volume in percent
 	 */
-	void setVolume(int volume) {
+	synchronized void setVolume(int volume) {
 		try {
 			connect();
 			try {
@@ -210,7 +210,7 @@ public class SoundControl {
 	 * returns the active volume
 	 * @return active volume in percent or 0 if off
 	 */
-	int getVolume() {
+	synchronized int getVolume() {
 		log.fine("returning active volume: "+activeVolume);
 		return activeVolume;
 	}
@@ -219,7 +219,7 @@ public class SoundControl {
 	 * returns the active sound
 	 * @return active sound or null
 	 */
-	Integer getSound() {
+	synchronized Integer getSound() {
 		log.fine("returning active sound: "+activeSound);
 		return activeSound;
 	}
@@ -234,7 +234,7 @@ public class SoundControl {
 	 * @param append if true, the currently playing sounds gets not interrupted
 	 *               and the new sound will start after it finished
 	 */
-	private void playRadioStream(String uri,Integer volume,boolean append) {
+	synchronized private void playRadioStream(String uri,Integer volume,boolean append) {
 		try {
 			connect();
 			try {
@@ -266,7 +266,7 @@ public class SoundControl {
 	 * @throws UnknownHostException
 	 * @throws IOException
 	 */
-	private void connect() throws UnknownHostException, IOException {
+	synchronized private void connect() throws UnknownHostException, IOException {
 		socket = new Socket(Configuration.getConfiguration().getMpdAddress(),Configuration.getConfiguration().getMpdPort());
 		socket.setKeepAlive(true);
 		reader = new BufferedReader(new InputStreamReader(socket.getInputStream()));
@@ -278,7 +278,7 @@ public class SoundControl {
 	 * @return
 	 * @throws IOException
 	 */
-	private void disconnect() throws IOException {
+	synchronized private void disconnect() throws IOException {
 		if(socket!=null) {
 			socket.close();
 		}
@@ -290,7 +290,7 @@ public class SoundControl {
 	 * @param cmd command to send
 	 * @throws IOException
 	 */
-	private void sendCommand(String cmd) throws IOException {
+	synchronized private void sendCommand(String cmd) throws IOException {
 		writer.print(cmd+"\n");
 		writer.flush();
 

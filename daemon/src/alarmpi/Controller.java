@@ -1,7 +1,5 @@
 package alarmpi;
 
-import java.io.FileInputStream;
-import java.io.FileNotFoundException;
 import java.time.DayOfWeek;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -17,17 +15,6 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.logging.Logger;
-
-import com.amazonaws.auth.AWSCredentialsProvider;
-import com.amazonaws.auth.DefaultAWSCredentialsProviderChain;
-import com.amazonaws.services.lexruntime.AmazonLexRuntime;
-import com.amazonaws.services.lexruntime.AmazonLexRuntimeClient;
-import com.amazonaws.services.lexruntime.AmazonLexRuntimeClientBuilder;
-import com.amazonaws.services.lexruntime.model.PostContentRequest;
-import com.amazonaws.services.lexruntime.model.PostContentResult;
-import com.fasterxml.jackson.core.JsonFactory;
-import com.fasterxml.jackson.core.JsonParser;
-import com.fasterxml.jackson.core.JsonToken;
 import com.pi4j.io.gpio.GpioController;
 import com.pi4j.io.gpio.GpioFactory;
 import com.pi4j.io.gpio.GpioPinDigitalInput;
@@ -200,7 +187,7 @@ class Controller implements Runnable {
 				if((id=configuration.getAlarmToProcess())!=null) {
 					// an alarm has changed. First delete all old events
 					log.fine("processing change in alarm ID="+id);
-					deleteAlarmEvents(id);
+					deleteAlarmEvents(Configuration.getConfiguration().getAlarm(id));
 					
 					for(Configuration.Alarm alarm:configuration.getAlarmList()) {
 						if(alarm.id==id) {
@@ -252,14 +239,14 @@ class Controller implements Runnable {
 	 * stops the active alarm
 	 */
 	synchronized void stopAlarm() {
-		if(activeAlarmId!=null) {
+		if(activeAlarm!=null) {
 			log.fine("stopping active alarm");
 			
 			lightControl.off();
 			soundControl.off();
-			deleteAlarmEvents(activeAlarmId);
+			deleteAlarmEvents(activeAlarm);
 			
-			activeAlarmId = null;
+			activeAlarm = null;
 		}
 		else {
 			log.fine("no alarm active");
@@ -275,28 +262,28 @@ class Controller implements Runnable {
 		
 		lightControl.off();
 		soundControl.off();
-		activeAlarmId = null;
+		activeAlarm = null;
 	}
 	
 	/**
 	 * deletes all events corresponding to this alarm
-	 * @param alarmId  alarm ID
+	 * @param alarm  alarm 
 	 */
-	synchronized private void deleteAlarmEvents(int alarmId) {
-		log.fine("deleting alarm events for alarm ID="+alarmId);
+	synchronized private void deleteAlarmEvents(Configuration.Alarm alarm) {
+		log.fine("deleting alarm events for alarm ID="+alarm.id);
 		Iterator<Event> it = eventList.iterator();
 		while(it.hasNext()) {
 			Event e = it.next();
-			if(e.alarmId!=null && e.alarmId==alarmId) {
+			if(e.alarmId!=null && e.alarmId==alarm.id) {
 				// delete this event
 				it.remove();
 			}
 		}
 		
-		if(activeAlarmId!=null && alarmId==activeAlarmId) {
+		if(activeAlarm!=null && alarm==activeAlarm) {
 			lightControl.off();
 			soundControl.off();
-			activeAlarmId = null;
+			activeAlarm = null;
 		}
 	}
 	
@@ -360,15 +347,6 @@ class Controller implements Runnable {
 			return;
 		}
 		
-		if(alarm.skipOnce) {
-			log.fine("alarm skipOnce set, skipping");
-			alarm.skipOnce = false;
-			alarm.store();
-			
-			return;
-			
-		}
-		
 		// alarm time as LocalDateTime
 		LocalDateTime alarmDateTime = LocalDate.now().atTime(alarm.time);
 		
@@ -385,6 +363,7 @@ class Controller implements Runnable {
 			Event eventStart = new Event();
 			eventStart.type      = Event.EventType.ALARM_START;
 			eventStart.alarmId   = alarm.id;
+			eventStart.alarm     = alarm;
 			eventStart.time      = fadeInStart;
 			eventStart.paramInt1 = alarm.lightDimUpDuration;
 			eventStart.paramInt2 = alarm.lightDimUpBrightness;
@@ -393,6 +372,7 @@ class Controller implements Runnable {
 			Event eventSound = new Event();
 			eventSound.type         = Event.EventType.PLAY_SOUND;
 			eventSound.alarmId      = alarm.id;
+			eventSound.alarm        = alarm;
 			eventSound.time         = fadeInStart.plusNanos(1);
 			eventSound.paramInt1    = alarm.soundId;
 			eventSound.paramInt2    = alarm.volumeFadeInStart;
@@ -403,6 +383,7 @@ class Controller implements Runnable {
 				Event eventVolume = new Event();
 				eventVolume.type      = Event.EventType.SET_VOLUME;
 				eventVolume.alarmId   = alarm.id;
+				eventVolume.alarm     = alarm;
 				eventVolume.time      = fadeInStart.plusSeconds((long)(step*fadeInTimeInterval));
 				eventVolume.paramInt1 = alarm.volumeFadeInStart+(int)(step*fadeInVolumeInterval);
 				eventList.add(eventVolume);
@@ -419,6 +400,7 @@ class Controller implements Runnable {
 			Event eventVolume = new Event();
 			eventVolume.type      = Event.EventType.SET_VOLUME;
 			eventVolume.alarmId   = alarm.id;
+			eventVolume.alarm     = alarm;
 			eventVolume.time      = alarmDateTime.plusSeconds((long)(step*postFadeInTimeInterval));
 			eventVolume.paramInt1 = alarm.volumeFadeInEnd+(int)(step*postFadeInVolumeInterval);
 			eventList.add(eventVolume);
@@ -428,6 +410,7 @@ class Controller implements Runnable {
 		Event eventGreeting = new Event();
 		eventGreeting.type         = Event.EventType.PLAY_FILE;
 		eventGreeting.alarmId      = alarm.id;
+		eventGreeting.alarm        = alarm;
 		eventGreeting.time         = alarmDateTime.plusNanos(1);
 		eventGreeting.paramString  = new TextToSpeech().createPermanentFile(alarm.greeting);
 		eventGreeting.paramBool    = true;
@@ -443,6 +426,7 @@ class Controller implements Runnable {
 					Event eventAlarm = new Event();
 					eventAlarm.type         = Event.EventType.PLAY_FILE;
 					eventAlarm.alarmId      = alarm.id;
+					eventAlarm.alarm        = alarm;
 					eventAlarm.time         = time;
 					eventAlarm.paramString  = alarm.sound;
 					eventAlarm.paramBool    = append;
@@ -454,6 +438,7 @@ class Controller implements Runnable {
 				Event eventAnnouncement = new Event();
 				eventAnnouncement.type         = Event.EventType.PLAY_FILE;
 				eventAnnouncement.alarmId      = alarm.id;
+				eventAnnouncement.alarm        = alarm;
 				eventAnnouncement.time         = time.plusNanos(2);
 				eventAnnouncement.paramString  = prepareTimeAnnouncement(time.toLocalTime());
 				eventAnnouncement.paramBool    = append;
@@ -464,6 +449,7 @@ class Controller implements Runnable {
 					Event eventWeather = new Event();
 					eventWeather.type         = Event.EventType.PLAY_WEATHER;
 					eventWeather.alarmId      = alarm.id;
+					eventWeather.alarm        = alarm;
 					eventWeather.time         = time.plusNanos(3);
 					eventList.add(eventWeather);
 					
@@ -471,6 +457,7 @@ class Controller implements Runnable {
 						Event eventCalendar = new Event();
 						eventCalendar.type         = Event.EventType.PLAY_CALENDAR;
 						eventCalendar.alarmId      = alarm.id;
+						eventCalendar.alarm        = alarm;
 						eventCalendar.time         = time.plusNanos(4);
 						eventList.add(eventCalendar);
 					}
@@ -479,6 +466,7 @@ class Controller implements Runnable {
 				Event eventPlay = new Event();
 				eventPlay.type         = Event.EventType.PLAY_SOUND;
 				eventPlay.alarmId      = alarm.id;
+				eventPlay.alarm        = alarm;
 				eventPlay.time         = time.plusNanos(5);
 				eventPlay.paramInt1    = alarm.soundId;
 				eventPlay.paramBool    = true;
@@ -490,6 +478,7 @@ class Controller implements Runnable {
 			Event eventStop = new Event();
 			eventStop.type      = Event.EventType.ALARM_END;
 			eventStop.alarmId   = alarm.id;
+			eventStop.alarm     = alarm;
 			eventStop.time      = alarmDateTime.plusSeconds(alarm.duration);
 			eventList.add(eventStop);
 		}
@@ -577,12 +566,24 @@ class Controller implements Runnable {
 	 * @param e event to fire
 	 */
 	private void fireEvent(Event e) {	
-		log.fine("firing event of type "+e.type+" i1="+e.paramInt1+" i2="+e.paramInt2+" s1="+e.paramString);
-		
 		// if this is timer event, set timer to off
 		if(e==soundTimerEvent) {
 			soundTimerEvent = null;
 		}
+		
+		if(e.alarm.skipOnce) {
+			log.fine("skipping firing event of type "+e.type+" i1="+e.paramInt1+" i2="+e.paramInt2+" s1="+e.paramString);
+			
+			// do nothing if alarm is to be skipped
+			if(e.type==alarmpi.Controller.Event.EventType.ALARM_END) {
+				// skipping done. Mark alarm as active again
+				e.alarm.skipOnce = false;
+				e.alarm.store();
+			}
+			return;
+		}
+		
+		log.fine("firing event of type "+e.type+" i1="+e.paramInt1+" i2="+e.paramInt2+" s1="+e.paramString);
 		
 		switch(e.type) {
 		case PLAY_SOUND:
@@ -637,7 +638,7 @@ class Controller implements Runnable {
 			break;
 		case ALARM_START:
 			log.fine("start of alarm with id="+e.alarmId);
-			activeAlarmId = e.alarmId;
+			activeAlarm = Configuration.getConfiguration().getAlarm(e.alarmId);
 			soundControl.stop();
 			soundControl.on();
 			
@@ -702,6 +703,8 @@ class Controller implements Runnable {
 	LightControl getLightControl() {
 		return lightControl;
 	}
+	
+
 		
 	//
 	// private members
@@ -714,19 +717,21 @@ class Controller implements Runnable {
 	private static class Event implements Comparable<Event> {
 		enum EventType {SET_VOLUME,PLAY_SOUND,PLAY_WEATHER,PLAY_CALENDAR,PLAY_FILE,STOP_SOUND,LED_OFF,LED_SET_PWM,ALARM_START,ALARM_END};
 
-		EventType      type;            // event type
-		Integer        alarmId;         // ID of the alarm this event belongs to or null
-		LocalDateTime  time;            // event time
-		Integer        paramInt1;       // integer parameter 1, depends on event type
-		Integer        paramInt2;       // integer parameter 2, depends on event type
-		String         paramString;     // String parameter 1, depends on event type
-		Boolean        paramBool;       // Boolean parameter, depends on event type
+		EventType            type;            // event type
+		Integer              alarmId;         // ID of the alarm this event belongs to or null
+		Configuration.Alarm  alarm;
+		LocalDateTime        time;            // event time
+		Integer              paramInt1;       // integer parameter 1, depends on event type
+		Integer              paramInt2;       // integer parameter 2, depends on event type
+		String               paramString;     // String parameter 1, depends on event type
+		Boolean              paramBool;       // Boolean parameter, depends on event type
 		
 		@Override
 		public int compareTo(Event e) {
 			return time.compareTo(e.time);
 		}
 	}
+	
 	
 	/**
 	 * private class implementing Listener for PushButton
@@ -763,7 +768,7 @@ class Controller implements Runnable {
 		        				}
 	            			}
 	            			
-	            			allOff(true);
+	            			allOff(activeAlarm==null);
 	        				
 	            			break;
 	            		}
@@ -778,73 +783,7 @@ class Controller implements Runnable {
     					log.info("processing single click. useAws="+pushButtonSetting.useAws);
     					
     					if(pushButtonSetting.useAws) {
-    						final String tmpAwsLexFilename = "/tmp/alarmpiawslex.wav";
-    						
-    						log.fine("starting recording of AWS speech control to "+tmpAwsLexFilename);
-    						try {
-    					         ProcessBuilder pb = new ProcessBuilder("/usr/bin/arecord", "-f","S16_LE","-r","16000","-d","5","-vv","-D","plughw:1",tmpAwsLexFilename);
-    					         final Process p=pb.start();
-    				             p.waitFor();
-    				             log.fine("arecord exit code: "+p.exitValue());
-    				             
-    				     		FileInputStream inputStream;
-    				    		try {
-    				    			log.finest("processing speech control recording");
-    				    			
-    				    			AmazonLexRuntimeClientBuilder builder = AmazonLexRuntimeClient.builder();
-    				    			builder.setRegion("us-east-1");
-    				    			AmazonLexRuntime runtime = builder.build();
-    				    			PostContentRequest request = new PostContentRequest();
-    				    			
-    				    			inputStream = new FileInputStream(tmpAwsLexFilename);
-    				    			
-	    				    		AWSCredentialsProvider provider = new DefaultAWSCredentialsProviderChain();
-	    				    		request.setRequestCredentialsProvider(provider);
-	    				    		request.setBotName("AlarmPi");
-	    				    		request.setBotAlias("AlarmPiProd");
-	    				    		request.setUserId("AlarmPi");
-	    				    		request.setContentType("audio/l16; rate=16000; channels=1");
-	    				    		request.setInputStream(inputStream);
-	    				    		
-	    				    		log.finest("sending AWS request");
-	    				    		PostContentResult result = runtime.postContent(request);
-	    				    		
-	    				    		log.finest("transcript: "+result.getInputTranscript());
-	    				    		log.finest("dialog state: "+result.getDialogState());
-	    				    		log.finest("intent: "+result.getIntentName());
-	    				    		log.finest("message: "+result.getMessage());
-	    				    		log.finest("content: "+result.getContentType());
-	    				    		log.finest("attributes: "+result.getSessionAttributes());
-	    				    		log.finest("slots: "+result.getSlots());
-	    				    		
-	    				    		if(result.getIntentName().equalsIgnoreCase("SetNextAlarm")) {
-	    				    			log.fine("deteced intent: SetNextAlarm slots:"+result.getSlots());
-	    				    			
-	    				    			JsonFactory factory = new JsonFactory();
-	    				    			JsonParser parser = factory.createParser(result.getSlots());
-	    				    			
-	    				    			JsonToken token = parser.nextToken();
-	    				    			log.finest(token.toString()); // START_OBJECT
-	    				    			log.finest("name="+parser.getCurrentName());
-	    				    			log.finest("value1="+parser.getValueAsString());
-	    				    			
-	    				    			token = parser.nextToken();
-	    				    			log.finest(token.toString()); // FIELD_NAME
-	    				    			log.finest("name="+parser.getCurrentName());
-	    				    			log.finest("value1="+parser.getValueAsString());
-	    				    			
-	    				    			token = parser.nextToken();
-	    				    			log.finest(token.toString()); // VALUE_STRING
-	    				    			log.finest("name="+parser.getCurrentName());
-	    				    			log.finest("value1="+parser.getValueAsString());
-	    				    		}
-    				    		
-    				    		} catch (FileNotFoundException e) {
-    				    			log.severe("Unable to find AWS recording file: "+e.getMessage());
-    				    		}
-    					      } catch (Exception ex) {
-    					    	  log.severe("Exception during recording of AWS speech control command: "+ex.getMessage());
-    					      }
+    						new SpeechToCommand().captureCommand();
     					}
     					else {
     						// no speech control - increase LED brightness
@@ -880,7 +819,7 @@ class Controller implements Runnable {
 	LinkedList<Event>    eventList;             // list of events to process, sorted by fire time
 	Configuration        configuration;         // configuration data
 	SoundControl         soundControl;          // proxy for sound control	
-	Integer              activeAlarmId;         // ID of active alarm (or null if no alarm is active)
+	Configuration.Alarm  activeAlarm;           // active alarm (or null if no alarm is active)
 	Event                soundTimerEvent;       // event to switch off sound or null if no timer is active
 	
 	LightControl         lightControl;          // light control

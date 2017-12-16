@@ -248,7 +248,10 @@ public class LightControlPCA9685 implements LightControl,Runnable {
 		
 		log.fine("PCA9685: dim up thread stepSize="+stepSize+" sleep interval="+sleepInterval);
 		for(double p=0 ; p<=dimTargetPercent ; p+=stepSize) {
-			setBrightness(p);
+			// only increase brightness
+			if(p>getBrightness()) {
+				setBrightness(p);
+			}
 			try {
 				Thread.sleep(sleepInterval);
 			} catch (InterruptedException e) {
