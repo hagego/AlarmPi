@@ -259,14 +259,14 @@ public class TcpRequestHandler implements Runnable {
 		@Override
 		public ReturnCode get() throws CommandHandlerException{
 			String answer = new String();
-			List<Configuration.Alarm> alarmList = Configuration.getConfiguration().getAlarmList();
-			for(Configuration.Alarm alarm:alarmList) {
-				String weekDays = alarm.weekDays.toString();
+			List<Alarm> alarmList = Configuration.getConfiguration().getAlarmList();
+			for(Alarm alarm:alarmList) {
+				String weekDays = alarm.getWeekDays().toString();
 				weekDays = weekDays.substring(1, weekDays.length()-1).replaceAll(" ", "");
 				if(weekDays.isEmpty()) {
 					weekDays = "-";
 				}
-				answer += String.format("%4d %b %s %s %d %b %b\n",alarm.id,alarm.enabled,weekDays,alarm.time,alarm.soundId,alarm.oneTimeOnly,alarm.skipOnce);
+				answer += String.format("%4d %b %s %s %d %b %b\n",alarm.getId(),alarm.isEnabled(),weekDays,alarm.getTime(),alarm.getSoundId(),alarm.isOneTimeOnly(),alarm.isSkipOnce());
 			}
 			return new ReturnCodeSuccess(answer);
 		}
@@ -339,6 +339,8 @@ public class TcpRequestHandler implements Runnable {
 				return new ReturnCodeError("unable to parse alarm id from "+parameters[1]);
 			}
 			
+			Alarm alarm = Configuration.getConfiguration().getAlarm(id);
+			
 			// 2nd parameter: list of weekdays
 			final EnumSet<DayOfWeek> weekDays = EnumSet.noneOf(DayOfWeek.class);
 			if(!parameters[2].equals("-")) {
@@ -380,7 +382,16 @@ public class TcpRequestHandler implements Runnable {
 			threadPool.execute(new Runnable() {
 				@Override
 				public void run() {
-					Configuration.getConfiguration().modifyAlarm(id,weekDays,time,sound,enabled,oneTimeOnly,skipOnce);
+					alarm.startTransaction();
+					
+					alarm.setEnabled(enabled);
+					alarm.setOneTimeOnly(oneTimeOnly);
+					alarm.setSkipOnce(skipOnce);
+					alarm.setWeekDays(weekDays);
+					alarm.setTime(time);
+					alarm.setSoundId(sound);
+					
+					alarm.endTransaction();
 				}
 			});
 			
@@ -402,7 +413,7 @@ public class TcpRequestHandler implements Runnable {
 				threadPool.execute(new Runnable() {
 					@Override
 					public void run() {
-						Configuration.getConfiguration().enableAlarm(id,enabled,true);
+						Configuration.getConfiguration().getAlarm(id).setEnabled(enabled);
 					}
 				});
 			}
@@ -426,7 +437,7 @@ public class TcpRequestHandler implements Runnable {
 				threadPool.execute(new Runnable() {
 					@Override
 					public void run() {
-						Configuration.getConfiguration().deleteAlarm(id);
+						Configuration.getConfiguration().getAlarm(id).delete();
 					}
 				});
 			}

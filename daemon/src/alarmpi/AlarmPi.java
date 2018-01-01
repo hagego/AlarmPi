@@ -54,57 +54,73 @@ public class AlarmPi {
 		
 		// create the user thread to manage alarms and HW buttons
 		final Controller controller = new Controller();
+		final Thread controllerThread = new Thread(controller);
+		controllerThread.setDaemon(false);
+		controllerThread.start();
+		
+		// prepare threads for TCP servers
+		ServerSocket cmdServerSocket  = null;
+		ServerSocket jsonServerSocket = null;
+		final ExecutorService threadPool = Executors.newCachedThreadPool();
+		
 		
 		// start TCP server to listen for external commands
 		if(configuration.getPort()==0) {
 			// no port specified (or set to 0)
-			log.severe("No TCP server port specified - no server is started");
+			log.severe("No TCP cmd server port specified - no server is started");
 		}
 		else {
 		    try {
-				final ServerSocket serverSocket  = new ServerSocket(configuration.getPort());
-				final ExecutorService threadPool = Executors.newCachedThreadPool();
+				cmdServerSocket  = new ServerSocket(configuration.getPort());
 				
-				Thread serverThread = new Thread(new TcpServer(controller,serverSocket,threadPool));
-				serverThread.setDaemon(true);
-				serverThread.start();
-				
-				final Thread controllerThread = new Thread(controller);
-				controllerThread.setDaemon(false);
-				controllerThread.start();
-				
-				// add hook to shut down server at a CTRL-C or system shutdown
-				// actually copy & paste code from some forum on the web - no idea if it is working
-			    Runtime.getRuntime().addShutdownHook( new Thread() {
-					public void run() {
-						log.info("shutdown hook started");
-						
-						// switch all lights and alarms off
-						controller.allOff(false);
-						threadPool.shutdownNow(); // don't accept new TCP client requests
-						controllerThread.interrupt();
-						
-						try {
-							// wait max. 1 second for termination of all TCP client threads
-							threadPool.awaitTermination(1L, TimeUnit.SECONDS);
-							if (!serverSocket.isClosed()) {
-								log.info("shutting down server");
-								serverSocket.close();
-							}
-							
-							controllerThread.interrupt();
-						}
-						catch (IOException | InterruptedException e) {
-							log.severe("Exception during shutdown: "+e);
-						}
-					}
-				});
-			    
+				Thread cmdServerThread = new Thread(new TcpServer(TcpServer.Type.CMD,controller,cmdServerSocket,threadPool));
+				cmdServerThread.setDaemon(true);
+				cmdServerThread.start();
 			} catch (IOException e) {
 				log.severe("Unable to create server socket for remote client access on port "+configuration.getPort());
 				log.severe(e.getMessage());
 			}
 		}
+		
+		if(configuration.getJsonServerPort()==0) {
+			// no port specified (or set to 0)
+			log.severe("No HTTP JSON server port specified - no server is started");
+		}
+		else {
+		    try {
+				jsonServerSocket = new ServerSocket(configuration.getJsonServerPort());
+				
+				Thread jsonServerThread = new Thread(new TcpServer(TcpServer.Type.JSON,controller,jsonServerSocket,threadPool));
+				jsonServerThread.setDaemon(true);
+				jsonServerThread.start();
+			} catch (IOException e) {
+				log.severe("Unable to create server socket for remote client access on port "+configuration.getJsonServerPort());
+				log.severe(e.getMessage());
+			}
+		}
+		
+		// add hook to shut down server at a CTRL-C or system shutdown
+		// actually copy & paste code from some forum on the web - no idea if it is working
+	    Runtime.getRuntime().addShutdownHook( new Thread() {
+			public void run() {
+				log.info("shutdown hook started");
+				
+				// switch all lights and alarms off
+				controller.allOff(false);
+				threadPool.shutdownNow(); // don't accept new TCP client requests
+				controllerThread.interrupt();
+				
+				try {
+					// wait max. 1 second for termination of all TCP client threads
+					threadPool.awaitTermination(1L, TimeUnit.SECONDS);
+
+					controllerThread.interrupt();
+				}
+				catch (InterruptedException  e) {
+					log.severe("Exception during shutdown: "+e);
+				}
+			}
+		});
 		
 		log.info("AlarmPi main is now finished");
 	}

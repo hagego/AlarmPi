@@ -110,11 +110,11 @@ class Controller implements Runnable {
 		
 		if(announceNextAlarm) {
 			// announce next alarms before switching off
-			Configuration.Alarm alarm = getNextAlarmToday();
+			Alarm alarm = getNextAlarmToday();
 			if(alarm!=null) {
-				String text = "Der nächste Alarm ist heute um "+alarm.time.getHour()+" Uhr";
-				if(alarm.time.getMinute()!=0) {
-					text += alarm.time.getMinute();
+				String text = "Der nächste Alarm ist heute um "+alarm.getTime().getHour()+" Uhr";
+				if(alarm.getTime().getMinute()!=0) {
+					text += alarm.getTime().getMinute();
 				}
 				String filename = new TextToSpeech().createTempFile(text, "nextAlarmToday.mp3");
 				soundControl.on();
@@ -124,9 +124,9 @@ class Controller implements Runnable {
 			else {
 				alarm = getNextAlarmTomorrow();
 				if(alarm!=null) {
-					String text = "Der nächste Alarm ist morgen um "+alarm.time.getHour()+" Uhr";
-					if(alarm.time.getMinute()!=0) {
-						text += alarm.time.getMinute();
+					String text = "Der nächste Alarm ist morgen um "+alarm.getTime().getHour()+" Uhr";
+					if(alarm.getTime().getMinute()!=0) {
+						text += alarm.getTime().getMinute();
 					}
 					String filename = new TextToSpeech().createTempFile(text, "nextAlarmTomorrow.mp3");
 					soundControl.on();
@@ -156,13 +156,13 @@ class Controller implements Runnable {
 		LocalDate date = LocalDate.now();
 		
 		// create all the events for the alarms of today
-		for(Configuration.Alarm alarm:configuration.getAlarmList()) {
+		for(Alarm alarm:configuration.getAlarmList()) {
 			addAlarmEvents(alarm);
 		}
 		
 		// create all the events for the alarms of today which are still in the future
-		for(Configuration.Alarm alarm:configuration.getAlarmList()) {
-			if(alarm.time.isAfter(LocalTime.now())) {
+		for(Alarm alarm:configuration.getAlarmList()) {
+			if(alarm.getTime().isAfter(LocalTime.now())) {
 				addAlarmEvents(alarm);
 			}
 		}
@@ -177,25 +177,20 @@ class Controller implements Runnable {
 					
 					// create all the events for the alarms of today
 					deleteAlarmEvents();
-					for(Configuration.Alarm alarm:configuration.getAlarmList()) {
+					for(Alarm alarm:configuration.getAlarmList()) {
 						addAlarmEvents(alarm);
 					}
 				}
 				
 				// check if an alarm was modified and the events need to be processed
-				Integer id = null;
-				if((id=configuration.getAlarmToProcess())!=null) {
-					// an alarm has changed. First delete all old events
-					log.fine("processing change in alarm ID="+id);
-					deleteAlarmEvents(Configuration.getConfiguration().getAlarm(id));
+				Alarm alarm = null;
+				if((alarm=configuration.getAlarmToProcess())!=null) {
+					// an alarm has changed. First delete all old events (if any)
+					log.fine("processing change in alarm ID="+alarm.getId());
+					deleteAlarmEvents(alarm);
 					
-					for(Configuration.Alarm alarm:configuration.getAlarmList()) {
-						if(alarm.id==id) {
-							// and add events again
-							addAlarmEvents(alarm);
-							break;
-						}
-					}
+					// and add new events
+					addAlarmEvents(alarm);
 				}
 				
 				// check if an event needs to be processed
@@ -269,12 +264,12 @@ class Controller implements Runnable {
 	 * deletes all events corresponding to this alarm
 	 * @param alarm  alarm 
 	 */
-	synchronized private void deleteAlarmEvents(Configuration.Alarm alarm) {
-		log.fine("deleting alarm events for alarm ID="+alarm.id);
+	synchronized private void deleteAlarmEvents(Alarm alarm) {
+		log.fine("deleting alarm events for alarm ID="+alarm.getId());
 		Iterator<Event> it = eventList.iterator();
 		while(it.hasNext()) {
 			Event e = it.next();
-			if(e.alarmId!=null && e.alarmId==alarm.id) {
+			if(e.alarm != null && e.alarm == alarm) {
 				// delete this event
 				it.remove();
 			}
@@ -291,13 +286,13 @@ class Controller implements Runnable {
 	 * Returns the next active alarm today
 	 * @return
 	 */
-	Configuration.Alarm getNextAlarmToday() {
+	Alarm getNextAlarmToday() {
 		DayOfWeek today               = LocalDate.now().getDayOfWeek();
-		Configuration.Alarm nextAlarm = null;
+		Alarm nextAlarm = null;
 		
-		for(Configuration.Alarm alarm:configuration.getAlarmList()) {
-			if(alarm.enabled && !alarm.skipOnce && alarm.weekDays.contains(today)) {
-				if(alarm.time.isAfter(LocalTime.now()) && (nextAlarm==null || alarm.time.isBefore(nextAlarm.time))) {
+		for(Alarm alarm:configuration.getAlarmList()) {
+			if(alarm.isEnabled() && !alarm.isSkipOnce() && alarm.getWeekDays().contains(today)) {
+				if(alarm.getTime().isAfter(LocalTime.now()) && (nextAlarm==null || alarm.getTime().isBefore(nextAlarm.getTime()))) {
 					nextAlarm = alarm;
 				}
 			}
@@ -310,13 +305,13 @@ class Controller implements Runnable {
 	 * Returns the next active alarm tomorrow
 	 * @return
 	 */
-	Configuration.Alarm getNextAlarmTomorrow() {
+	Alarm getNextAlarmTomorrow() {
 		DayOfWeek tomorrow            = LocalDate.now().getDayOfWeek().plus(1);
-		Configuration.Alarm nextAlarm = null;
+		Alarm nextAlarm = null;
 		
-		for(Configuration.Alarm alarm:configuration.getAlarmList()) {
-			if(alarm.enabled && !alarm.skipOnce && alarm.weekDays.contains(tomorrow)) {
-				if(nextAlarm==null || alarm.time.isBefore(nextAlarm.time)) {
+		for(Alarm alarm:configuration.getAlarmList()) {
+			if(alarm.isEnabled() && !alarm.isSkipOnce() && alarm.getWeekDays().contains(tomorrow)) {
+				if(nextAlarm==null || alarm.getTime().isBefore(nextAlarm.getTime())) {
 					nextAlarm = alarm;
 				}
 			}
@@ -329,90 +324,85 @@ class Controller implements Runnable {
 	 * generates the events needed to process an alarm
 	 * @param alarm new alarm to process
 	 */
-	synchronized private void addAlarmEvents(Configuration.Alarm alarm) {
-		log.fine("generating events for alarm ID="+alarm.id+" at time="+alarm.time);
+	synchronized private void addAlarmEvents(Alarm alarm) {
+		log.fine("generating events for alarm ID="+alarm.getId()+" at time="+alarm.getTime());
 		
-		if(!alarm.weekDays.contains(LocalDate.now().getDayOfWeek())) {
+		if(!alarm.getWeekDays().contains(LocalDate.now().getDayOfWeek())) {
 			log.fine("alarm not scheduled for today");
 			return;
 		}
 		
-		if(alarm.time.isBefore(LocalTime.now())) {
+		if(alarm.getTime().isBefore(LocalTime.now())) {
 			log.fine("alarm time has already passed");
 			return;
 		}
 		
-		if(!alarm.enabled) {
+		if(!alarm.isEnabled()) {
 			log.fine("alarm disabled");
 			return;
 		}
 		
 		// alarm time as LocalDateTime
-		LocalDateTime alarmDateTime = LocalDate.now().atTime(alarm.time);
+		LocalDateTime alarmDateTime = LocalDate.now().atTime(alarm.getTime());
 		
 		// generate fade-in events
 		final int stepCountFadeIn         = 20;
-		final LocalDateTime fadeInStart   = alarmDateTime.minusSeconds(alarm.fadeInDuration);
-		final double fadeInTimeInterval   = (double)alarm.fadeInDuration/(double)stepCountFadeIn;                 // in seconds
-		final double fadeInVolumeInterval = (double)(alarm.volumeFadeInEnd-alarm.volumeFadeInStart)/(double)stepCountFadeIn;
+		final LocalDateTime fadeInStart   = alarmDateTime.minusSeconds(alarm.getFadeInDuration());
+		final double fadeInTimeInterval   = (double)alarm.getFadeInDuration()/(double)stepCountFadeIn;                 // in seconds
+		final double fadeInVolumeInterval = (double)(alarm.getVolumeFadeInEnd()-alarm.getVolumeFadeInStart())/(double)stepCountFadeIn;
 		
-		log.fine("fade in start at: "+fadeInStart+" alarm at "+alarmDateTime+" stop at "+alarmDateTime.plusSeconds(alarm.duration));
+		log.fine("fade in start at: "+fadeInStart+" alarm at "+alarmDateTime+" stop at "+alarmDateTime.plusSeconds(alarm.getDuration()));
 		
 		// create events only if alarm is still to come today
 		if(fadeInStart.isAfter(LocalDateTime.now())) {
 			Event eventStart = new Event();
 			eventStart.type      = Event.EventType.ALARM_START;
-			eventStart.alarmId   = alarm.id;
 			eventStart.alarm     = alarm;
 			eventStart.time      = fadeInStart;
-			eventStart.paramInt1 = alarm.lightDimUpDuration;
-			eventStart.paramInt2 = alarm.lightDimUpBrightness;
+			eventStart.paramInt1 = alarm.getLightDimUpDuration();
+			eventStart.paramInt2 = alarm.getLightDimUpBrightness();
 			eventList.add(eventStart);
 			
 			Event eventSound = new Event();
 			eventSound.type         = Event.EventType.PLAY_SOUND;
-			eventSound.alarmId      = alarm.id;
 			eventSound.alarm        = alarm;
 			eventSound.time         = fadeInStart.plusNanos(1);
-			eventSound.paramInt1    = alarm.soundId;
-			eventSound.paramInt2    = alarm.volumeFadeInStart;
+			eventSound.paramInt1    = alarm.getSoundId();
+			eventSound.paramInt2    = alarm.getVolumeFadeInStart();
 			eventList.add(eventSound);
 			
 			for(int step=1 ; step<stepCountFadeIn ; step++) {
 				// increase volume
 				Event eventVolume = new Event();
 				eventVolume.type      = Event.EventType.SET_VOLUME;
-				eventVolume.alarmId   = alarm.id;
 				eventVolume.alarm     = alarm;
 				eventVolume.time      = fadeInStart.plusSeconds((long)(step*fadeInTimeInterval));
-				eventVolume.paramInt1 = alarm.volumeFadeInStart+(int)(step*fadeInVolumeInterval);
+				eventVolume.paramInt1 = alarm.getVolumeFadeInStart()+(int)(step*fadeInVolumeInterval);
 				eventList.add(eventVolume);
 			}
 		}
 		
 		// generate post fade-in events to increase volume and brightness
 		final int    stepCountPostFadeIn      = 5;
-		final double postFadeInTimeInterval   = (double)alarm.duration/(double)stepCountPostFadeIn;    // in seconds
-		final double postFadeInVolumeInterval = (double)(alarm.volumeAlarmEnd-alarm.volumeFadeInEnd)/(double)stepCountPostFadeIn;
+		final double postFadeInTimeInterval   = (double)alarm.getDuration()/(double)stepCountPostFadeIn;    // in seconds
+		final double postFadeInVolumeInterval = (double)(alarm.getVolumeAlarmEnd()-alarm.getVolumeFadeInEnd())/(double)stepCountPostFadeIn;
 		
 		for(int step=1 ; step<stepCountPostFadeIn ; step++) {
 			// increase volume
 			Event eventVolume = new Event();
 			eventVolume.type      = Event.EventType.SET_VOLUME;
-			eventVolume.alarmId   = alarm.id;
 			eventVolume.alarm     = alarm;
 			eventVolume.time      = alarmDateTime.plusSeconds((long)(step*postFadeInTimeInterval));
-			eventVolume.paramInt1 = alarm.volumeFadeInEnd+(int)(step*postFadeInVolumeInterval);
+			eventVolume.paramInt1 = alarm.getVolumeFadeInEnd()+(int)(step*postFadeInVolumeInterval);
 			eventList.add(eventVolume);
 		}
 		
 		// generate main alarm and post alarm announcements
 		Event eventGreeting = new Event();
 		eventGreeting.type         = Event.EventType.PLAY_FILE;
-		eventGreeting.alarmId      = alarm.id;
 		eventGreeting.alarm        = alarm;
 		eventGreeting.time         = alarmDateTime.plusNanos(1);
-		eventGreeting.paramString  = new TextToSpeech().createPermanentFile(alarm.greeting);
+		eventGreeting.paramString  = new TextToSpeech().createPermanentFile(alarm.getGreeting());
 		eventGreeting.paramBool    = true;
 		eventList.add(eventGreeting);
 		
@@ -420,15 +410,14 @@ class Controller implements Runnable {
 			int count = 0;
 			int ANNOUNCEMENT_INTERVAL = 3;
 			
-			for(LocalDateTime time=alarmDateTime ;  time.isBefore(alarmDateTime.plusSeconds(alarm.duration)) ; time=time.plusSeconds(alarm.reminderInterval)) {
+			for(LocalDateTime time=alarmDateTime ;  time.isBefore(alarmDateTime.plusSeconds(alarm.getDuration())) ; time=time.plusSeconds(alarm.getReminderInterval())) {
 				boolean append = false;
-				if(alarm.sound!=null) {
+				if(alarm.getSound()!=null) {
 					Event eventAlarm = new Event();
 					eventAlarm.type         = Event.EventType.PLAY_FILE;
-					eventAlarm.alarmId      = alarm.id;
 					eventAlarm.alarm        = alarm;
 					eventAlarm.time         = time;
-					eventAlarm.paramString  = alarm.sound;
+					eventAlarm.paramString  = alarm.getSound();
 					eventAlarm.paramBool    = append;
 					eventList.add(eventAlarm);
 					
@@ -437,7 +426,6 @@ class Controller implements Runnable {
 				
 				Event eventAnnouncement = new Event();
 				eventAnnouncement.type         = Event.EventType.PLAY_FILE;
-				eventAnnouncement.alarmId      = alarm.id;
 				eventAnnouncement.alarm        = alarm;
 				eventAnnouncement.time         = time.plusNanos(2);
 				eventAnnouncement.paramString  = prepareTimeAnnouncement(time.toLocalTime());
@@ -448,7 +436,6 @@ class Controller implements Runnable {
 					// play additional announcements
 					Event eventWeather = new Event();
 					eventWeather.type         = Event.EventType.PLAY_WEATHER;
-					eventWeather.alarmId      = alarm.id;
 					eventWeather.alarm        = alarm;
 					eventWeather.time         = time.plusNanos(3);
 					eventList.add(eventWeather);
@@ -456,7 +443,6 @@ class Controller implements Runnable {
 					if(Configuration.getConfiguration().getCalendarSummary()!=null) {
 						Event eventCalendar = new Event();
 						eventCalendar.type         = Event.EventType.PLAY_CALENDAR;
-						eventCalendar.alarmId      = alarm.id;
 						eventCalendar.alarm        = alarm;
 						eventCalendar.time         = time.plusNanos(4);
 						eventList.add(eventCalendar);
@@ -465,10 +451,9 @@ class Controller implements Runnable {
 				
 				Event eventPlay = new Event();
 				eventPlay.type         = Event.EventType.PLAY_SOUND;
-				eventPlay.alarmId      = alarm.id;
 				eventPlay.alarm        = alarm;
 				eventPlay.time         = time.plusNanos(5);
-				eventPlay.paramInt1    = alarm.soundId;
+				eventPlay.paramInt1    = alarm.getSoundId();
 				eventPlay.paramBool    = true;
 				eventList.add(eventPlay);
 				
@@ -477,9 +462,8 @@ class Controller implements Runnable {
 			
 			Event eventStop = new Event();
 			eventStop.type      = Event.EventType.ALARM_END;
-			eventStop.alarmId   = alarm.id;
 			eventStop.alarm     = alarm;
-			eventStop.time      = alarmDateTime.plusSeconds(alarm.duration);
+			eventStop.time      = alarmDateTime.plusSeconds(alarm.getDuration());
 			eventList.add(eventStop);
 		}
 		
@@ -514,7 +498,7 @@ class Controller implements Runnable {
 			// create a new event
 			soundTimerEvent = new Event();
 			soundTimerEvent.type      = Event.EventType.STOP_SOUND;
-			soundTimerEvent.alarmId   = null;
+			soundTimerEvent.alarm     = null;
 			soundTimerEvent.time      = LocalDateTime.now().plusSeconds(secondsFromNow);
 			eventList.add(soundTimerEvent);
 		}
@@ -571,14 +555,13 @@ class Controller implements Runnable {
 			soundTimerEvent = null;
 		}
 		
-		if(e.alarm.skipOnce) {
+		if(e.alarm.isSkipOnce()) {
 			log.fine("skipping firing event of type "+e.type+" i1="+e.paramInt1+" i2="+e.paramInt2+" s1="+e.paramString);
 			
 			// do nothing if alarm is to be skipped
 			if(e.type==alarmpi.Controller.Event.EventType.ALARM_END) {
 				// skipping done. Mark alarm as active again
-				e.alarm.skipOnce = false;
-				e.alarm.store();
+				e.alarm.setSkipOnce(false);
 			}
 			return;
 		}
@@ -637,8 +620,8 @@ class Controller implements Runnable {
 			lightControl.off();
 			break;
 		case ALARM_START:
-			log.fine("start of alarm with id="+e.alarmId);
-			activeAlarm = Configuration.getConfiguration().getAlarm(e.alarmId);
+			log.fine("start of alarm with id="+e.alarm.getId());
+			activeAlarm = e.alarm;;
 			soundControl.stop();
 			soundControl.on();
 			
@@ -651,23 +634,23 @@ class Controller implements Runnable {
 				calendarAnnouncementFile = dataExecutorService.submit(new CalendarProvider());
 			}
 			
+			break;
+		case ALARM_END:
+			stopAlarm();
+			
 			// if this alarm is one time only: disable it again
-			Configuration.Alarm alarm = configuration.getAlarm(e.alarmId);
-			if(alarm==null) {
+			if(e.alarm==null) {
 				log.warning("getAlarm at ALARM_START returns null");
 			}
 			else {
-				if(alarm.oneTimeOnly) {
+				if(e.alarm.isOneTimeOnly()) {
 					log.fine("oneTimeOnly alarm. Disabling again");
-					configuration.enableAlarm(e.alarmId,false,false);
+					e.alarm.setEnabled(false);
 				}
 				else {
 					log.fine("oneTimeOnly=false. Leaving alarm enabled.");
 				}
 			}
-			break;
-		case ALARM_END:
-			stopAlarm();
 			break;
 		default:
 			log.severe("Unknown event type: "+e.type);
@@ -718,8 +701,7 @@ class Controller implements Runnable {
 		enum EventType {SET_VOLUME,PLAY_SOUND,PLAY_WEATHER,PLAY_CALENDAR,PLAY_FILE,STOP_SOUND,LED_OFF,LED_SET_PWM,ALARM_START,ALARM_END};
 
 		EventType            type;            // event type
-		Integer              alarmId;         // ID of the alarm this event belongs to or null
-		Configuration.Alarm  alarm;
+		Alarm                alarm;
 		LocalDateTime        time;            // event time
 		Integer              paramInt1;       // integer parameter 1, depends on event type
 		Integer              paramInt2;       // integer parameter 2, depends on event type
@@ -819,7 +801,7 @@ class Controller implements Runnable {
 	LinkedList<Event>    eventList;             // list of events to process, sorted by fire time
 	Configuration        configuration;         // configuration data
 	SoundControl         soundControl;          // proxy for sound control	
-	Configuration.Alarm  activeAlarm;           // active alarm (or null if no alarm is active)
+	Alarm                activeAlarm;           // active alarm (or null if no alarm is active)
 	Event                soundTimerEvent;       // event to switch off sound or null if no timer is active
 	
 	LightControl         lightControl;          // light control

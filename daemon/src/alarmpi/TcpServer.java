@@ -12,7 +12,8 @@ import java.util.logging.Logger;
  */
 public class TcpServer implements Runnable {
 
-	public TcpServer(Controller controller,ServerSocket serverSocket,ExecutorService threadPool) {
+	public TcpServer(Type type,Controller controller,ServerSocket serverSocket,ExecutorService threadPool) {
+		this.type          = type;
 		this.serverSocket  = serverSocket;
 		this.threadPool    = threadPool;
 		this.controller    = controller;
@@ -20,13 +21,20 @@ public class TcpServer implements Runnable {
 
 	@Override
 	public void run() {
-		log.info("Starting communication server on port "+serverSocket.getLocalPort());
+		log.info("Starting communication server of type "+type+" on port "+serverSocket.getLocalPort());
 		
 		// wait for clients to connect
 		while(!serverSocket.isClosed()) {
 			try {
 				Socket clientSocket = serverSocket.accept();
-				threadPool.execute(new TcpRequestHandler(controller, clientSocket));
+				switch(type) {
+					case CMD: threadPool.execute(new TcpRequestHandler(controller, clientSocket));
+						break;
+					case JSON: threadPool.execute(new JsonRequestHandler(controller, clientSocket));
+						break;
+					default: log.severe("Unknown server type: "+type);
+				}
+				
 			} catch (IOException e) {
 				log.severe("IO error during TCP client connect");
 				log.severe(e.getMessage());
@@ -39,6 +47,10 @@ public class TcpServer implements Runnable {
 	// private data members
 	//
 	private static final Logger log = Logger.getLogger( TcpServer.class.getName() );
+	
+	public enum Type {CMD,JSON};                          // defines protocol
+	
+	private final Type            type;
 	private final ServerSocket    serverSocket;
 	private final ExecutorService threadPool;
 	private final Controller      controller;

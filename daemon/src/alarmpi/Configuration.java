@@ -2,14 +2,9 @@ package alarmpi;
 
 import alarmpi.Configuration.Sound.Type;
 
-import java.io.ByteArrayInputStream;
-import java.io.ByteArrayOutputStream;
 import java.io.FileNotFoundException;
 import java.io.FileReader;
 import java.io.IOException;
-import java.io.ObjectInputStream;
-import java.io.ObjectOutputStream;
-import java.io.Serializable;
 import java.time.DayOfWeek;
 import java.time.LocalTime;
 import java.util.ArrayList;
@@ -21,8 +16,6 @@ import java.util.Locale;
 import java.util.Queue;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.logging.Logger;
-import java.util.prefs.BackingStoreException;
-import java.util.prefs.Preferences;
 import org.ini4j.Ini;
 import org.ini4j.InvalidFileFormatException;
 
@@ -88,65 +81,7 @@ public class Configuration {
 		int lightId;              // light control: ID of associated light (PCA9685 only)
 	}
 	
-	/**
-	 * local class used to store alarm settings
-	 */
-	static class Alarm implements Serializable {
-		EnumSet<DayOfWeek> weekDays = EnumSet.noneOf(DayOfWeek.class);  // weekdays when this alarm is active                
-		boolean            enabled          = false;     // on/off switch
-		boolean            oneTimeOnly      = false;     // automatically disable alarm again after it got executed once
-		boolean            skipOnce         = false;     // skip alarm one time
-		LocalTime          time;                         // alarm time
-		Integer            soundId;                      // ID of sound to play. Must be configured in configuration file
-		String             greeting;                     // greeting text
-		String             sound;                        // filename of alarm sound (or null)
-		int                fadeInDuration       = 0;     // fade in time in seconds
-		int                volumeFadeInStart    = 0;     // alarm sound fade-in start volume
-		int                volumeFadeInEnd      = 0;     // alarm sound fade-in end volume
-		int                volumeAlarmEnd       = 0;     // alarm sound end volume
-		int                lightDimUpDuration   = 0;     // duration of light dim up after alarm start in seconds
-		int                lightDimUpBrightness = 0;     // brightness of light at end of dim up phase in percent
-		int                reminderInterval     = 0;     // reminder interval (s)
-		int                duration             = 0;     // time until alarm stops (s)
-		int                id;                           // unique ID for this alarm
-		
-		/**
-		 * constructor
-		 * @param type alarm type
-		 */
-		Alarm() {
-			id = nextId++;
-		}
-		
-		// private members
-		private static final long serialVersionUID = -2395516218365040408L;
-		private static       int  nextId           = 0;   // ID of next alarm that is generated
-		
-		void store() {
-			// serialize the alarm and store it in preferences (make it persistent)
-			// using alarm ID as key
-			try {
-				ByteArrayOutputStream baos = new ByteArrayOutputStream();
-				ObjectOutputStream oos;
-				
-				oos = new ObjectOutputStream( baos );
-				oos.writeObject( this );
-				oos.close();
-				
-				byte[] bytes = baos.toByteArray();
-				Preferences prefs = Preferences.userNodeForPackage(Configuration.class);
-				prefs.putByteArray(String.valueOf(id), bytes);
-				prefs.flush();
-			} catch (IOException e) {
-				log.severe("Failed to serialize alarm: "+e.getMessage());
-			} catch (BackingStoreException e) {
-				log.severe("Failed to store alarm in preferences: "+e.getMessage());
-			}
-			
-			log.info("modified and stored alarm with ID="+id);
-		}
-	}
-	
+
 	
 	/**
 	 * returns the singleton object with configuration data
@@ -179,7 +114,7 @@ public class Configuration {
 		// instantiate member objects
 		soundList            = new ArrayList<Sound>();
 		alarmList            = new LinkedList<Alarm>();
-		alarmProcessQueue    = new ConcurrentLinkedQueue<Integer>();
+		alarmProcessQueue    = new ConcurrentLinkedQueue<Alarm>();
 		lightControlSettings = new LightControlSettings();
 		pushButtonList       = new ArrayList<PushButtonSettings>();
         openhabCommands      = new LinkedList<String>();
@@ -192,7 +127,8 @@ public class Configuration {
         mpdTmpSubDir  = ini.get("mpd", "tmpSubDir", String.class);
         
         // network access (thru TCP clients)
-        port          = ini.get("network", "port", Integer.class);
+        port           = ini.get("network", "port", Integer.class);
+        jsonServerPort = ini.get("network", "jsonServerPort", Integer.class);
         
         // sounds (radio stations)
         Ini.Section sectionSound;
@@ -217,19 +153,23 @@ public class Configuration {
         }
         
         // alarm settings
-        alarmSettings            = new Alarm();
+		// read alarms from preferences
+		alarmList = Alarm.readAll();
+		
         Ini.Section sectionAlarm = ini.get("alarm");
         
-        alarmSettings.greeting             = sectionAlarm.get("greeting", String.class, "");
-    	alarmSettings.fadeInDuration       = sectionAlarm.get("fadeIn", Integer.class, 300);
-    	alarmSettings.duration             = sectionAlarm.get("duration", Integer.class, 1800);
-    	alarmSettings.reminderInterval     = sectionAlarm.get("reminderInterval", Integer.class, 300);
-    	alarmSettings.volumeFadeInStart    = sectionAlarm.get("volumeFadeInStart", Integer.class, 10);
-    	alarmSettings.volumeFadeInEnd      = sectionAlarm.get("volumeFadeInEnd", Integer.class, 60);
-    	alarmSettings.volumeAlarmEnd       = sectionAlarm.get("volumeAlarmEnd", Integer.class, 70);
-    	alarmSettings.lightDimUpDuration   = sectionAlarm.get("lightDimUpDuration", Integer.class, 600);
-    	alarmSettings.lightDimUpBrightness = sectionAlarm.get("lightDimUpBrightness", Integer.class, 50);
-    	alarmSettings.sound                = sectionAlarm.get("sound", String.class, "alarm_5s.mp3");
+        for(Alarm alarm:alarmList) {
+        	alarm.setGreeting(sectionAlarm.get("greeting", String.class, ""));
+        	alarm.setFadeInDuration(sectionAlarm.get("fadeIn", Integer.class, 300));
+        	alarm.setDuration(sectionAlarm.get("duration", Integer.class, 1800));
+        	alarm.setReminderInterval(sectionAlarm.get("reminderInterval", Integer.class, 300));
+        	alarm.setVolumeFadeInStart(sectionAlarm.get("volumeFadeInStart", Integer.class, 10));
+        	alarm.setVolumeFadeInEnd(sectionAlarm.get("volumeFadeInEnd", Integer.class, 60));
+        	alarm.setVolumeAlarmEnd(sectionAlarm.get("volumeAlarmEnd", Integer.class, 70));
+        	alarm.setLightDimUpDuration(sectionAlarm.get("lightDimUpDuration", Integer.class, 600));
+        	alarm.setLightDimUpBrightness(sectionAlarm.get("lightDimUpBrightness", Integer.class, 50));
+        	alarm.setSound(sectionAlarm.get("sound", String.class, "alarm_5s.mp3"));
+        }
         
         // light control
         Ini.Section sectionLightControl=ini.get("light");
@@ -318,9 +258,6 @@ public class Configuration {
         	googleCalendarSummary = sectionCalendar.get("summary", String.class, "");
         }
         
-		// read alarms from preferences
-		readAlarms();
-		
 		// dump the content into logfile
 		dump();
 	}
@@ -375,6 +312,13 @@ public class Configuration {
 	 */
 	int getPort() {
 		return port;
+	}
+
+	/**
+	 * @return the network port for the HTTP JSON server remote interface
+	 */
+	int getJsonServerPort() {
+		return jsonServerPort;
 	}
 	
 	/**
@@ -470,55 +414,6 @@ public class Configuration {
 	}
 	
 	/**
-	 * reads stored alarms from Java Preferences
-	 */
-	void readAlarms() {
-
-		// reset alarm list just in case...
-		alarmList.clear();
-		
-		try {
-			int count=0;
-			Preferences prefs = Preferences.userNodeForPackage(Configuration.class);
-			for(String id:prefs.keys()) {
-				byte bytes[] = prefs.getByteArray(id, null);
-				if(bytes!=null) {
-					ObjectInputStream ois = new ObjectInputStream(new ByteArrayInputStream(bytes));
-					Alarm alarm = (Alarm)ois.readObject();
-					alarmList.add(alarm);
-					
-					// adopt fixed properties to latest from configuration file
-					alarm.fadeInDuration       = alarmSettings.fadeInDuration;
-					alarm.volumeFadeInStart    = alarmSettings.volumeFadeInStart;
-					alarm.volumeFadeInEnd      = alarmSettings.volumeFadeInEnd;
-					alarm.volumeAlarmEnd       = alarmSettings.volumeAlarmEnd;
-					alarm.lightDimUpDuration   = alarmSettings.lightDimUpDuration;
-					alarm.lightDimUpBrightness = alarmSettings.lightDimUpBrightness;
-					alarm.reminderInterval     = alarmSettings.reminderInterval;
-					alarm.duration             = alarmSettings.duration;
-					alarm.greeting             = alarmSettings.greeting;
-					
-					// adjust next alarm ID
-					if(alarm.id>=Alarm.nextId) {
-						Alarm.nextId = alarm.id+1;
-					}
-				}
-				count++;
-			}
-			log.info("Read "+count+" alarms");
-		} catch (IOException e) {
-			log.severe("Failed to serialize alarm");
-			log.severe(e.getMessage());
-		} catch (BackingStoreException e) {
-			log.severe("Failed to read alarm from preferences");
-			log.severe(e.getMessage());
-		} catch (ClassNotFoundException e) {
-			log.severe("Failed to find class during serialization of alarms");
-			log.severe(e.getMessage());
-		} 
-	}
-	
-	/**
 	 * creates a new   alarm
 	 * @param  days    week days when alarm shall be active
 	 * @param  time    alarm time
@@ -526,68 +421,27 @@ public class Configuration {
 	 * @return alarm ID
 	 */
 	synchronized int createAlarm(EnumSet<DayOfWeek> days,LocalTime time,Integer soundId) {
-		Alarm alarm = new Alarm();
-		
-		// assign some properties directly from configuration file
-		alarm.fadeInDuration       = alarmSettings.fadeInDuration;
-		alarm.volumeFadeInStart    = alarmSettings.volumeFadeInStart;
-		alarm.volumeFadeInEnd      = alarmSettings.volumeFadeInEnd;
-		alarm.volumeAlarmEnd       = alarmSettings.volumeAlarmEnd;
-		alarm.lightDimUpDuration   = alarmSettings.lightDimUpDuration;
-		alarm.lightDimUpBrightness = alarmSettings.lightDimUpBrightness;
-		alarm.reminderInterval     = alarmSettings.reminderInterval;
-		alarm.duration             = alarmSettings.duration;
-		alarm.greeting             = alarmSettings.greeting;
-		alarm.sound                = alarmSettings.sound;
+		Alarm alarm = new Alarm(alarmList.get(0));
 		
 		// add to alarm list
 		alarmList.add(alarm);
 		
 		// set remaining properties
-		modifyAlarm(alarm.id,days,time,soundId,false,false,false);
+		alarm.startTransaction();
 		
-		log.info("created and stored alarm with ID="+alarm.id);
-		return alarm.id;
+		alarm.setWeekDays(days);
+		alarm.setTime(time);
+		alarm.setSoundId(soundId);
+		
+		alarm.endTransaction();
+		
+		log.info("created and stored alarm with ID="+alarm.getId());
+		return alarm.getId();
 	}
 	
-	/**
-	 * modifies an existing alarm
-	 * @param  id          alarm ID
-	 * @param  days        week days when alarm shall be active
-	 * @param  time        alarm time
-	 * @param  soundId     sound ID to play
-	 * @param  enabled     on/off switch 
-	 * @param  oneTimeOnly if true, alarm gets disabled again after executed once
-	 * @param  skipOnce    if true, alarm gest skipped on time
-	 * @return if alarm with this ID was found and modified
-	 */
-	synchronized boolean modifyAlarm(int alarmId,EnumSet<DayOfWeek> days,LocalTime time,Integer soundId,boolean enabled,boolean oneTimeOnly,boolean skipOnce) {
-		boolean found = false;
-		Iterator<Alarm> it = alarmList.iterator();
-		while(it.hasNext()) {
-			Alarm alarm = it.next();
-			if(alarm.id==alarmId) {
-				// assign properties given as function parameters
-				alarm.weekDays    = days;
-				alarm.time        = time;
-				alarm.soundId     = soundId;
-				alarm.enabled     = enabled;
-				alarm.oneTimeOnly = oneTimeOnly;
-				alarm.skipOnce    = skipOnce;
-				
-				// add to queue of alarms that need to be processed
-				alarmProcessQueue.add(alarm.id);
-				
-				// serialize the alarm and store it in preferences (make it persistent)
-				// using alarm ID as key
-				alarm.store();
-				
-				found = true;
-				break;
-			}
-		}
-		
-		return found;
+
+	void addAlarmToProcess(Alarm alarm) {
+		alarmProcessQueue.add(alarm);
 	}
 	
 	/**
@@ -601,7 +455,7 @@ public class Configuration {
 		Iterator<Alarm> it = alarmList.iterator();
 		while(it.hasNext()) {
 			alarm=it.next();
-			if(alarm.id==alarmId) {
+			if(alarm.getId()==alarmId) {
 				return alarm;
 			}
 		}
@@ -609,74 +463,15 @@ public class Configuration {
 		return null;
 	}
 	
-	/**
-	 * enables or disables an alarm
-	 * @param alarmId      ID of the alarm to enable/disable
-	 * @param enable       true/false enables/disables the alarm
-	 * @param stopIfActive if enable=false, this determines if the alarm gets stopped if it is active 
-	 */
-	synchronized boolean enableAlarm(int alarmId,boolean enabled,boolean stopIfActive) {
-		boolean found = false;
-		Iterator<Alarm> it = alarmList.iterator();
-		while(it.hasNext()) {
-			Alarm alarm = it.next();
-			if(alarm.id==alarmId) {
-				alarm.enabled = enabled;
-				
-				// delete all events belonging to this alarm
-				if(enabled==true || (enabled==false && stopIfActive==true)) {
-					alarmProcessQueue.add(alarmId);
-				}
-				alarm.store();
-				
-				found = true;
-				break;
-			}
-		}
-		
-		return found;
+	synchronized void removeAlarmFromList(Alarm alarm) {
+		alarmList.remove(alarm);
 	}
-	
-	/**
-	 * deletes an alarm
-	 * @param alarmId ID of the alarm to delete
-	 */
-	synchronized boolean deleteAlarm(int alarmId) {
-		boolean found = false;
-		Iterator<Alarm> it = alarmList.iterator();
-		while(it.hasNext()) {
-			Alarm a = it.next();
-			if(a.id==alarmId) {
-				// delete this alarm from in-memory alarm list
-				it.remove();
-				
-				// delete all events belonging to this alarm
-				alarmProcessQueue.add(alarmId);
-				
-				// remove from preferences
-				Preferences prefs = Preferences.userNodeForPackage(Configuration.class);
-				prefs.remove(String.valueOf(alarmId));
-				try {
-					prefs.flush();
-				} catch (BackingStoreException e) {
-					log.severe("Failed to delete alarm from preferences");
-					log.severe(e.getMessage());
-				}
-				
-				found = true;
-				break;
-			}
-		}
-		
-		return found;
-	}
-	
 	
 	/**
 	 * returns an alarm that changed and needs to be processed by the Controller thread
 	 * @return ID of an alarm to be processed or null if there is nothing to be done
 	 */
-	synchronized final Integer getAlarmToProcess() {
+	synchronized final Alarm getAlarmToProcess() {
 		return alarmProcessQueue.poll();
 	}
 	
@@ -692,7 +487,8 @@ public class Configuration {
 		dump += "  mpdAddress="+mpdAddress+"\n";
 		dump += "  mpdPort="+mpdPort+"\n";
 		dump += "  mpdFiles="+mpdFiles+" mpdTmpSubDir="+mpdTmpSubDir+"\n";
-		dump += "  port="+port+"\n";
+		dump += "  cmdServerPort="+port+"\n";
+		dump += "  jsonServerPort="+jsonServerPort+"\n";
 		dump += "  weather location="+weatherLocation+"\n";
 		dump += "  light control: type="+lightControlSettings.type+" address=" + lightControlSettings.address+"\n";
 		dump += "                 pwmInversion="+lightControlSettings.pwmInversion+" pwmOffset="+lightControlSettings.pwmOffset+" pwmFullScale="+lightControlSettings.pwmFullScale+" addresses: ";
@@ -704,14 +500,16 @@ public class Configuration {
 		for(Sound sound:soundList) {
 			dump += "    name="+sound.name+"  type="+sound.type+"  source="+sound.source+"\n";
 		}
-		dump += "  Alarm: greeting="+alarmSettings.greeting+"\n";
-		dump += "         fadeInDuration="+alarmSettings.fadeInDuration+" duration="+alarmSettings.duration+" reminderInterval="+alarmSettings.reminderInterval+"\n";
-		dump += "         volumeFadeInStart="+alarmSettings.volumeFadeInStart+" volumeFadeInEnd="+alarmSettings.volumeFadeInEnd+" volumeAlarmEnd="+alarmSettings.volumeAlarmEnd+"\n";
-		dump += "         lightDimUpDuration="+alarmSettings.lightDimUpDuration+" lightDimUpBrightness="+alarmSettings.lightDimUpBrightness+"\n";
-		dump += "         sound="+alarmSettings.sound+"\n";
+		
+		Alarm alarmSettings = alarmList.get(0);
+		dump += "  Alarm: greeting="+alarmSettings.getGreeting()+"\n";
+		dump += "         fadeInDuration="+alarmSettings.getFadeInDuration()+" duration="+alarmSettings.getDuration()+" reminderInterval="+alarmSettings.getReminderInterval()+"\n";
+		dump += "         volumeFadeInStart="+alarmSettings.getVolumeFadeInStart()+" volumeFadeInEnd="+alarmSettings.getVolumeFadeInEnd()+" volumeAlarmEnd="+alarmSettings.getVolumeAlarmEnd()+"\n";
+		dump += "         lightDimUpDuration="+alarmSettings.getLightDimUpDuration()+" lightDimUpBrightness="+alarmSettings.getLightDimUpBrightness()+"\n";
+		dump += "         sound="+alarmSettings.getSound()+"\n";
 		dump += "  Stored alarms:\n";
 		for(Alarm alarm:alarmList) {
-			dump += "    id="+alarm.id+" enabled="+alarm.enabled+" oneTimeOnly="+alarm.oneTimeOnly+" skipOnce="+alarm.skipOnce+" time="+alarm.time+" days="+alarm.weekDays+"\n";
+			dump += "    id="+alarm.getId()+" enabled="+alarm.isEnabled()+" oneTimeOnly="+alarm.isOneTimeOnly()+" skipOnce="+alarm.isSkipOnce()+" time="+alarm.getTime()+" days="+alarm.getWeekDays()+"\n";
 		}
 		dump += "  push button configurations:\n";
 		for(PushButtonSettings pushButtonSettings:pushButtonList) {
@@ -738,12 +536,12 @@ public class Configuration {
 	// settings in configuration file
 	private final boolean                    runningOnRaspberry;
 	private int                              port;                  // AlarmPi networt port for remote control
+	private int                              jsonServerPort;        // tcp port for HTTP JSON based control
 	private String                           mpdAddress;            // mpd network address
 	private int                              mpdPort;               // mpd network port
 	private String                           mpdFiles;              // directory for MPD sound files
 	private String                           mpdTmpSubDir;          // subdirectory for MPD temporary sound files
 	private String                           weatherLocation;       // Open Weather Map location for weather forecast
-	private Alarm                            alarmSettings;         // dummy alarm object with default settings
 	private LightControlSettings             lightControlSettings;  // light control settings
 	private ArrayList<Sound>                 soundList;             // list with available sounds (as defined in configuration)
 	private ArrayList<PushButtonSettings>    pushButtonList;        // pushbutton settings
@@ -754,5 +552,5 @@ public class Configuration {
 	
 	// other data
 	private List<Alarm>          alarmList;                         // alarm list
-	private Queue<Integer>       alarmProcessQueue;                 // queue of alarm IDs that need to be processed by Controller thread
+	private Queue<Alarm>       alarmProcessQueue;                 // queue of alarm IDs that need to be processed by Controller thread
 }
