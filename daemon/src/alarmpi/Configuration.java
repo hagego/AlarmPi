@@ -28,6 +28,9 @@ import org.ini4j.InvalidFileFormatException;
  */
 public class Configuration {
 	
+	public String getName() {
+		return name;
+	}
 	/**
 	 * local class used as structure to store data about sounds
 	 */
@@ -119,6 +122,9 @@ public class Configuration {
 		pushButtonList       = new ArrayList<PushButtonSettings>();
         openhabCommands      = new LinkedList<String>();
         
+
+        // general data
+        name          = ini.get("general", "name", String.class);
         
         // mpd configuration
         mpdAddress    = ini.get("mpd", "address", String.class);
@@ -157,6 +163,18 @@ public class Configuration {
 		alarmList = Alarm.readAll();
 		
         Ini.Section sectionAlarm = ini.get("alarm");
+        
+        alarmSettings = new Alarm();
+        alarmSettings.setGreeting(sectionAlarm.get("greeting", String.class, ""));
+        alarmSettings.setFadeInDuration(sectionAlarm.get("fadeIn", Integer.class, 300));
+        alarmSettings.setDuration(sectionAlarm.get("duration", Integer.class, 1800));
+        alarmSettings.setReminderInterval(sectionAlarm.get("reminderInterval", Integer.class, 300));
+        alarmSettings.setVolumeFadeInStart(sectionAlarm.get("volumeFadeInStart", Integer.class, 10));
+        alarmSettings.setVolumeFadeInEnd(sectionAlarm.get("volumeFadeInEnd", Integer.class, 60));
+        alarmSettings.setVolumeAlarmEnd(sectionAlarm.get("volumeAlarmEnd", Integer.class, 70));
+        alarmSettings.setLightDimUpDuration(sectionAlarm.get("lightDimUpDuration", Integer.class, 600));
+        alarmSettings.setLightDimUpBrightness(sectionAlarm.get("lightDimUpBrightness", Integer.class, 50));
+        alarmSettings.setSound(sectionAlarm.get("sound", String.class, "alarm_5s.mp3"));
         
         for(Alarm alarm:alarmList) {
         	alarm.setGreeting(sectionAlarm.get("greeting", String.class, ""));
@@ -421,7 +439,7 @@ public class Configuration {
 	 * @return alarm ID
 	 */
 	synchronized int createAlarm(EnumSet<DayOfWeek> days,LocalTime time,Integer soundId) {
-		Alarm alarm = new Alarm(alarmList.get(0));
+		Alarm alarm = new Alarm(alarmSettings);
 		
 		// add to alarm list
 		alarmList.add(alarm);
@@ -484,6 +502,7 @@ public class Configuration {
 	 */
 	private void dump() {
 		String dump = new String("configuration data:\n");
+		dump += "  name: "+name+"\n";
 		dump += "  mpdAddress="+mpdAddress+"\n";
 		dump += "  mpdPort="+mpdPort+"\n";
 		dump += "  mpdFiles="+mpdFiles+" mpdTmpSubDir="+mpdTmpSubDir+"\n";
@@ -501,7 +520,6 @@ public class Configuration {
 			dump += "    name="+sound.name+"  type="+sound.type+"  source="+sound.source+"\n";
 		}
 		
-		Alarm alarmSettings = alarmList.get(0);
 		dump += "  Alarm: greeting="+alarmSettings.getGreeting()+"\n";
 		dump += "         fadeInDuration="+alarmSettings.getFadeInDuration()+" duration="+alarmSettings.getDuration()+" reminderInterval="+alarmSettings.getReminderInterval()+"\n";
 		dump += "         volumeFadeInStart="+alarmSettings.getVolumeFadeInStart()+" volumeFadeInEnd="+alarmSettings.getVolumeFadeInEnd()+" volumeAlarmEnd="+alarmSettings.getVolumeAlarmEnd()+"\n";
@@ -535,6 +553,7 @@ public class Configuration {
 	
 	// settings in configuration file
 	private final boolean                    runningOnRaspberry;
+	private String                           name;                  // AlarmPi Name
 	private int                              port;                  // AlarmPi networt port for remote control
 	private int                              jsonServerPort;        // tcp port for HTTP JSON based control
 	private String                           mpdAddress;            // mpd network address
@@ -551,6 +570,7 @@ public class Configuration {
 	private List<String>                     openhabCommands;       // list of possible openhab commands on this AlarmPi
 	
 	// other data
-	private List<Alarm>          alarmList;                         // alarm list
+	private Alarm              alarmSettings; 
+	private List<Alarm>        alarmList;                         // alarm list
 	private Queue<Alarm>       alarmProcessQueue;                 // queue of alarm IDs that need to be processed by Controller thread
 }

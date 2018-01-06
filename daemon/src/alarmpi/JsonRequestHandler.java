@@ -4,6 +4,7 @@ import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.io.PrintWriter;
+import java.io.StringReader;
 import java.net.Socket;
 import java.util.Date;
 import java.util.concurrent.ExecutorService;
@@ -13,6 +14,7 @@ import javax.json.Json;
 import javax.json.JsonArrayBuilder;
 import javax.json.JsonObject;
 import javax.json.JsonObjectBuilder;
+import javax.json.JsonReader;
 
 
 
@@ -57,43 +59,56 @@ public class JsonRequestHandler implements Runnable {
 							"Date: "+today+"\r\n" + 
 							"Server: AlarmPi\r\n" + 
 							"\r\n";
-					String httpMethod = message.substring(0, message.indexOf(' '));
-					boolean processed = false;
 					
-					if(httpMethod.equals("OPTIONS")) {
-						httpResponse = "HTTP/1.1 200 OK\r\n" + 
-								"Date: "+today+"\r\n" + 
-								"Server: AlarmPi\r\n" + 
-								"Allow: GET,HEAD,POST,OPTIONS,TRACE\r\n" +
-								"Access-Control-Allow-Origin: http://127.0.0.1:64448\r\n";
+					int pos = message.indexOf(' ');
+					if(pos>0) {
+						String httpMethod = message.substring(0, message.indexOf(' '));
+						String jsonString = java.net.URLDecoder.decode(message.substring(pos+2),"UTF-8");
 						
-						processed = true;
-					}
-					if(httpMethod.equals("GET")) {
-						httpResponse = "HTTP/1.1 200 OK\r\n" + 
-								"Date: "+today+"\r\n" + 
-								"Server: AlarmPi\r\n" + 
-								"Access-Control-Allow-Origin: http://127.0.0.1:64448\r\n" +
-								"\r\n" +
-								buildJsonObject().toString()+"\r\n";
+						boolean processed = false;
 						
-						processed = true;
-					}
-					if(httpMethod.equals("POST")) {
-						httpResponse = "HTTP/1.1 200 OK\r\n" + 
-								"Date: "+today+"\r\n" + 
-								"Server: AlarmPi\r\n" + 
-								"Access-Control-Allow-Origin: http://127.0.0.1:64448\r\n" +
-								"\r\n";
+						String origin = clientSocket.getLocalAddress().toString();//+":50261";//+clientSocket.getLocalPort();
+						log.fine("origin="+origin);
 						
-						processed = true;
-					}
-					
-					if(!processed) {
+						if(httpMethod.equals("OPTIONS")) {
+							httpResponse = "HTTP/1.1 200 OK\r\n" + 
+									"Date: "+today+"\r\n" + 
+									"Server: AlarmPi\r\n" + 
+									"Allow: GET,HEAD,POST,OPTIONS,TRACE\r\n" +
+									"Access-Control-Allow-Origin: http:/"+origin+"\r\n";
+							
+							processed = true;
+						}
+						if(httpMethod.equals("GET")) {
+							httpResponse = "HTTP/1.1 200 OK\r\n" + 
+									"Date: "+today+"\r\n" + 
+									"Server: AlarmPi\r\n" + 
+									"Access-Control-Allow-Origin: http:/"+origin+"\r\n" +
+									"\r\n" +
+									buildJsonObject().toString()+"\r\n";
+							
+							processed = true;
+						}
+						if(httpMethod.equals("POST")) {
+							Alarm.parseAllFromJsonObject(buildJasonObjectFromString(jsonString));
+							
+							httpResponse = "HTTP/1.1 200 OK\r\n" + 
+									"Date: "+today+"\r\n" + 
+									"Server: AlarmPi\r\n" + 
+									"Access-Control-Allow-Origin: http:/"+origin+"\r\n" +
+									"\r\n";
+							
+							processed = true;
+						}
 						
+						if(!processed) {
+							log.severe("Unable to process HTTP request. Method="+httpMethod);
+						}
 					}
-					
-					log.fine("sending HTTP response to client:\n" + httpResponse);
+					else {
+						log.severe("Unable to process HTTP request. Message=="+message);
+					}
+					log.fine("sending HTTP response to client:"+clientSocket.getRemoteSocketAddress()+"\n" + httpResponse);
 					
 					clientStream.print(httpResponse);
 					clientStream.flush();
@@ -111,14 +126,24 @@ public class JsonRequestHandler implements Runnable {
 		// add list of all alarms
 		JsonArrayBuilder alarmArrayBuilder = Json.createBuilderFactory(null).createArrayBuilder();
 		for(Alarm alarm:Configuration.getConfiguration().getAlarmList()) {
-			alarmArrayBuilder.add(alarm.getJasonObject());
+			alarmArrayBuilder.add(alarm.toJasonObject());
 		}
 		
 		// build final object
+		builder.add("name", Configuration.getConfiguration().getName());
 		builder.add("alarms", alarmArrayBuilder);
 		JsonObject jsonObject = builder.build();
 		
 		log.fine("created JSON object:\n"+jsonObject.toString());
+		
+		return jsonObject;
+	}
+	
+	private JsonObject buildJasonObjectFromString(String stringifedObject) {
+		JsonReader reader = Json.createReaderFactory(null).createReader(new StringReader(stringifedObject));
+		JsonObject jsonObject = reader.readObject();
+		
+		log.fine("buildJasonObjectFromString: created JSON object:\n"+jsonObject.toString());
 		
 		return jsonObject;
 	}
@@ -129,6 +154,7 @@ public class JsonRequestHandler implements Runnable {
 	//
 	private static final Logger log = Logger.getLogger( JsonRequestHandler.class.getName() );
 	private final Socket               clientSocket;
+	@SuppressWarnings("unused")
 	private final Controller           controller;
 	private       PrintWriter          clientStream;
 	final ExecutorService threadPool = Executors.newCachedThreadPool();

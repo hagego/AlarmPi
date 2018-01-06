@@ -7,7 +7,14 @@ function loadData() {
     var request = new XMLHttpRequest();
     
     // load all data from AlarmPi
-    request.open("GET", "http://"+location.hostname+":3948/");
+    var hostName;
+    if(location.hostname.length==0) {
+        hostName = "127.0.0.1";
+    }
+    else {
+        hostName = location.hostname;
+    }
+    request.open("GET", "http://"+hostName+":3948/");
     
     request.addEventListener('load', function (event) {
         
@@ -21,6 +28,7 @@ function loadData() {
         console.info("received AlarmPi data: ");
         console.info(JSON.stringify(alarmPiData));
         
+        $('#name').replaceWith(alarmPiData.name);
         updateAlarms();
     });
     
@@ -144,7 +152,14 @@ function submitAlarms() {
     var request = new XMLHttpRequest();
     
     // load all data from AlarmPi
-    request.open("POST", "http://127.0.0.1:3948/ "+JSON.stringify(submissionData));
+	var hostName;
+    if(location.hostname.length==0) {
+        hostName = "127.0.0.1";
+    }
+    else {
+        hostName = location.hostname;
+    }
+    request.open("POST", "http://"+hostName+":3948/ "+JSON.stringify(submissionData));
     
     request.addEventListener('load', function (event) {
         

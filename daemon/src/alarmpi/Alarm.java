@@ -17,6 +17,7 @@ import java.util.prefs.Preferences;
 import javax.json.Json;
 import javax.json.JsonObject;
 import javax.json.JsonObjectBuilder;
+import javax.json.JsonValue;
 
 /**
  * Class representing alarm settings
@@ -141,7 +142,7 @@ public class Alarm implements Serializable {
 	 * Creates a JsonObject representation of the alarm
 	 * @return JsonObject representation of the alarm
 	 */
-	public JsonObject getJasonObject() {
+	public JsonObject toJasonObject() {
 		JsonObjectBuilder builder = Json.createBuilderFactory(null).createObjectBuilder();
 		builder.add("id", id);
 		builder.add("enabled", enabled);
@@ -155,6 +156,45 @@ public class Alarm implements Serializable {
 		log.fine("Created JsonObject for alarm: "+jsonObject.toString());
 		
 		return jsonObject;
+	}
+	
+	public static void parseAllFromJsonObject(JsonObject jsonObject) {
+		for(JsonValue jsonValue:jsonObject.getJsonArray("alarms")) {
+			JsonObject alarm = jsonValue.asJsonObject();
+			log.fine("parseAllFromJsonObject: Found alarm with id="+alarm.getInt("id"));
+			
+			Configuration.getConfiguration().getAlarm(alarm.getInt("id")).fromJsonObject(alarm);
+		}
+	}
+	
+	/**
+	 * Updates the alarm object with the content of the JSON object
+	 * @param jsonObject
+	 */
+	public void fromJsonObject(JsonObject jsonObject) {
+		if(jsonObject.getInt("id")!=id) {
+			log.severe("parseFromJsonObject: JSON id "+jsonObject.getInt("id")+" does not match alarm id "+id);
+			return;
+		}
+		
+		log.fine("parseFromJsonObject: parsing alarm with id "+id);
+		enabled     = jsonObject.getBoolean("enabled");
+		oneTimeOnly = jsonObject.getBoolean("oneTimeOnly");
+		skipOnce    = jsonObject.getBoolean("skipOnce");
+		time        = LocalTime.parse(jsonObject.getString("time"));
+		soundId     = jsonObject.getInt("soundId");
+		
+		weekDays.clear();
+		String weekDaysString = jsonObject.getString("weekDays");
+		for(DayOfWeek dayOfWeek:DayOfWeek.values()) {
+			if(weekDaysString.contains(dayOfWeek.toString())) {
+				weekDays.add(dayOfWeek);
+			}
+		}
+		
+		// store
+		Configuration.getConfiguration().addAlarmToProcess(this);
+		store();
 	}
 	
 	/**
@@ -228,7 +268,7 @@ public class Alarm implements Serializable {
 	}
 	
 	public void setWeekDays(EnumSet<DayOfWeek> weekdays) {
-		if(this.weekDays.equals(weekdays) == false) {
+		if(this.weekDays==null || this.weekDays.equals(weekdays) == false) {
 			this.weekDays = weekdays;
 			
 			if(transactionStarted) {
@@ -264,7 +304,7 @@ public class Alarm implements Serializable {
 	}
 	
 	public void setTime(LocalTime time) {
-		if(this.time.equals(time) == false) {
+		if(this.time==null ||this.time.equals(time) == false) {
 			this.time = time;
 			
 			if(transactionStarted) {
@@ -282,7 +322,7 @@ public class Alarm implements Serializable {
 	}
 	
 	public void setSoundId(int soundId) {
-		if(this.soundId != soundId) {
+		if(this.soundId==null || this.soundId.equals(soundId) == false) {
 			this.soundId = soundId;
 			
 			if(transactionStarted) {

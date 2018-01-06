@@ -237,6 +237,15 @@ class Controller implements Runnable {
 		if(activeAlarm!=null) {
 			log.fine("stopping active alarm");
 			
+			// if this alarm is one time only: disable it again
+			if(activeAlarm.isOneTimeOnly()) {
+				log.fine("oneTimeOnly alarm. Disabling again");
+				activeAlarm.setEnabled(false);
+			}
+			else {
+				log.fine("oneTimeOnly=false. Leaving alarm enabled.");
+			}
+			
 			lightControl.off();
 			soundControl.off();
 			deleteAlarmEvents(activeAlarm);
@@ -637,20 +646,6 @@ class Controller implements Runnable {
 			break;
 		case ALARM_END:
 			stopAlarm();
-			
-			// if this alarm is one time only: disable it again
-			if(e.alarm==null) {
-				log.warning("getAlarm at ALARM_START returns null");
-			}
-			else {
-				if(e.alarm.isOneTimeOnly()) {
-					log.fine("oneTimeOnly alarm. Disabling again");
-					e.alarm.setEnabled(false);
-				}
-				else {
-					log.fine("oneTimeOnly=false. Leaving alarm enabled.");
-				}
-			}
 			break;
 		default:
 			log.severe("Unknown event type: "+e.type);

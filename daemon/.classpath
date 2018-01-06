@@ -3,6 +3,7 @@
 	<classpathentry kind="src" path="src"/>
 	<classpathentry kind="src" path="lib/jsonp-jsonp-1.1.2/api/src/main/java"/>
 	<classpathentry kind="src" path="lib/jsonp-jsonp-1.1.2/impl/src/main/java"/>
+	<classpathentry kind="src" path="lib/jsonp-jsonp-1.1.2/impl/src/main/resources"/>
 	<classpathentry kind="con" path="org.eclipse.jdt.launching.JRE_CONTAINER"/>
 	<classpathentry kind="lib" path="lib/calendar/google-api-services-calendar-v3-rev263-1.23.0.jar"/>
 	<classpathentry kind="lib" path="lib/calendar/libs/google-http-client-jackson2-1.23.0.jar"/>

@@ -13,3 +13,4 @@ hs_err_pid*
 
 # AlarmPi tmp files
 tmp/
+*.odt#
