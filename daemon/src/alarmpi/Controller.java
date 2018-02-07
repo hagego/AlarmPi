@@ -564,7 +564,7 @@ class Controller implements Runnable {
 			soundTimerEvent = null;
 		}
 		
-		if(e.alarm.isSkipOnce()) {
+		if(e.alarm != null && e.alarm.isSkipOnce()) {
 			log.fine("skipping firing event of type "+e.type+" i1="+e.paramInt1+" i2="+e.paramInt2+" s1="+e.paramString);
 			
 			// do nothing if alarm is to be skipped
