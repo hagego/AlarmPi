@@ -1,5 +1,7 @@
 package alarmpi;
 
+import java.io.FileWriter;
+import java.io.IOException;
 import java.time.DayOfWeek;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -149,11 +151,13 @@ class Controller implements Runnable {
 	@Override
 	public void run() {
 		
-		final int sleepPeriod = 500;   // thread sleep period: 500ms
+		final int sleepPeriod        = 1000;   // thread sleep period: 1s
+		final int watchDogCounterMax = 60;     // update watchdog file every 60*sleepPeriod
 		
 		log.info("controller daemon thread started");
 		
 		LocalDate date = LocalDate.now();
+		int watchDogCounter = 0;
 		
 		// create all the events for the alarms of today
 		for(Alarm alarm:configuration.getAlarmList()) {
@@ -170,6 +174,20 @@ class Controller implements Runnable {
 		// start endless loop
 		while (!Thread.interrupted()) {
 			try {
+				watchDogCounter++;
+				if(watchDogCounter >= watchDogCounterMax) {
+					watchDogCounter = 0;
+					
+					// touch watchdog file
+					try {
+						FileWriter writer = new FileWriter("/var/log/alarmpi/watchdog");
+						writer.write(LocalTime.now().toString());
+						writer.close();
+					} catch (IOException e) {
+						log.severe("Unable to update watchdog file: "+e.getMessage());
+					}
+				}
+				
 				// check for a new day
 				if(!date.equals(LocalDate.now())) {
 					date = LocalDate.now();
