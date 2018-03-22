@@ -36,10 +36,9 @@ public class WeatherProvider implements Callable<String> {
 		// retrieve hourly forecast from openweathermap.org and check for min/max temperatures
 		log.info("retrieving forecast data");
 		
-		final String BASE_URL_HOURLY    = "http://api.openweathermap.org/data/2.5/forecast?q=";
+		final String BASE_URL_HOURLY    = "https://api.openweathermap.org/data/2.5/forecast?zip=";
 		final String URL_OPTIONS_HOURLY = "&mode=xml&APPID=f593e17912b28437a5f95565670f8e2b";
 		
-        HttpURLConnection con = null;
         InputStream       is  = null;
         
 		//
@@ -112,31 +111,48 @@ public class WeatherProvider implements Callable<String> {
 		
 		SAXParserFactory factory = SAXParserFactory.newInstance();
 		SAXParser saxParser;
+		
+		HttpURLConnection con = null;
 		try {
 			saxParser = factory.newSAXParser();
         	// short-term (hourly) forecast
+			String server = "api.openweathermap.org";
         	URL url = new URL(BASE_URL_HOURLY + Configuration.getConfiguration().getWeatherLocation()+URL_OPTIONS_HOURLY);
         	log.fine("URL hourly: "+url);
-            con = (HttpURLConnection) (url).openConnection();
+            con = (HttpURLConnection)url.openConnection();
             con.setRequestMethod("GET");
             con.setDoInput(true);
             con.setDoOutput(true);
+            con.setRequestProperty("User-Agent","Mozilla/5.0 ( compatible ) ");
+            con.setRequestProperty("Accept","*/*");
             con.connect();
             log.fine( "connected" );
 
-            // Let's read the response
-            is = con.getInputStream();
-            saxParser.parse(is, handlerHourly);
-            log.fine( "short-term (hourly) forecast retrieval done" );
+            // check for errors
+            if (con.getResponseCode() != HttpURLConnection.HTTP_OK) {
+            	log.severe("http connection to openweathermap server "+server+" returned "+con.getResponseCode());
+            	is = con.getErrorStream();
+            	
+            	byte b[] = new byte[200];
+            	is.read(b);
+            	log.severe("http error text: "+new String(b));
+            }
+            else {
+	            // Let's read the response
+	            is = con.getInputStream();
+	            log.fine( "starting parser" );
+	            saxParser.parse(is, handlerHourly);
+	            log.fine( "short-term (hourly) forecast retrieval done" );
+            }
 		} catch (ParserConfigurationException | SAXException e) {
 			log.severe("Unable to create XML parser: "+e);
 		} catch(Throwable t) {
-            log.severe("Exception during forecast download");
+            log.severe("Exception of type "+t.getClass().toString()+" during forecast download");
             log.severe(t.getMessage());
         }
         finally {
             try { is.close(); } catch(Throwable t) {}
-            try { con.disconnect(); } catch(Throwable t) {}
+            try {  } catch(Throwable t) {}
         }
 		
 		log.fine("weather data retrieval done. LocalTemp="+temperature+" min temp="+minTemperature+" max temp="+maxTemperature);
