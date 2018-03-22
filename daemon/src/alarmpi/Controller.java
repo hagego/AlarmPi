@@ -100,6 +100,16 @@ class Controller implements Runnable {
 			
 			log.info("running on Raspberry - initialization done");
 		}
+		else {
+			log.info("running on PC - initializing");
+			
+			// dummy implementation - does nothing
+			lightControl = new LightControlNone();
+			
+			soundControl = SoundControl.getSoundControl();
+			
+			log.info("running on PC - initializing done");
+		}
 	}
 	
 	/**
@@ -179,12 +189,14 @@ class Controller implements Runnable {
 					watchDogCounter = 0;
 					
 					// touch watchdog file
-					try {
-						FileWriter writer = new FileWriter("/var/log/alarmpi/watchdog");
-						writer.write(LocalTime.now().toString());
-						writer.close();
-					} catch (IOException e) {
-						log.severe("Unable to update watchdog file: "+e.getMessage());
+					if(configuration.getRunningOnRaspberry()) {
+						try {
+							FileWriter writer = new FileWriter("/var/log/alarmpi/watchdog");
+							writer.write(LocalTime.now().toString());
+							writer.close();
+						} catch (IOException e) {
+							log.severe("Unable to update watchdog file: "+e.getMessage());
+						}
 					}
 				}
 				

@@ -125,6 +125,9 @@ public class Configuration {
 
         // general data
         name          = ini.get("general", "name", String.class);
+        if(name==null) {
+        	name = "AlarmPi";
+        }
         
         // mpd configuration
         mpdAddress    = ini.get("mpd", "address", String.class);
@@ -134,7 +137,14 @@ public class Configuration {
         
         // network access (thru TCP clients)
         port           = ini.get("network", "port", Integer.class);
-        jsonServerPort = ini.get("network", "jsonServerPort", Integer.class);
+        Integer jsonServerPortTemp = ini.get("network", "jsonServerPort", Integer.class);
+        if(jsonServerPortTemp==null) {
+        	jsonServerPort = 0;
+        }
+        else {
+        	jsonServerPort = jsonServerPortTemp;
+        	log.info("JSON Server disabled (no port specified)");
+        }
         
         // sounds (radio stations)
         Ini.Section sectionSound;

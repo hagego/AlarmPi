@@ -652,9 +652,12 @@ public class TcpRequestHandler implements Runnable {
 		@Override
 		protected ReturnCode get() throws CommandHandlerException {
 			LightControl lightControl = controller.getLightControl();
-			String answer = lightControl.getCount()+" ";
-			for(int i=0 ; i<lightControl.getCount() ; i++) {
-				answer += String.valueOf(Math.round(lightControl.getBrightness(i))+" ");
+			String answer = "1 0 ";
+			if(lightControl!=null) {
+				answer = lightControl.getCount()+" ";
+				for(int i=0 ; i<lightControl.getCount() ; i++) {
+					answer += String.valueOf(Math.round(lightControl.getBrightness(i))+" ");
+				}
 			}
 			return new ReturnCodeSuccess(answer);
 		}
