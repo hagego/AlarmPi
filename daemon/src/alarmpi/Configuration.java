@@ -88,7 +88,7 @@ public class Configuration {
 	
 	/**
 	 * returns the singleton object with configuration data
-	 * @return the Configuratoin singleton object
+	 * @return the Configuration singleton object
 	 */
 	static Configuration getConfiguration() {
 		if(object==null) {
@@ -120,8 +120,6 @@ public class Configuration {
 		alarmProcessQueue    = new ConcurrentLinkedQueue<Alarm>();
 		lightControlSettings = new LightControlSettings();
 		pushButtonList       = new ArrayList<PushButtonSettings>();
-        openhabCommands      = new LinkedList<String>();
-        
 
         // general data
         name          = ini.get("general", "name", String.class);
@@ -266,19 +264,16 @@ public class Configuration {
         // weather
 		Ini.Section sectionWeather = ini.get("weather");
 		weatherLocation = sectionWeather.get("location", String.class, "");
-		
-		// openhab
-		Ini.Section sectionOpenhab = ini.get("openhab");
-		openhabAddress = sectionOpenhab.get("address", String.class, "");
-	    openhabPort    = sectionOpenhab.get("port", String.class, "");
-	    
-	    index=1;
-	    String command;
-        while(!(command = sectionOpenhab.get("command"+index, String.class, "")).isEmpty()) {
-        	log.config("found command"+index);
-        	openhabCommands.add(command);
-        	index++;
-	    }
+        
+        // mqtt
+		Ini.Section sectionMqtt = ini.get("mqtt");
+		if(sectionMqtt!=null) {
+			mqttAddress = sectionMqtt.get("address", String.class, null);
+		    mqttPort    = sectionMqtt.get("port", Integer.class, null);
+		    mqttPublishTopicLongClick     = sectionMqtt.get("publishTopicLongClick", String.class, null);
+		    mqttSubscribeTopicTemperature = sectionMqtt.get("subscribeTopicTemperature", String.class, null);
+		}
+        
         
         // calendar
         Ini.Section sectionCalendar = ini.get("calendar");
@@ -413,24 +408,31 @@ public class Configuration {
 	}
 	
 	/**
-	 * @return the openhab server address
+	 * @return the MQTT broker address
 	 */
-	final String getOpenhabAddress() {
-		return openhabAddress;
+	final String getMqttAddress() {
+		return mqttAddress;
 	}
 	
 	/**
-	 * @return the openhab server port
+	 * @return the MQTT broker port
 	 */
-	final String getOpenhabPort() {
-		return openhabPort;
+	final Integer getMqttPort() {
+		return mqttPort;
 	}
 	
 	/**
-	 * @return the list of openhab commands possible on this AlarmPi
+	 * @return the MQTT topic to subsrice for locally measured temperature
 	 */
-	final List<String> getOpenhabCommands() {
-		return openhabCommands;
+	final String getMqttSubscribeTopicTemperature() {
+		return mqttSubscribeTopicTemperature;
+	}
+	
+	/**
+	 * @return the MQTT topic to publish on a long button click
+	 */
+	final String getMqttPublishTopicLongClick() {
+		return mqttPublishTopicLongClick;
 	}
 	
 	/**
@@ -545,10 +547,18 @@ public class Configuration {
 			dump += "    useAws="+pushButtonSettings.useAws+"\n";
 			dump += "    sound: internal ID="+pushButtonSettings.soundId+" volume="+pushButtonSettings.soundVolume+" timer="+pushButtonSettings.soundTimer+"\n";
 		}
-		dump += "  openhab configuration:\n";
-		dump += "    address="+openhabAddress+" port="+openhabPort+"\n";
-		for(String cmd:openhabCommands) {
-			dump += "    command="+cmd+"\n";
+		
+		if(mqttAddress==null || mqttPort==null) {
+			dump += "  no MQTT Broker configured";
+		}
+		else {
+			dump += "  MQTT broker: address="+mqttAddress+" port="+mqttPort+"\n";
+			if(mqttPublishTopicLongClick!=null) {
+				dump += "    MQTT publishTopicLongCick="+mqttPublishTopicLongClick+"\n";
+			}
+			if(mqttSubscribeTopicTemperature!=null) {
+				dump += "    MQTT subscribeTopicTemperature="+mqttSubscribeTopicTemperature+"\n";
+			}
 		}
 		dump += "  calendar:\n";
 		dump += "    summary="+googleCalendarSummary+"\n";
@@ -575,9 +585,10 @@ public class Configuration {
 	private ArrayList<Sound>                 soundList;             // list with available sounds (as defined in configuration)
 	private ArrayList<PushButtonSettings>    pushButtonList;        // pushbutton settings
 	private String                           googleCalendarSummary; // summary name of google calendar (or null)
-	private String                           openhabAddress;        // openhab server network address
-	private String                           openhabPort;           // openhab server port
-	private List<String>                     openhabCommands;       // list of possible openhab commands on this AlarmPi
+	private String                           mqttAddress;           // MQTT Broker address
+	private Integer                          mqttPort;              // MQTT broker port
+	private String                           mqttPublishTopicLongClick;     // MQTT topic published on a long click of a connected button
+	private String                           mqttSubscribeTopicTemperature; // MQTT topic subscribed to get locally measured temperature
 	
 	// other data
 	private Alarm              alarmSettings; 

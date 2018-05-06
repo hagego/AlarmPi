@@ -14,5 +14,6 @@
 	<classpathentry kind="lib" path="lib/aws-java-sdk/lib/aws-java-sdk-1.11.221.jar"/>
 	<classpathentry kind="lib" path="lib/pi4j-1.2-SNAPSHOT/lib/pi4j-core.jar"/>
 	<classpathentry kind="lib" path="lib/aws-java-sdk/third-party/lib/jackson-core-2.6.7.jar"/>
+	<classpathentry kind="lib" path="lib/org.eclipse.paho.client.mqttv3-1.2.0.jar"/>
 	<classpathentry kind="output" path="bin"/>
 </classpath>

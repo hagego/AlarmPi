@@ -36,7 +36,6 @@ public class TcpRequestHandler implements Runnable {
 		commandHandlerList.add(new CommandLightControl());
 		commandHandlerList.add(new CommandTimer());
 		commandHandlerList.add(new CommandCalendar());
-		commandHandlerList.add(new CommandOpenhab());
 	}
 
 	@Override
@@ -698,56 +697,6 @@ public class TcpRequestHandler implements Runnable {
 		}
 	};
 	
-	private class CommandOpenhab extends CommandHandler{
-
-		@Override
-		protected String getCommandName() {
-			return "openhab";
-		}
-
-		@Override
-		public ReturnCode set() throws CommandHandlerException{
-			if(parameters==null || parameters.length!=1) {
-				return new ReturnCodeError("openhab: invalid parameter count. Syntax: openhab <command | query>");
-			}
-
-			if(Configuration.getConfiguration().getOpenhabCommands().contains(parameters[0])) {
-				
-				OpenhabClient client = new OpenhabClient();
-				if(parameters[0].endsWith("?")) {
-					try {
-						String answer = client.sendQuery(parameters[0]);
-						log.info("openhab query "+parameters[0]+" returned "+answer);
-						
-						return new ReturnCodeSuccess(answer);
-					} catch (IOException e) {
-						return new ReturnCodeError(e.getMessage());
-					}
-				}
-				else {
-					String error = new String();
-					if( client.sendCommand(parameters[0], error) ) {
-						return new ReturnCodeSuccess();
-					}
-					else {
-						return new ReturnCodeError(error);
-					}
-				}
-			}
-			
-			log.warning("unsupported openhab command: "+parameters[0]);
-			return new ReturnCodeError("unsupported command: "+parameters[0]);
-		}
-		
-		@Override
-		protected ReturnCode get() throws CommandHandlerException {
-			String commands = new String();
-			for( String command: Configuration.getConfiguration().getOpenhabCommands() ) {
-				commands += command+" ";
-			}
-			return new ReturnCodeSuccess(commands);
-		}
-	};
 	
 	/**
 	 * Deals with Google Calendar

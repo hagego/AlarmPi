@@ -17,21 +17,35 @@ import org.xml.sax.Attributes;
 import org.xml.sax.SAXException;
 import org.xml.sax.helpers.DefaultHandler;
 
+
 /**
  * Class implementing the Callable INtercae to return the weather forecast for today
  * using openweathermap.org
  */
 public class WeatherProvider implements Callable<String> {
 	
+	/**
+	 * constructor
+	 */
+	public WeatherProvider() {
+		
+	}
+	
 	@Override
 	public String call() throws Exception {
+		log.fine("WeatherProvider called");
+		
 		minTemperature   = null;
 		maxTemperature   = null;
 	
+		
 		// get local temperature
-		OpenhabClient openhabClient = new OpenhabClient();
-		Double temperature = openhabClient.getTemperature();
-		log.fine("local temperature retrieved from openhab: "+temperature);
+		Double temperature = null;
+		MqttClient mqttClient = MqttClient.getMqttClient();
+		if(mqttClient!=null) {
+			temperature = mqttClient.getTemperature();
+		}
+		log.fine("local temperature retrieved from MQTT broker: "+temperature);
 		
 		// retrieve hourly forecast from openweathermap.org and check for min/max temperatures
 		log.info("retrieving forecast data");

@@ -70,6 +70,10 @@ class Controller implements Runnable {
 			soundControl = SoundControl.getSoundControl();
 			log.info("running on Raspberry - initializing sound control done");
 			
+			log.info("initializing MQTT client");
+			mqttClient = MqttClient.getMqttClient();
+			log.info("initializing MQTT client done");
+			
 			// update mpd with tmp files for next alarm announcement
 			new TextToSpeech().createTempFile("dummy", "nextAlarmToday.mp3");
 			new TextToSpeech().createTempFile("dummy", "nextAlarmTomorrow.mp3");
@@ -762,17 +766,13 @@ class Controller implements Runnable {
 						TimeUnit.MILLISECONDS.sleep(50);
 	            		if(System.currentTimeMillis()-start > 400) {
 	            			// long click. Turn off everything
-	            			log.info("long click");
+	            			log.fine("long click");
 	            			longClick = true;
 	            			
-	            			final String cmd = "light_bedroom_off";
-	            			if(configuration.getOpenhabCommands().contains(cmd)) {
-	            				log.info("sending openhab command: "+cmd);
-	            				OpenhabClient client = new OpenhabClient();
-		        				String error = null;
-		        				if( !client.sendCommand(cmd, error) ) {
-		        					log.severe("error sending openhab command "+cmd+" : "+error);
-		        				}
+	            			// publish to MQTT broker (if configured)
+	            			if(mqttClient!=null) {
+	            				log.fine("publishing MQTT long click topic");
+	            				mqttClient.publishLongClick();
 	            			}
 	            			
 	            			allOff(activeAlarm==null);
@@ -825,7 +825,8 @@ class Controller implements Runnable {
 	
 	LinkedList<Event>    eventList;             // list of events to process, sorted by fire time
 	Configuration        configuration;         // configuration data
-	SoundControl         soundControl;          // proxy for sound control	
+	SoundControl         soundControl;          // proxy for sound control
+	MqttClient           mqttClient;            // MQTT client (or null if no QMTT broker is configured)
 	Alarm                activeAlarm;           // active alarm (or null if no alarm is active)
 	Event                soundTimerEvent;       // event to switch off sound or null if no timer is active
 	
