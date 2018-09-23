@@ -1,11 +1,13 @@
 #!/bin/bash
 # check if a wlan0 if exists
-LOGFILE=/home/pi/AlarmPi/log/restartWlan.log
+LOGFILE=/var/log/alarmpi/restartWlan.log
 
 if echo `/sbin/ifconfig` | grep -q wlan0; then
   # check if there is IP Address
-  if echo `/sbin/ifconfig wlan0` | grep -q "inet addr"; then
+  if echo `/sbin/ifconfig wlan0` | grep -q "inet"; then
     ping -c 1 192.168.178.1
+    date >> $LOGFILE
+    echo "wlan connection OK" >> $LOGFILE
     exit 0
   fi
   date >> $LOGFILE
