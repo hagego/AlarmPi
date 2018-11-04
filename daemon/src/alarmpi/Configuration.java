@@ -16,6 +16,11 @@ import java.util.Locale;
 import java.util.Queue;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.logging.Logger;
+
+import javax.json.Json;
+import javax.json.JsonArray;
+import javax.json.JsonArrayBuilder;
+
 import org.ini4j.Ini;
 import org.ini4j.InvalidFileFormatException;
 
@@ -272,6 +277,7 @@ public class Configuration {
 		    mqttPort    = sectionMqtt.get("port", Integer.class, null);
 		    mqttPublishTopicLongClick     = sectionMqtt.get("publishTopicLongClick", String.class, null);
 		    mqttSubscribeTopicTemperature = sectionMqtt.get("subscribeTopicTemperature", String.class, null);
+		    mqttPublishTopicAlarmList     = sectionMqtt.get("publishTopicAlarmList", String.class, null);
 		}
         
         
@@ -394,6 +400,19 @@ public class Configuration {
 	}
 	
 	/**
+	 * @return the alarm list as JsonArray
+	 */
+	final JsonArray getAlarmsAsJsonArray() {
+		// add list of all alarms
+		JsonArrayBuilder alarmArrayBuilder = Json.createBuilderFactory(null).createArrayBuilder();
+		for(Alarm alarm:Configuration.getConfiguration().getAlarmList()) {
+			alarmArrayBuilder.add(alarm.toJasonObject());
+		}
+		
+		return alarmArrayBuilder.build();
+	}
+	
+	/**
 	 * @return light control settings as read-only object
 	 */
 	final LightControlSettings getLightControlSettings() {
@@ -433,6 +452,13 @@ public class Configuration {
 	 */
 	final String getMqttPublishTopicLongClick() {
 		return mqttPublishTopicLongClick;
+	}
+	
+	/**
+	 * @return the MQTT topic to publish the alarm list
+	 */
+	final String getMqttPublishTopicAlarmList() {
+		return mqttPublishTopicAlarmList;
 	}
 	
 	/**
@@ -556,6 +582,9 @@ public class Configuration {
 			if(mqttPublishTopicLongClick!=null) {
 				dump += "    MQTT publishTopicLongCick="+mqttPublishTopicLongClick+"\n";
 			}
+			if(mqttPublishTopicAlarmList!=null) {
+				dump += "    MQTT publishTopicAlarmList="+mqttPublishTopicAlarmList+"\n";
+			}
 			if(mqttSubscribeTopicTemperature!=null) {
 				dump += "    MQTT subscribeTopicTemperature="+mqttSubscribeTopicTemperature+"\n";
 			}
@@ -588,6 +617,7 @@ public class Configuration {
 	private String                           mqttAddress;           // MQTT Broker address
 	private Integer                          mqttPort;              // MQTT broker port
 	private String                           mqttPublishTopicLongClick;     // MQTT topic published on a long click of a connected button
+	private String                           mqttPublishTopicAlarmList;     // MQTT topic for publishing alarm list as JSON object
 	private String                           mqttSubscribeTopicTemperature; // MQTT topic subscribed to get locally measured temperature
 	
 	// other data

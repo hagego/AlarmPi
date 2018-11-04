@@ -11,7 +11,6 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.logging.Logger;
 import javax.json.Json;
-import javax.json.JsonArrayBuilder;
 import javax.json.JsonObject;
 import javax.json.JsonObjectBuilder;
 import javax.json.JsonReader;
@@ -123,15 +122,9 @@ public class JsonRequestHandler implements Runnable {
 	private JsonObject buildJsonObject() {
 		JsonObjectBuilder builder = Json.createBuilderFactory(null).createObjectBuilder();
 		
-		// add list of all alarms
-		JsonArrayBuilder alarmArrayBuilder = Json.createBuilderFactory(null).createArrayBuilder();
-		for(Alarm alarm:Configuration.getConfiguration().getAlarmList()) {
-			alarmArrayBuilder.add(alarm.toJasonObject());
-		}
-		
 		// build final object
 		builder.add("name", Configuration.getConfiguration().getName());
-		builder.add("alarms", alarmArrayBuilder);
+		builder.add("alarms", Configuration.getConfiguration().getAlarmsAsJsonArray());
 		JsonObject jsonObject = builder.build();
 		
 		log.fine("created JSON object:\n"+jsonObject.toString());

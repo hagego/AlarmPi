@@ -67,6 +67,11 @@ public class Alarm implements Serializable {
 				if(bytes!=null) {
 					ObjectInputStream ois = new ObjectInputStream(new ByteArrayInputStream(bytes));
 					Alarm alarm = (Alarm)ois.readObject();
+					
+					// set meaningful start values
+					alarm.hasModifications   = false;
+					alarm.transactionStarted = false;
+					
 					alarmList.add(alarm);
 					
 					// adjust next alarm ID
@@ -98,6 +103,8 @@ public class Alarm implements Serializable {
 		// serialize the alarm and store it in preferences (make it persistent)
 		// using alarm ID as key
 		try {
+			log.fine("Storing alarm ID="+id);
+			
 			ByteArrayOutputStream baos = new ByteArrayOutputStream();
 			ObjectOutputStream oos;
 			
@@ -109,6 +116,9 @@ public class Alarm implements Serializable {
 			Preferences prefs = Preferences.userNodeForPackage(Alarm.class);
 			prefs.putByteArray(String.valueOf(id), bytes);
 			prefs.flush();
+			
+			// publish modified alarm list on MQTT broker
+			MqttClient.getMqttClient().publishAlarmList();
 		} catch (IOException e) {
 			log.severe("Failed to serialize alarm: "+e.getMessage());
 		} catch (BackingStoreException e) {
@@ -171,7 +181,7 @@ public class Alarm implements Serializable {
 	 * Updates the alarm object with the content of the JSON object
 	 * @param jsonObject
 	 */
-	public void fromJsonObject(JsonObject jsonObject) {
+	private void fromJsonObject(JsonObject jsonObject) {
 		if(jsonObject.getInt("id")!=id) {
 			log.severe("parseFromJsonObject: JSON id "+jsonObject.getInt("id")+" does not match alarm id "+id);
 			return;
@@ -233,6 +243,7 @@ public class Alarm implements Serializable {
 	
 	public void setEnabled(boolean enabled) {
 		if(this.enabled != enabled) {
+			log.fine("setting alarm ID "+id+" to enabled="+enabled);
 			this.enabled = enabled;
 			
 			if(transactionStarted) {
@@ -242,6 +253,9 @@ public class Alarm implements Serializable {
 				store();
 				Configuration.getConfiguration().addAlarmToProcess(this);
 			}
+		}
+		else {
+			log.fine("ignoring setting alarm ID "+id+" to enabled="+enabled+" - already done");
 		}
 	}
 

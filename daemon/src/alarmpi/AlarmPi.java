@@ -37,10 +37,12 @@ public class AlarmPi {
 		System.setProperty( "java.util.logging.SimpleFormatter.format","%4$s: %5$s");
 		
 		// force reading of logger / handler configuration file
-		System.setProperty( "java.util.logging.config.file", configDir+"alarmpi.logging" );
+		String loggingConfigFile = configDir+"alarmpi.logging";
+		System.setProperty( "java.util.logging.config.file", loggingConfigFile );
 		try {
 			LogManager.getLogManager().readConfiguration();
-			log.info("logging configuration read");
+			log.info("logging configuration read from "+loggingConfigFile);
+			System.out.println("logging configuration read from "+loggingConfigFile);
 		}
 		catch ( Exception e ) { e.printStackTrace(); }
 		

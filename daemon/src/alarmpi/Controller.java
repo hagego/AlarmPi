@@ -171,7 +171,7 @@ class Controller implements Runnable {
 		log.info("controller daemon thread started");
 		
 		LocalDate date = LocalDate.now();
-		int watchDogCounter = 0;
+		int watchDogCounter = watchDogCounterMax;
 		
 		// create all the events for the alarms of today
 		for(Alarm alarm:configuration.getAlarmList()) {

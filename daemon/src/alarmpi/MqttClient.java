@@ -3,6 +3,10 @@ package alarmpi;
 import java.time.LocalDateTime;
 import java.util.logging.Logger;
 
+import javax.json.Json;
+import javax.json.JsonObject;
+import javax.json.JsonObjectBuilder;
+
 import org.eclipse.paho.client.mqttv3.IMqttDeliveryToken;
 import org.eclipse.paho.client.mqttv3.MqttCallbackExtended;
 import org.eclipse.paho.client.mqttv3.MqttConnectOptions;
@@ -81,12 +85,35 @@ public class MqttClient implements MqttCallbackExtended{
 		}
 	}
 	
+	/**
+	 * publishes the MQTT topic in case of a long button click
+	 */
 	public void publishLongClick() {
 		if(Configuration.getConfiguration().getMqttPublishTopicLongClick()!=null) {
+			log.fine("publishing long click topic: "+Configuration.getConfiguration().getMqttPublishTopicLongClick());
 			try {
 				mqttClient.publish(Configuration.getConfiguration().getMqttPublishTopicLongClick(), new byte[0], 0, false);
 			} catch (MqttException e) {
-				log.severe("Exception during MQTT publis: "+e.getMessage());
+				log.severe("Exception during MQTT publish: "+e.getMessage());
+			}
+		}
+	}
+	
+	public void publishAlarmList() {
+		if(Configuration.getConfiguration().getMqttPublishTopicAlarmList()!=null) {
+			log.fine("publishing alarm list topic: "+Configuration.getConfiguration().getMqttPublishTopicAlarmList());
+			try {
+				JsonObjectBuilder builder = Json.createBuilderFactory(null).createObjectBuilder();
+				
+				// build final object
+				builder.add("name", Configuration.getConfiguration().getName());
+				builder.add("alarms", Configuration.getConfiguration().getAlarmsAsJsonArray());
+				JsonObject jsonObject = builder.build();
+				log.fine("created JSON object:\n"+jsonObject.toString());
+				
+				mqttClient.publish(Configuration.getConfiguration().getMqttPublishTopicAlarmList(), jsonObject.toString().getBytes(), 0, true);
+			} catch (MqttException e) {
+				log.severe("Exception during MQTT publish: "+e.getMessage());
 			}
 		}
 	}

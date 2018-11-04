@@ -58,10 +58,11 @@ public class SoundControl {
 	 */
 	synchronized void on() {
 		log.fine("turning 5V audio supply ON");
-		stop();
+
 		if(Configuration.getConfiguration().getRunningOnRaspberry()) {
 			gpioPinAudioControl.high();
 		}
+		log.fine("GPIO for audio set to high");
 	}
 	
 	/**
@@ -72,7 +73,12 @@ public class SoundControl {
 		stop();
 		if(Configuration.getConfiguration().getRunningOnRaspberry()) {
 			gpioPinAudioControl.low();
+			// dummy wait - experiment to see if this prevents the crashes
+			try {
+				Thread.sleep(1000);
+			} catch (InterruptedException e) {}
 		}
+		log.fine("GPIO for audio set to low");
 		
 		activeVolume = 0;
 	}
@@ -129,7 +135,7 @@ public class SoundControl {
 		activeSound = soundId;
 		Configuration.Sound sound=Configuration.getConfiguration().getSoundList().get(activeSound);
 
-		log.fine("playSound: ID="+soundId+" type="+sound.type+" volume="+volume);
+		log.fine("playSound: ID="+soundId+" type="+sound.type+" volume="+volume+" append="+append);
 		switch(sound.type) {
 		case RADIO:
 			playRadioStream(sound.source,volume,append);
@@ -155,6 +161,8 @@ public class SoundControl {
 	 *                 and the new sound will start after it finished
 	 */
 	synchronized void playFile(String filename,Integer volume,boolean append) {
+		log.fine("playFile: file="+filename+" volume="+volume+" append="+append);
+		
 		if(filename==null || filename.isEmpty()) {
 			log.severe("playFile called with null or empty filename");
 			return;
@@ -235,6 +243,8 @@ public class SoundControl {
 	 *               and the new sound will start after it finished
 	 */
 	synchronized private void playRadioStream(String uri,Integer volume,boolean append) {
+		log.fine("playRadeio: uri="+uri+" volume="+volume+" append="+append);
+		
 		try {
 			connect();
 			try {

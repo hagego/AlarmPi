@@ -198,7 +198,7 @@ public class LightControlPCA9685 implements LightControl,Runnable {
 		
 		int lsb = (byte)(pwmValue & 0x00FF);
 		int msb = (byte)((pwmValue & 0x0F00) >> 8);
-		log.fine("PCA9685: setPWM: pwm="+pwmValue+" msb="+msb+" lsb="+lsb);
+		log.finest("PCA9685: setPWM: pwm="+pwmValue+" msb="+msb+" lsb="+lsb);
 		
 		if(pca9685!=null) {
 			try {
