@@ -39,13 +39,41 @@ public class SelectActivity extends AppCompatActivity {
         listViewAlarmPies.setAdapter(adapter);
 
         // floating button to add a new AlarmPi to the list of known ones
-        FloatingActionButton fab = (FloatingActionButton) findViewById(R.id.fab);
+        FloatingActionButton fabAdd    = (FloatingActionButton) findViewById(R.id.fab);
+        FloatingActionButton fabDelete = (FloatingActionButton) findViewById(R.id.floatingActionButtonDelete);
         final AppCompatActivity activity = this;
 
-        fab.setOnClickListener(new View.OnClickListener() {
+        fabAdd.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View view) {
                 startActivity (new Intent(activity, AddActivity.class));
+            }
+        });
+
+        // floating action button to delete selected AlarmPi again
+        fabDelete.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+                SharedPreferences prefs = getSharedPreferences(Constants.PREFS_KEY,MODE_PRIVATE);
+                int active = prefs.getInt("active",-1);
+                // only delete if there is at least one left in list
+                if(active>=0 && active<adapter.getCount() && adapter.getCount()>1) {
+                    adapter.getItem(active).setActive(false);
+                    adapter.remove(adapter.getItem(active));
+
+                    // write new list to preferences
+                    SharedPreferences.Editor editor = prefs.edit();
+                    for(int i=0 ; i<adapter.getCount() ; i++) {
+                        editor.putString("name" + i, adapter.getItem(i).name);
+                        editor.putString("hostname" + i, adapter.getItem(i).hostname);
+                    }
+                    editor.putInt("count",adapter.getCount());
+
+                    adapter.getItem(0).setActive(true);
+                    editor.putInt("active",0);
+
+                    editor.commit();
+                }
             }
         });
         getSupportActionBar().setDisplayHomeAsUpEnabled(true);
@@ -65,6 +93,7 @@ public class SelectActivity extends AppCompatActivity {
         int count = prefs.getInt("count",0);
         for(int i=0 ; i<count ; i++) {
             alarmPiList.add(new AlarmPi(prefs.getString("name"+i,""),prefs.getString("hostname"+i,"")));
+            Log.d(Constants.LOG, "adding AlarmPi "+prefs.getString("name"+i,""));
         }
 
         adapter.clear();

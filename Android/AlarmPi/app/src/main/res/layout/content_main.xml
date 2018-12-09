@@ -30,7 +30,7 @@
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:id="@+id/textViewConnection"
-                android:textAppearance="@android:style/TextAppearance.Material.Medium"
+                android:textAppearance="@style/TextAppearance.AppCompat.Medium"
                 android:singleLine="true"
                 android:layout_marginEnd="4dp"
                 android:textStyle="normal|bold"
@@ -42,7 +42,7 @@
                 android:layout_height="wrap_content"
                 android:id="@+id/textViewAlarmPiName"
                 android:layout_weight="1"
-                android:textAppearance="@android:style/TextAppearance.Material.Medium"
+                android:textAppearance="@style/TextAppearance.AppCompat.Medium"
                 android:singleLine="true"
                 android:textStyle="normal|bold"
                 android:textSize="24sp" />
@@ -219,7 +219,7 @@
                 android:layout_height="match_parent"
                 android:id="@+id/textViewTimer"
                 android:layout_weight="1"
-                android:textAppearance="@android:style/TextAppearance.Material.Medium"
+                android:textAppearance="@style/TextAppearance.AppCompat.Medium"
                 android:layout_gravity="center_vertical"
                 android:gravity="center_vertical" />
 

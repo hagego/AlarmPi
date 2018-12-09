@@ -1,8 +1,8 @@
 package hagego.alarmpi;
 
-import android.app.Activity;
 import android.content.Intent;
 import android.content.SharedPreferences;
+import android.graphics.Color;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
@@ -21,10 +21,11 @@ import android.widget.RadioButton;
 import android.widget.SeekBar;
 import android.widget.Spinner;
 import android.widget.TextView;
-import android.graphics.Color;
 import android.widget.Toast;
+
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Future;
+
 import static java.lang.Math.abs;
 
 public class MainActivity extends AppCompatActivity
@@ -65,7 +66,7 @@ public class MainActivity extends AppCompatActivity
         alarmListAdapter = new AlarmListAdapter(this,proxy);
         listViewAlarms.setAdapter(alarmListAdapter);
 
-        final Activity activity=this;
+        final AppCompatActivity activity=this;
 
         // setup a handler to check for completion of synchronization with AlarmPi
         // handler gets triggered out of onResume and then every 200ms until query finishes
