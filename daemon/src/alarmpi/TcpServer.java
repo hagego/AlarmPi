@@ -3,6 +3,7 @@ package alarmpi;
 import java.io.IOException;
 import java.net.ServerSocket;
 import java.net.Socket;
+import java.net.SocketException;
 import java.util.concurrent.ExecutorService;
 import java.util.logging.Logger;
 
@@ -35,12 +36,16 @@ public class TcpServer implements Runnable {
 					default: log.severe("Unknown server type: "+type);
 				}
 				
-			} catch (IOException e) {
+			}
+			catch(SocketException e) {
+				log.info("Server socket closed");
+			}
+			catch (IOException e) {
 				log.severe("IO error during TCP client connect");
 				log.severe(e.getMessage());
 			}
 		}
-		log.warning("Shutting down TCP Server");
+		log.info("Shutting down TCP Server of type "+type);
 	}
 	
 	//

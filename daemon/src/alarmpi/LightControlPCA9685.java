@@ -43,17 +43,13 @@ public class LightControlPCA9685 implements LightControl,Runnable {
 		if(Configuration.getConfiguration().getRunningOnRaspberry()) {
 			log.info("Initializing PCA9685 IIC Light Control");
 			
-			GpioController gpioController = GpioFactory.getInstance();
-			GpioPinDigitalOutput output   = gpioController.provisionDigitalOutputPin (RaspiPin.GPIO_27); 
-			output.setState(PinState.LOW);
-			
 			try {
 				I2CBus bus = I2CFactory.getInstance(I2CBus.BUS_1);
 				
 				// reset PCA9685
 				I2CDevice pcaReset = bus.getDevice(0x00);
 				pcaReset.write((byte)0x06);
-				log.info("PCA9685: reset done");
+				log.fine("PCA9685: reset done");
 				try {
 					Thread.sleep(100);
 				} catch (InterruptedException e) {
@@ -63,17 +59,32 @@ public class LightControlPCA9685 implements LightControl,Runnable {
 				pca9685 = bus.getDevice(lightControlSettings.address);
 				
 				// read status registers and dump to logfile
-				log.info("PCA9685: MODE1 register: "+pca9685.read(0x00));
-				log.info("PCA9685: MODE2 register: "+pca9685.read(0x01));
+				log.fine("PCA9685: MODE1 register after reset: "+pca9685.read(0x00));
+				log.fine("PCA9685: MODE2 register after reset: "+pca9685.read(0x01));
 				
-				// turn oscillator on, inversion depends on configuration
+				// turn oscillator on at 1.5MHz, inversion depends on configuration
+				pca9685.write(0x00,(byte) 0x10);
+				pca9685.write(0xFE,(byte) 0x05);
 				pca9685.write(0x00,(byte) 0x00);
 				if(lightControlSettings.pwmInversion) {
-					pca9685.write(0x01,(byte) 0x14);
+					pca9685.write(0x01,(byte) 0x15);
 				}
 				else {
-					pca9685.write(0x01,(byte) 0x04);
+					pca9685.write(0x01,(byte) 0x05);
 				}
+				
+				log.fine("PCA9685: MODE1 register after setup: "+pca9685.read(0x00));
+				log.fine("PCA9685: MODE2 register after setup: "+pca9685.read(0x01));
+				
+				// all LEDs off
+				pca9685.write(0xFA,(byte) 0x00);
+				pca9685.write(0xFB,(byte) 0x00);
+				pca9685.write(0xFC,(byte) 0x00);
+				pca9685.write(0xFD,(byte) 0x10);
+				
+				GpioController gpioController = GpioFactory.getInstance();
+				GpioPinDigitalOutput output   = gpioController.provisionDigitalOutputPin (RaspiPin.GPIO_27); 
+				output.setState(PinState.LOW);
 			} catch (IOException | UnsupportedBusNumberException e) {
 				log.severe("PCA9685 light control: Unable to initialize: "+e.getMessage());
 				pca9685 = null;
@@ -82,7 +93,7 @@ public class LightControlPCA9685 implements LightControl,Runnable {
 		else {
 			pca9685 = null;
 		}
-
+		log.info("Initializing PCA9685 IIC Light Control done.");
 	}
 	
 	@Override
@@ -92,7 +103,7 @@ public class LightControlPCA9685 implements LightControl,Runnable {
 	
 	@Override
 	public synchronized void off() {
-		log.info("pca9685: setting off");
+		log.fine("pca9685: setting off");
 		
 		if(dimThread!=null) {
 			dimThread.interrupt();
@@ -112,11 +123,12 @@ public class LightControlPCA9685 implements LightControl,Runnable {
 				log.severe("Error during I2C write: "+e.getMessage());
 			}
 		}
+		log.fine("pca9685: setting off done");
 	}
 	
 	@Override
 	public synchronized void off(int lightId) {
-		log.info("pca9685: setting off");
+		log.fine("pca9685: setting off ID "+lightId);
 		
 		if(dimThread!=null) {
 			dimThread.interrupt();
@@ -128,12 +140,14 @@ public class LightControlPCA9685 implements LightControl,Runnable {
 		
 		if(pca9685!=null) {
 			try {
+				pca9685.write(0x08+lightControlSettings.addresses.get(lightId)*4,(byte) 0x00);
 				pca9685.write(0x09+lightControlSettings.addresses.get(lightId)*4,(byte) 0x10);
 				pwmValue[lightId] = 0;
 			} catch (IOException e) {
 				log.severe("Error during I2C write: "+e.getMessage());
 			}
 		}
+		log.fine("pca9685: setting off done: ID="+lightId);
 	}
 	
 	@Override
@@ -202,8 +216,8 @@ public class LightControlPCA9685 implements LightControl,Runnable {
 		
 		if(pca9685!=null) {
 			try {
-				pca9685.write(0x06+4*address,(byte) 0x00);
-				pca9685.write(0x07+4*address,(byte) 0x00);
+//				pca9685.write(0x06+4*address,(byte) 0x00);
+//				pca9685.write(0x07+4*address,(byte) 0x00);
 				pca9685.write(0x08+4*address,(byte) lsb);
 				pca9685.write(0x09+4*address,(byte) msb);
 				

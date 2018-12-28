@@ -127,10 +127,12 @@ public class Configuration {
 		pushButtonList       = new ArrayList<PushButtonSettings>();
 
         // general data
-        name          = ini.get("general", "name", String.class);
+		Ini.Section sectionGeneral = ini.get("general");
+        name          = sectionGeneral.get("name", String.class, "");
         if(name==null) {
         	name = "AlarmPi";
         }
+        volumeDefault = sectionGeneral.get("volumeDefault", Integer.class,50);
         
         // mpd configuration
         mpdAddress    = ini.get("mpd", "address", String.class);
@@ -143,10 +145,10 @@ public class Configuration {
         Integer jsonServerPortTemp = ini.get("network", "jsonServerPort", Integer.class);
         if(jsonServerPortTemp==null) {
         	jsonServerPort = 0;
+        	log.info("JSON Server disabled (no port specified)");
         }
         else {
         	jsonServerPort = jsonServerPortTemp;
-        	log.info("JSON Server disabled (no port specified)");
         }
         
         // sounds (radio stations)
@@ -334,6 +336,13 @@ public class Configuration {
 	 */
 	boolean getRunningOnRaspberry() {
 		return runningOnRaspberry;
+	}
+	
+	/**
+	 * @return the default sound volume
+	 */
+	int getDefaultVolume() {
+		return volumeDefault;
 	}
 	
 	/**
@@ -541,6 +550,7 @@ public class Configuration {
 	private void dump() {
 		String dump = new String("configuration data:\n");
 		dump += "  name: "+name+"\n";
+		dump += "  default volume: "+volumeDefault+"\n";
 		dump += "  mpdAddress="+mpdAddress+"\n";
 		dump += "  mpdPort="+mpdPort+"\n";
 		dump += "  mpdFiles="+mpdFiles+" mpdTmpSubDir="+mpdTmpSubDir+"\n";
@@ -603,6 +613,7 @@ public class Configuration {
 	// settings in configuration file
 	private final boolean                    runningOnRaspberry;
 	private String                           name;                  // AlarmPi Name
+	private int                              volumeDefault;         // default sound volume
 	private int                              port;                  // AlarmPi networt port for remote control
 	private int                              jsonServerPort;        // tcp port for HTTP JSON based control
 	private String                           mpdAddress;            // mpd network address

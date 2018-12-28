@@ -6,7 +6,6 @@ import java.net.ServerSocket;
 import java.util.Locale;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
-import java.util.concurrent.TimeUnit;
 import java.util.logging.LogManager;
 import java.util.logging.Logger;
 
@@ -61,10 +60,7 @@ public class AlarmPi {
 		controllerThread.start();
 		
 		// prepare threads for TCP servers
-		ServerSocket cmdServerSocket  = null;
-		ServerSocket jsonServerSocket = null;
 		final ExecutorService threadPool = Executors.newCachedThreadPool();
-		
 		
 		// start TCP server to listen for external commands
 		if(configuration.getPort()==0) {
@@ -73,11 +69,25 @@ public class AlarmPi {
 		}
 		else {
 		    try {
-				cmdServerSocket  = new ServerSocket(configuration.getPort());
+		    	final ServerSocket cmdServerSocket  = new ServerSocket(configuration.getPort());
 				
 				Thread cmdServerThread = new Thread(new TcpServer(TcpServer.Type.CMD,controller,cmdServerSocket,threadPool));
 				cmdServerThread.setDaemon(true);
 				cmdServerThread.start();
+				
+			    Runtime.getRuntime().addShutdownHook( new Thread() {
+					public void run() {
+						log.info("shutdown hook started to shut down command server");
+						
+						try {
+							cmdServerSocket.close();
+							log.info("command server socket closed");
+						}
+						catch (IOException  e) {
+							log.severe("Exception during shutdown: "+e);
+						}
+					}
+				});
 			} catch (IOException e) {
 				log.severe("Unable to create server socket for remote client access on port "+configuration.getPort());
 				log.severe(e.getMessage());
@@ -90,13 +100,26 @@ public class AlarmPi {
 		}
 		else {
 		    try {
-				jsonServerSocket = new ServerSocket(configuration.getJsonServerPort());
+		    	final ServerSocket jsonServerSocket = new ServerSocket(configuration.getJsonServerPort());
 				
 				Thread jsonServerThread = new Thread(new TcpServer(TcpServer.Type.JSON,controller,jsonServerSocket,threadPool));
 				jsonServerThread.setDaemon(true);
 				jsonServerThread.start();
+				
+			    Runtime.getRuntime().addShutdownHook( new Thread() {
+					public void run() {
+						log.info("shutdown hook started to shut down json server");
+						try {
+							jsonServerSocket.close();
+							log.info("json server socket closed");
+						}
+						catch (IOException  e) {
+							log.severe("Exception during shutdown: "+e);
+						}
+					}
+				});
 			} catch (IOException e) {
-				log.severe("Unable to create server socket for remote client access on port "+configuration.getJsonServerPort());
+				log.severe("Unable to create server socket for json client access on port "+configuration.getJsonServerPort());
 				log.severe(e.getMessage());
 			}
 		}
@@ -105,22 +128,12 @@ public class AlarmPi {
 		// actually copy & paste code from some forum on the web - no idea if it is working
 	    Runtime.getRuntime().addShutdownHook( new Thread() {
 			public void run() {
-				log.info("shutdown hook started");
+				log.info("shutdown hook started to end controller thread");
 				
 				// switch all lights and alarms off
 				controller.allOff(false);
-				threadPool.shutdownNow(); // don't accept new TCP client requests
 				controllerThread.interrupt();
-				
-				try {
-					// wait max. 1 second for termination of all TCP client threads
-					threadPool.awaitTermination(1L, TimeUnit.SECONDS);
-
-					controllerThread.interrupt();
-				}
-				catch (InterruptedException  e) {
-					log.severe("Exception during shutdown: "+e);
-				}
+				threadPool.shutdownNow();
 			}
 		});
 		

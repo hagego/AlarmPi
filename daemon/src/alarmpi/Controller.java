@@ -134,7 +134,7 @@ class Controller implements Runnable {
 				}
 				String filename = new TextToSpeech().createTempFile(text, "nextAlarmToday.mp3");
 				soundControl.on();
-				soundControl.setVolume(30);
+				soundControl.setVolume(Configuration.getConfiguration().getDefaultVolume());
 				soundControl.playFile(filename, null, false);
 			}
 			else {
@@ -146,7 +146,7 @@ class Controller implements Runnable {
 					}
 					String filename = new TextToSpeech().createTempFile(text, "nextAlarmTomorrow.mp3");
 					soundControl.on();
-					soundControl.setVolume(30);
+					soundControl.setVolume(Configuration.getConfiguration().getDefaultVolume());
 					soundControl.playFile(filename, null, false);
 				}
 			}
@@ -233,7 +233,7 @@ class Controller implements Runnable {
 				// sleep
 				TimeUnit.MILLISECONDS.sleep(sleepPeriod);
 			} catch (InterruptedException e) {
-				// this indicates that SIGTERM signal has been recived
+				// this indicates that SIGTERM signal has been received
 				log.warning("controller loop interrupted");
 			}
 		}
@@ -784,10 +784,10 @@ class Controller implements Runnable {
 					}
         		}
         		if(!longClick) {
-        			log.info("short click");
+        			log.fine("short click");
         			if(start-lastClick>300) {
         				// single click
-    					log.info("processing single click. useAws="+pushButtonSetting.useAws);
+    					log.fine("processing single click. useAws="+pushButtonSetting.useAws);
     					
     					if(pushButtonSetting.useAws) {
     						new SpeechToCommand().captureCommand();
@@ -799,7 +799,7 @@ class Controller implements Runnable {
         			}
         			else {
         				// double click
-    					log.info("procesing double click");
+    					log.fine("procesing double click");
     					if(soundControl.getVolume()>0) {
     						// sound already on - switch it off
     						soundControl.off();

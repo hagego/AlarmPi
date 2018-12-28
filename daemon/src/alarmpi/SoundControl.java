@@ -313,7 +313,7 @@ public class SoundControl {
 			while ((c = reader.read()) != -1 && c!=10) {
 				answer += (char)c;
 			}
-			log.info("sendCommand "+cmd+" returns "+answer);
+			log.fine("sendCommand "+cmd+" returns "+answer);
 		}
 		
 		if(!answer.startsWith("OK")) {

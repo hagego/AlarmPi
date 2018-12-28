@@ -12,6 +12,7 @@ import org.eclipse.paho.client.mqttv3.MqttCallbackExtended;
 import org.eclipse.paho.client.mqttv3.MqttConnectOptions;
 import org.eclipse.paho.client.mqttv3.MqttException;
 import org.eclipse.paho.client.mqttv3.MqttMessage;
+import org.eclipse.paho.client.mqttv3.persist.MemoryPersistence;
 
 public class MqttClient implements MqttCallbackExtended{
 	
@@ -25,7 +26,7 @@ public class MqttClient implements MqttCallbackExtended{
 				MqttConnectOptions connectOptions = new MqttConnectOptions();
 				connectOptions.setAutomaticReconnect(true);
 				
-				mqttClient = new org.eclipse.paho.client.mqttv3.MqttAsyncClient("tcp://"+brokerAddress+":"+brokerPort,Configuration.getConfiguration().getName());
+				mqttClient = new org.eclipse.paho.client.mqttv3.MqttAsyncClient("tcp://"+brokerAddress+":"+brokerPort,Configuration.getConfiguration().getName(),new MemoryPersistence());
 				mqttClient.setCallback(this);
 				
 				log.fine("Connecting to MQTT broker "+brokerAddress);

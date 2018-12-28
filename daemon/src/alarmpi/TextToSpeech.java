@@ -77,14 +77,14 @@ public class TextToSpeech {
 			File file = new File(directory,fileName);
 			
 			// create mp3 file with this weather announcement
-			log.info("text to speech conversion: text="+text+" filename="+file);
+			log.fine("text to speech conversion: text="+text+" filename="+file);
 			
 			// translate into mp3 stream
 			try{
 	            text=java.net.URLEncoder.encode(text, "UTF-8");
 	            //URL url = new URL("http://translate.google.com/translate_tts?tl=de&ie=UTF-8&q="+text+"&total=1&idx=0&client=alarmpi");
 	            URL url = new URL("http://api.voicerss.org/?key=949e0a2932094528bc4b829dedbbd84d&hl=de-de&src="+text);
-	            log.info("URL="+url);
+	            log.fine("URL="+url);
 	            
 	            HttpURLConnection urlConn = (HttpURLConnection) url.openConnection();
 	            urlConn.addRequestProperty("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/45.0.2454.85 Safari/537.36");

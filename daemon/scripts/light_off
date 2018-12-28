@@ -1,0 +1,3 @@
+gpio write 27 1
+i2cset -y 1 0x41 0x01 0x15
+
