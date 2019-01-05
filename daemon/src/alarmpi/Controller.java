@@ -214,6 +214,9 @@ class Controller implements Runnable {
 					for(Alarm alarm:configuration.getAlarmList()) {
 						addAlarmEvents(alarm);
 					}
+					
+					// publish modified alarm status on MQTT broker
+					MqttClient.getMqttClient().publishAlarmList();
 				}
 				
 				// check if an alarm was modified and the events need to be processed
@@ -676,6 +679,9 @@ class Controller implements Runnable {
 			if(Configuration.getConfiguration().getCalendarSummary()!=null) {
 				calendarAnnouncementFile = dataExecutorService.submit(new CalendarProvider());
 			}
+			
+			// publish modified alarm status on MQTT broker
+			MqttClient.getMqttClient().publishAlarmList();
 			
 			break;
 		case ALARM_END:
