@@ -83,7 +83,7 @@ public class TextToSpeech {
 			try{
 	            text=java.net.URLEncoder.encode(text, "UTF-8");
 	            //URL url = new URL("http://translate.google.com/translate_tts?tl=de&ie=UTF-8&q="+text+"&total=1&idx=0&client=alarmpi");
-	            URL url = new URL("http://api.voicerss.org/?key=949e0a2932094528bc4b829dedbbd84d&hl=de-de&src="+text);
+	            URL url = new URL("http://api.voicerss.org/?key=f5d762f987f34397b350af6563ffb818&hl=de-de&c=MP3&src="+text);
 	            log.fine("URL="+url);
 	            
 	            HttpURLConnection urlConn = (HttpURLConnection) url.openConnection();
@@ -93,10 +93,18 @@ public class TextToSpeech {
 	            OutputStream outstream = new FileOutputStream(file);
 	            byte[] buffer = new byte[1024];
 	            int len;
+	            int count = 0;
 	            while ((len = read.read(buffer)) > 0) {
-	            	outstream.write(buffer, 0, len);                    
+	            	outstream.write(buffer, 0, len);
+	            	count++;
 	            }
 	            outstream.close();
+	            log.fine("text2speech readcount="+count);
+	            
+	            if(count<5) {
+	            	// this indicates a problem...
+	            	log.severe("text2speech conversion returns less than 1k data");
+	            }
 	            
 	    		// update mpd database
 	            SoundControl.getSoundControl().update();
