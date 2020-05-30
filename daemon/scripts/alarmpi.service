@@ -4,6 +4,8 @@
 [Unit]
 Description=AlarmPi daemon
 After=mpd.service
+After=mosquitto.service
+Before=watchdog.service
 
 [Service]
 User=root
@@ -17,7 +19,7 @@ ExecStartPre=-/bin/chmod g+w /var/lib/mpd/music/tmp
 ExecStart=/usr/bin/sudo -u alarmpi /usr/bin/java -classpath '/opt/alarmpi/lib/org.eclipse.paho.client.mqttv3.jar:/opt/alarmpi/lib/ini4j/*:/opt/alarmpi/lib/pi4j/lib/*:/opt/alarmpi/lib/aws-java-sdk/lib/*:/opt/alarmpi/lib/aws-java-sdk/third-party/lib/*:/opt/alarmpi/lib/calendar/*:/opt/alarmpi/lib/calendar/libs/*:/opt/alarmpi/bin/alarmpi.jar' alarmpi/AlarmPi
 #ExecStop=
 # Shutdown delay in seconds, before process is tried to be killed with KILL (if configured)
-TimeoutStopSec=120
+TimeoutStopSec=10
 Restart=on-failure
 
 [Install]
