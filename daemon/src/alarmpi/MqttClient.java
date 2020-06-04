@@ -25,6 +25,7 @@ public class MqttClient implements MqttCallbackExtended{
 			try {
 				MqttConnectOptions connectOptions = new MqttConnectOptions();
 				connectOptions.setAutomaticReconnect(true);
+				connectOptions.setKeepAliveInterval(Configuration.getConfiguration().getMqttKeepalive());
 				
 				mqttClient = new org.eclipse.paho.client.mqttv3.MqttAsyncClient("tcp://"+brokerAddress+":"+brokerPort,Configuration.getConfiguration().getName(),new MemoryPersistence());
 				mqttClient.setCallback(this);

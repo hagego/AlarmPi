@@ -279,8 +279,9 @@ public class Configuration {
         // mqtt
 		Ini.Section sectionMqtt = ini.get("mqtt");
 		if(sectionMqtt!=null) {
-			mqttAddress = sectionMqtt.get("address", String.class, null);
-		    mqttPort    = sectionMqtt.get("port", Integer.class, null);
+			mqttAddress    = sectionMqtt.get("address", String.class, null);
+		    mqttPort       = sectionMqtt.get("port", Integer.class, null);
+		    mqttKeepAlive  = sectionMqtt.get("keepalive", Integer.class, 60);
 		    mqttPublishTopicLongClick     = sectionMqtt.get("publishTopicLongClick", String.class, null);
 		    mqttSubscribeTopicTemperature = sectionMqtt.get("subscribeTopicTemperature", String.class, null);
 		    mqttPublishTopicAlarmList     = sectionMqtt.get("publishTopicAlarmList", String.class, null);
@@ -315,7 +316,7 @@ public class Configuration {
 				object = new Configuration(iniFile);
 			}
 			else {
-				log.severe("Configuration.read can only be called once");
+				log.severe("Configuration.read() can only be called once");
 				return false;
 			}
 			
@@ -471,6 +472,13 @@ public class Configuration {
 	 */
 	final Integer getMqttPort() {
 		return mqttPort;
+	}
+	
+	/**
+	 * @return the MQTT keepalive period (in seconds)
+	 */
+	final Integer getMqttKeepalive() {
+		return mqttKeepAlive;
 	}
 	
 	/**
@@ -651,6 +659,7 @@ public class Configuration {
 	private String                           googleCalendarSummary; // summary name of google calendar (or null)
 	private String                           mqttAddress;           // MQTT Broker address
 	private Integer                          mqttPort;              // MQTT broker port
+	private Integer                          mqttKeepAlive;         // MQTT keepalive interval in seconds
 	private String                           mqttPublishTopicLongClick;     // MQTT topic published on a long click of a connected button
 	private String                           mqttPublishTopicAlarmList;     // MQTT topic for publishing alarm list as JSON object
 	private String                           mqttSubscribeTopicTemperature; // MQTT topic subscribed to get locally measured temperature
