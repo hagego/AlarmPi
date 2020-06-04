@@ -1,19 +1,21 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <classpath>
-	<classpathentry kind="src" path="src"/>
-	<classpathentry kind="src" path="lib/jsonp-jsonp-1.1.2/api/src/main/java"/>
-	<classpathentry kind="src" path="lib/jsonp-jsonp-1.1.2/impl/src/main/java"/>
-	<classpathentry kind="src" path="lib/jsonp-jsonp-1.1.2/impl/src/main/resources"/>
-	<classpathentry kind="con" path="org.eclipse.jdt.launching.JRE_CONTAINER"/>
-	<classpathentry kind="lib" path="lib/calendar/google-api-services-calendar-v3-rev263-1.23.0.jar"/>
-	<classpathentry kind="lib" path="lib/calendar/libs/google-http-client-jackson2-1.23.0.jar"/>
-	<classpathentry kind="lib" path="lib/calendar/libs/google-http-client-1.23.0.jar"/>
-	<classpathentry kind="lib" path="lib/calendar/libs/google-oauth-client-1.23.0.jar"/>
-	<classpathentry kind="lib" path="lib/calendar/libs/google-api-client-1.23.0.jar"/>
-	<classpathentry kind="lib" path="lib/ini4j/ini4j-0.5.4.jar"/>
-	<classpathentry kind="lib" path="lib/aws-java-sdk/lib/aws-java-sdk-1.11.221.jar"/>
-	<classpathentry kind="lib" path="lib/pi4j-1.2-SNAPSHOT/lib/pi4j-core.jar"/>
-	<classpathentry kind="lib" path="lib/aws-java-sdk/third-party/lib/jackson-core-2.6.7.jar"/>
-	<classpathentry kind="lib" path="lib/org.eclipse.paho.client.mqttv3-1.2.0.jar"/>
-	<classpathentry kind="output" path="bin"/>
+	<classpathentry kind="src" output="target/classes" path="src">
+		<attributes>
+			<attribute name="optional" value="true"/>
+			<attribute name="maven.pomderived" value="true"/>
+		</attributes>
+	</classpathentry>
+	<classpathentry kind="con" path="org.eclipse.jdt.launching.JRE_CONTAINER/org.eclipse.jdt.internal.debug.ui.launcher.StandardVMType/JavaSE-1.8">
+		<attributes>
+			<attribute name="module" value="true"/>
+			<attribute name="maven.pomderived" value="true"/>
+		</attributes>
+	</classpathentry>
+	<classpathentry kind="con" path="org.eclipse.m2e.MAVEN2_CLASSPATH_CONTAINER">
+		<attributes>
+			<attribute name="maven.pomderived" value="true"/>
+		</attributes>
+	</classpathentry>
+	<classpathentry kind="output" path="target/classes"/>
 </classpath>

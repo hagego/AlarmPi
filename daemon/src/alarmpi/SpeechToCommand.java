@@ -1,16 +1,8 @@
 package alarmpi;
 
 import java.io.FileInputStream;
-import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.util.logging.Logger;
-import com.amazonaws.auth.AWSCredentialsProvider;
-import com.amazonaws.auth.DefaultAWSCredentialsProviderChain;
-import com.amazonaws.services.lexruntime.AmazonLexRuntime;
-import com.amazonaws.services.lexruntime.AmazonLexRuntimeClient;
-import com.amazonaws.services.lexruntime.AmazonLexRuntimeClientBuilder;
-import com.amazonaws.services.lexruntime.model.PostContentRequest;
-import com.amazonaws.services.lexruntime.model.PostContentResult;
 import com.fasterxml.jackson.core.JsonFactory;
 import com.fasterxml.jackson.core.JsonParser;
 import com.fasterxml.jackson.core.JsonToken;
@@ -32,9 +24,10 @@ public class SpeechToCommand {
             log.fine("arecord exit code: "+p.exitValue());
              
      		FileInputStream inputStream;
-    		try {
+    		//try {
     			log.finest("processing speech control recording");
     			
+    			/*
     			AmazonLexRuntimeClientBuilder builder = AmazonLexRuntimeClient.builder();
     			builder.setRegion("us-east-1");
     			AmazonLexRuntime runtime = builder.build();
@@ -75,11 +68,12 @@ public class SpeechToCommand {
 	    			String filename = new TextToSpeech().createPermanentFile("Ich habe dich leider nicht verstanden.");
 	    			SoundControl.getSoundControl().playFile(filename, FEEDBACK_VOLUME, false);
 	    		}
+	    		*/
     		
-    		} catch (FileNotFoundException e) {
+    		/*} catch (FileNotFoundException e) {
     			log.severe("Unable to find AWS recording file: "+e.getMessage());
     			feedbackError();
-    		}
+    		}*/
 	      } catch (Exception ex) {
 	    	  log.severe("Exception during recording of AWS speech control command: "+ex.getMessage());
 	    	  feedbackError();
