@@ -93,15 +93,15 @@ public class TextToSpeech {
 	            OutputStream outstream = new FileOutputStream(file);
 	            byte[] buffer = new byte[1024];
 	            int len;
-	            int count = 0;
+	            int totalLength = 0;
 	            while ((len = read.read(buffer)) > 0) {
 	            	outstream.write(buffer, 0, len);
-	            	count++;
+	            	totalLength += len;
 	            }
 	            outstream.close();
-	            log.fine("text2speech readcount="+count);
+	            log.fine("text2speech byteount="+totalLength);
 	            
-	            if(count<5) {
+	            if(totalLength<1024) {
 	            	// this indicates a problem...
 	            	log.severe("text2speech conversion returns less than 1k data");
 	            }

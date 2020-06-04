@@ -26,6 +26,8 @@ import com.pi4j.io.gpio.RaspiPin;
 import com.pi4j.io.gpio.event.GpioPinDigitalStateChangeEvent;
 import com.pi4j.io.gpio.event.GpioPinListenerDigital;
 
+import alarmpi.Configuration.Sound;
+
 /**
  * This class implements the main endless control loop that gets started
  * out of main in its own thread
@@ -172,11 +174,6 @@ class Controller implements Runnable {
 		
 		LocalDate date = LocalDate.now();
 		int watchDogCounter = watchDogCounterMax;
-		
-		// create all the events for the alarms of today
-		for(Alarm alarm:configuration.getAlarmList()) {
-			addAlarmEvents(alarm);
-		}
 		
 		// create all the events for the alarms of today which are still in the future
 		for(Alarm alarm:configuration.getAlarmList()) {
@@ -367,27 +364,178 @@ class Controller implements Runnable {
 	}
 	
 	/**
-	 * generates the events needed to process an alarm
-	 * @param alarm new alarm to process
+	 * creates alarm events in case the sound is a playlist
+	 * @param alarm Alarm for which events must be created
 	 */
-	synchronized private void addAlarmEvents(Alarm alarm) {
-		log.fine("generating events for alarm ID="+alarm.getId()+" at time="+alarm.getTime());
+	private void generatePlaylistAlarmEvents(Alarm alarm) {
+		log.fine("generating events for playlist alarm with ID="+alarm.getId()+" at time="+alarm.getTime());
 		
-		if(!alarm.getWeekDays().contains(LocalDate.now().getDayOfWeek())) {
-			log.fine("alarm not scheduled for today");
+		if(alarm.getSoundId()==null) {
+			log.severe("generatePlaylistAlarmEvents called for alarm with SoundID null");
 			return;
 		}
 		
-		if(alarm.getTime().isBefore(LocalTime.now())) {
-			log.fine("alarm time has already passed");
+		Sound sound = Configuration.getConfiguration().getSoundList().get(alarm.getSoundId());
+		if(sound.type!=Sound.Type.PLAYLIST || sound.playlist==null || sound.playlist.size()<1) {
+			log.severe("generatePlaylistAlarmEvents called with illegal playlist");
 			return;
 		}
 		
-		if(!alarm.isEnabled()) {
-			log.fine("alarm disabled");
+		// for playlists, use first song as fade-in
+		Integer fadeInDuration = sound.playlist.get(0).duration;
+		if(fadeInDuration==null) {
+			log.severe("first song of playlist has no duration");
 			return;
 		}
 		
+		LocalDateTime alarmDateTime = LocalDate.now().atTime(alarm.getTime());
+
+		final int stepCountFadeIn         = 20;
+		final LocalDateTime fadeInStart   = alarmDateTime.minusSeconds(fadeInDuration);
+		final double fadeInTimeInterval   = (double)fadeInDuration/(double)stepCountFadeIn;                 // in seconds
+		final double fadeInVolumeInterval = (double)(alarm.getVolumeFadeInEnd()-alarm.getVolumeFadeInStart())/(double)stepCountFadeIn;
+		
+		log.finest("fade in duration="+fadeInDuration+" start at: "+fadeInStart+" alarm at "+alarmDateTime+" stop at "+alarmDateTime.plusSeconds(alarm.getDuration()));
+		
+		// create events only if alarm is still to come today
+		if(fadeInStart.isAfter(LocalDateTime.now())) {
+			Event eventStart = new Event();
+			eventStart.type      = Event.EventType.ALARM_START;
+			eventStart.alarm     = alarm;
+			eventStart.time      = fadeInStart;
+			eventStart.paramInt1 = alarm.getLightDimUpDuration();
+			eventStart.paramInt2 = alarm.getLightDimUpBrightness();
+			eventList.add(eventStart);
+
+			// first song of playlist as fade-in
+			Event eventSound = new Event();
+			eventSound.type         = Event.EventType.PLAY_SOUND;
+			eventSound.alarm        = alarm;
+			eventSound.time         = fadeInStart.plusNanos(1);
+			eventSound.sound        = sound.playlist.get(0);
+			eventSound.paramInt2    = alarm.getVolumeFadeInStart();
+			eventList.add(eventSound);
+			log.finest("fade-in sound: "+sound.playlist.get(0).name);
+			
+			// events to increase volume
+			for(int step=1 ; step<stepCountFadeIn ; step++) {
+				// increase volume
+				Event eventVolume = new Event();
+				eventVolume.type      = Event.EventType.SET_VOLUME;
+				eventVolume.alarm     = alarm;
+				eventVolume.time      = fadeInStart.plusSeconds((long)(step*fadeInTimeInterval));
+				eventVolume.paramInt1 = alarm.getVolumeFadeInStart()+(int)(step*fadeInVolumeInterval);
+				eventList.add(eventVolume);
+			}
+			
+			LocalDateTime time=alarmDateTime;
+			
+			// alarm sound
+			Integer alarmSoundDuration = null;
+			if(alarm.getSound()!=null) {
+				Event eventAlarm = new Event();
+				eventAlarm.type         = Event.EventType.PLAY_FILE;
+				eventAlarm.alarm        = alarm;
+				eventAlarm.time         = time;
+				eventAlarm.paramString  = alarm.getSound();
+				eventAlarm.paramBool    = true;
+				eventList.add(eventAlarm);
+				
+				alarmSoundDuration = SoundControl.getSoundControl().getSongDuration(alarm.getSound());
+				if(alarmSoundDuration != null) {
+					time = time.plusSeconds(alarmSoundDuration);
+				}
+			}
+			
+			// greeting and alarm time
+			Event eventGreeting = new Event();
+			eventGreeting.type         = Event.EventType.PLAY_FILE;
+			eventGreeting.alarm        = alarm;
+			eventGreeting.time         = time.plusNanos(1);
+			eventGreeting.paramString  = new TextToSpeech().createPermanentFile(alarm.getGreeting());
+			eventGreeting.paramBool    = true;
+			eventList.add(eventGreeting);
+			
+			Event eventAnnouncement = new Event();
+			eventAnnouncement.type         = Event.EventType.PLAY_FILE;
+			eventAnnouncement.alarm        = alarm;
+			eventAnnouncement.time         = time.plusNanos(2);
+			eventAnnouncement.paramString  = prepareTimeAnnouncement(alarm.getTime());
+			eventAnnouncement.paramBool    = true;
+			eventList.add(eventAnnouncement);
+			
+			Integer durationGreeting = SoundControl.getSoundControl().getSongDuration(eventGreeting.paramString);
+			if(durationGreeting != null) {
+				time = time.plusSeconds(durationGreeting);
+			}
+			
+			Integer durationAnnouncement = SoundControl.getSoundControl().getSongDuration(eventAnnouncement.paramString);
+			if(durationAnnouncement != null) {
+				time = time.plusSeconds(durationAnnouncement);
+			}
+			
+			int soundIndex = 0;
+			while(time.isBefore(alarmDateTime.plusSeconds(alarm.getDuration()))) {
+				if(soundIndex+1 < sound.playlist.size()) {
+					soundIndex++;
+				}
+				else {
+					soundIndex = 0;
+				}
+				
+				log.finest("adding next song: "+sound.playlist.get(soundIndex).name+" duration="+sound.playlist.get(soundIndex).duration);
+				
+				eventSound = new Event();
+				eventSound.type         = Event.EventType.PLAY_SOUND;
+				eventSound.alarm        = alarm;
+				eventSound.time         = time;
+				eventSound.sound        = sound.playlist.get(soundIndex);
+				eventSound.paramBool    = true;
+				eventList.add(eventSound);
+				
+				Integer duration = sound.playlist.get(soundIndex).duration;
+				if(duration!=null) {
+					time = time.plusSeconds(duration);
+				}
+				
+				if(alarm.getSound()!=null) {
+					log.finest("adding alarm sound at"+time);
+					Event eventAlarm = new Event();
+					eventAlarm.type         = Event.EventType.PLAY_FILE;
+					eventAlarm.alarm        = alarm;
+					eventAlarm.time         = time;
+					eventAlarm.paramString  = alarm.getSound();
+					eventAlarm.paramBool    = true;
+					eventList.add(eventAlarm);
+					
+					if(alarmSoundDuration != null) {
+						time = time.plusSeconds(alarmSoundDuration);
+					}
+				}
+				
+				log.finest("adding time announcement at: "+time);
+				
+				eventAnnouncement = new Event();
+				eventAnnouncement.type         = Event.EventType.PLAY_FILE;
+				eventAnnouncement.alarm        = alarm;
+				eventAnnouncement.time         = time;
+				eventAnnouncement.paramString  = prepareTimeAnnouncement(time.toLocalTime());
+				eventAnnouncement.paramBool    = true;
+				eventList.add(eventAnnouncement);
+				
+				durationAnnouncement = SoundControl.getSoundControl().getSongDuration(eventAnnouncement.paramString);
+				if(durationAnnouncement != null) {
+					time = time.plusSeconds(durationAnnouncement);
+				}
+			}
+		}
+	}
+	
+	/**
+	 * creates alarm events in case alarm is not a playlist
+	 * @param alarm Alarm for which events must be created
+	 */
+	private void generateNonPlaylistAlarmEvents(Alarm alarm) {
 		// alarm time as LocalDateTime
 		LocalDateTime alarmDateTime = LocalDate.now().atTime(alarm.getTime());
 		
@@ -426,6 +574,24 @@ class Controller implements Runnable {
 				eventVolume.paramInt1 = alarm.getVolumeFadeInStart()+(int)(step*fadeInVolumeInterval);
 				eventList.add(eventVolume);
 			}
+			
+			// generate main alarm and post alarm announcements
+			Event eventGreeting = new Event();
+			eventGreeting.type         = Event.EventType.PLAY_FILE;
+			eventGreeting.alarm        = alarm;
+			eventGreeting.time         = alarmDateTime.plusNanos(1);
+			eventGreeting.paramString  = new TextToSpeech().createPermanentFile(alarm.getGreeting());
+			eventGreeting.paramBool    = true;
+			eventList.add(eventGreeting);
+			
+			// time announcement
+			Event eventAnnouncement = new Event();
+			eventAnnouncement.type         = Event.EventType.PLAY_FILE;
+			eventAnnouncement.alarm        = alarm;
+			eventAnnouncement.time         = alarmDateTime.plusNanos(2);
+			eventAnnouncement.paramString  = prepareTimeAnnouncement(alarmDateTime.toLocalTime());
+			eventAnnouncement.paramBool    = true;
+			eventList.add(eventAnnouncement);
 		}
 		
 		// generate post fade-in events to increase volume and brightness
@@ -511,11 +677,39 @@ class Controller implements Runnable {
 			eventStop.alarm     = alarm;
 			eventStop.time      = alarmDateTime.plusSeconds(alarm.getDuration());
 			eventList.add(eventStop);
+		}		
+	}
+	
+	/**
+	 * generates the events needed to process an alarm
+	 * @param alarm new alarm to process
+	 */
+	synchronized private void addAlarmEvents(Alarm alarm) {
+		log.fine("generating events for alarm ID="+alarm.getId()+" at time="+alarm.getTime());
+		
+		if(!alarm.getWeekDays().contains(LocalDate.now().getDayOfWeek())) {
+			log.fine("alarm not scheduled for today");
+			return;
 		}
 		
-		// update mpd database
-		soundControl.update();
+		if(alarm.getTime().isBefore(LocalTime.now())) {
+			log.fine("alarm time has already passed");
+			return;
+		}
 		
+		if(!alarm.isEnabled()) {
+			log.fine("alarm disabled");
+			return;
+		}
+		
+		
+		if(Configuration.getConfiguration().getSoundList().get(alarm.getSoundId()).type==Configuration.Sound.Type.PLAYLIST) {
+			generatePlaylistAlarmEvents(alarm);
+		}
+		else {
+			generateNonPlaylistAlarmEvents(alarm);
+		}
+
 		// sort events in order of execution time again
 		Collections.sort(eventList);
 	}
@@ -616,7 +810,7 @@ class Controller implements Runnable {
 		
 		switch(e.type) {
 		case PLAY_SOUND:
-			soundControl.playSound(e.paramInt1, e.paramInt2, e.paramBool==null ? true : e.paramBool);
+			soundControl.playSound(e.sound, e.paramInt2, e.paramBool==null ? true : e.paramBool);
 			break;
 		case SET_VOLUME:
 			soundControl.setVolume(e.paramInt1);
@@ -738,6 +932,7 @@ class Controller implements Runnable {
 		EventType            type;            // event type
 		Alarm                alarm;
 		LocalDateTime        time;            // event time
+		Sound                sound;           // sound to play for this event
 		Integer              paramInt1;       // integer parameter 1, depends on event type
 		Integer              paramInt2;       // integer parameter 2, depends on event type
 		String               paramString;     // String parameter 1, depends on event type
@@ -800,7 +995,18 @@ class Controller implements Runnable {
     					}
     					else {
     						// no speech control - increase LED brightness
-    						lightControl.setBrightness(pushButtonSetting.lightId,lightControl.getBrightness(pushButtonSetting.lightId)+pushButtonSetting.brightnessIncrement);
+    						// lightControl.setBrightness(pushButtonSetting.lightId,lightControl.getBrightness(pushButtonSetting.lightId)+pushButtonSetting.brightnessIncrement);
+    						Sound sound = Configuration.getConfiguration().getSoundList().get(pushButtonSetting.soundId);
+    						soundControl.playSound(sound, pushButtonSetting.soundVolume, false);
+    						try {
+								Thread.sleep(100);
+							} catch (InterruptedException e) {
+								log.severe(e.getMessage());
+							}
+    						soundControl.on();
+    						if(pushButtonSetting.soundTimer>0) {
+    							setSoundTimer(pushButtonSetting.soundTimer*60);
+    						}
     					}
         			}
         			else {
@@ -812,7 +1018,8 @@ class Controller implements Runnable {
     					}
     					else {
     						soundControl.on();
-    						soundControl.playSound(pushButtonSetting.soundId, pushButtonSetting.soundVolume, false);
+    						Sound sound = Configuration.getConfiguration().getSoundList().get(pushButtonSetting.soundId);
+    						soundControl.playSound(sound, pushButtonSetting.soundVolume, false);
     						if(pushButtonSetting.soundTimer>0) {
     							setSoundTimer(pushButtonSetting.soundTimer*60);
     						}

@@ -53,6 +53,9 @@ public class AlarmPi {
 		
 		log.info("configuration read successfully");
 		
+		// add sound duration and build playlists
+		Configuration.getConfiguration().processSoundList();
+		
 		// create the user thread to manage alarms and HW buttons
 		final Controller controller = new Controller();
 		final Thread controllerThread = new Thread(controller);

@@ -8,6 +8,7 @@ import java.io.IOException;
 import java.time.DayOfWeek;
 import java.time.LocalTime;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.EnumSet;
 import java.util.Iterator;
 import java.util.LinkedList;
@@ -16,6 +17,7 @@ import java.util.Locale;
 import java.util.Queue;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.logging.Logger;
+import java.util.stream.Collectors;
 
 import javax.json.Json;
 import javax.json.JsonArray;
@@ -40,11 +42,13 @@ public class Configuration {
 	 * local class used as structure to store data about sounds
 	 */
 	static class Sound {
-		enum Type {RADIO,FILE,EXTERNAL};
+		enum Type {RADIO,FILE,EXTERNAL,PLAYLIST};
 		
-		String name;    // name (unique identifier)
-		Type   type;    // type of sound (radio station, file, external)
-		String source;  // source for this sound, either radio stream URL or filename
+		String      name;             // name (unique identifier)
+		Type        type;             // type of sound (radio station, file, external)
+		String      source;           // source for this sound, either radio stream URL or filename
+		Integer     duration = null;  // duration of a song or null (only valid for files)
+		List<Sound> playlist = null;  // list of sounds in case type is PLAYLIST
 		
 		/**
 		 * Constructor
@@ -53,9 +57,9 @@ public class Configuration {
 		 * @param source sound source location (internet stream URL or filename)
 		 */
 		Sound(String name,Type type,String source) {
-			this.name   = name;
-			this.type   = type;
-			this.source = source;
+			this.name     = name;
+			this.type     = type;
+			this.source   = source;
 		}
 	}
 	
@@ -392,6 +396,26 @@ public class Configuration {
 	 */
 	String getWeatherLocation() {
 		return weatherLocation;
+	}
+	
+	/**
+	 * processes the sound list:
+	 *  - adds the duration for each file (song)
+	 *  - for playlists, build up the list of Sound objects in the playlist
+	 */
+	void processSoundList() {
+		// get duration of files
+		soundList.stream().filter(s -> s.type==Type.FILE).forEach(s -> s.duration=SoundControl.getSoundControl().getSongDuration(s.source));
+		
+		// build playlists
+		soundList.stream().filter(p -> p.type==Type.PLAYLIST).forEach(p ->
+			{
+				p.playlist = new LinkedList<Sound>();
+				log.fine("processing playlist "+p.name);
+				Arrays.asList(p.source.split(",")).stream().forEach(r -> 
+					p.playlist.addAll(soundList.stream().filter(s -> s.name.equals(r)).collect(Collectors.toList()))
+				);
+			});
 	}
 	
 	/**

@@ -41,7 +41,7 @@ public class Alarm implements Serializable {
 		soundId        = alarm.soundId;
 		
 		greeting             = alarm.greeting;
-		sound                = alarm.sound;
+		soundName                = alarm.soundName;
 		fadeInDuration       = alarm.fadeInDuration;
 		volumeFadeInStart    = alarm.volumeFadeInStart;
 		volumeFadeInEnd      = alarm.volumeFadeInEnd;
@@ -358,11 +358,11 @@ public class Alarm implements Serializable {
 	}
 
 	public String getSound() {
-		return sound;
+		return soundName;
 	}
 
 	public void setSound(String sound) {
-		this.sound = sound;
+		this.soundName = sound;
 	}
 
 	public int getFadeInDuration() {
@@ -437,7 +437,7 @@ public class Alarm implements Serializable {
 	private static       int    nextId           = 0;   // ID of next alarm that is generated
 	
 	private int                id;                           // unique ID for this alarm
-	private boolean            enabled          = false;     // on/off switch
+	private boolean            enabled          = false;     // o  n/off switch
 	private boolean            oneTimeOnly      = false;     // automatically disable alarm again after it got executed once
 	private boolean            skipOnce         = false;     // skip alarm one time
 	private LocalTime          time;                         // alarm time
@@ -445,7 +445,7 @@ public class Alarm implements Serializable {
 	private Integer            soundId;                      // ID of sound to play. Must be configured in configuration file
 	
 	private String             greeting;                     // greeting text
-	private String             sound;                        // filename of alarm sound (or null)
+	private String             soundName;                    // filename of alarm sound (or null)
 	private int                fadeInDuration       = 0;     // fade in time in seconds
 	private int                volumeFadeInStart    = 0;     // alarm sound fade-in start volume
 	private int                volumeFadeInEnd      = 0;     // alarm sound fade-in end volume

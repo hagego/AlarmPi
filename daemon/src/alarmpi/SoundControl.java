@@ -7,11 +7,15 @@ import java.io.PrintWriter;
 import java.net.Socket;
 import java.net.UnknownHostException;
 import java.util.logging.Logger;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 import com.pi4j.io.gpio.GpioController;
 import com.pi4j.io.gpio.GpioFactory;
 import com.pi4j.io.gpio.GpioPinDigitalOutput;
 import com.pi4j.io.gpio.RaspiPin;
+
+import alarmpi.Configuration.Sound;
 
 
 /**
@@ -91,7 +95,6 @@ public class SoundControl {
 		try {
 			connect();
 			try {
-				activeSound  = null;
 				sendCommand("stop");
 				sendCommand("clear");
 			} catch (IOException e) {
@@ -124,18 +127,50 @@ public class SoundControl {
 	}
 	
 	/**
+	 * gets the duration of a song
+	 * @param filename fully qualified MPD filename (incl. subdirectory and extension)
+	 * @return         duration in seconds or null
+	 */
+	synchronized Integer getSongDuration(String filename) {
+		try {
+			connect();
+			try {
+				String answer = sendCommand("lsinfo \""+filename+"\"");
+				log.fine("lsinfo answer="+answer);
+				
+				Pattern p = Pattern.compile("Time:\\s*(\\d+)");
+				Matcher m = p.matcher(answer);
+				
+				if(m.groupCount()==1 && m.find()) {
+					Integer duration = Integer.parseInt(m.group(1));
+					log.fine("duration ="+duration);
+					
+					disconnect();
+					return duration;
+				}
+				
+			} catch (IOException e) {
+				disconnect();
+				throw e;
+			}
+			disconnect();
+		} catch (IOException e) {
+			log.severe("Exception during getSongDuration: "+e.getMessage());
+			return null;
+		}
+		
+		return null;
+	}
+	
+	/**
 	 * plays a sound defined in the AlarmPi configuration file
 	 * @param soundId  sound to play (index into sound list)
 	 * @param volume   optional volume. If null, volume remains unchanged
 	 * @param append   if true, the currently playing sounds gets not interrupted
 	 *                 and the new sound will start after it finished
 	 */
-	synchronized void playSound(int soundId,Integer volume,boolean append) {
-		// get sound from configuration
-		activeSound = soundId;
-		Configuration.Sound sound=Configuration.getConfiguration().getSoundList().get(activeSound);
-
-		log.fine("playSound: ID="+soundId+" type="+sound.type+" volume="+volume+" append="+append);
+	synchronized void playSound(Sound sound,Integer volume,boolean append) {
+		log.fine("playSound: type="+sound.type+" volume="+volume+" append="+append);
 		switch(sound.type) {
 		case RADIO:
 			playRadioStream(sound.source,volume,append);
@@ -149,6 +184,9 @@ public class SoundControl {
 			}
 			stop();
 			setVolume(volume);
+			break;
+		case PLAYLIST:
+			log.warning("SoundControl.playSound called for a playlist");
 			break;
 		}
 	}
@@ -170,14 +208,12 @@ public class SoundControl {
 		
 		try {
 			connect();
-			// a file has no sound ID
-			activeSound = null;
 			try {
 				if(!append) {
 					sendCommand("stop");
 					sendCommand("clear");
 				}
-				sendCommand("add "+filename);
+				sendCommand("add \""+filename+"\"");
 				if(volume!=null) {
 					activeVolume = volume;
 					sendCommand("setvol "+Integer.toString(activeVolume));
@@ -221,15 +257,6 @@ public class SoundControl {
 	synchronized int getVolume() {
 		log.fine("returning active volume: "+activeVolume);
 		return activeVolume;
-	}
-	
-	/**
-	 * returns the active sound
-	 * @return active sound or null
-	 */
-	synchronized Integer getSound() {
-		log.fine("returning active sound: "+activeSound);
-		return activeSound;
 	}
 	
 	
@@ -281,6 +308,17 @@ public class SoundControl {
 		socket.setKeepAlive(true);
 		reader = new BufferedReader(new InputStreamReader(socket.getInputStream()));
 		writer = new PrintWriter(socket.getOutputStream(),true);
+		
+		// read one line - expect to return "OK MPD <version>"
+		int c=0;
+		String answer = new String();
+		while ((c = reader.read()) != -1 && c!=10) {
+			answer += (char)c;
+		}
+		log.finest("MPD connect returns "+answer);
+		if(!answer.startsWith("OK")) {
+			throw new IOException("mpd error during connect: "+answer);
+		}
 	}
 	
 	/**
@@ -293,6 +331,8 @@ public class SoundControl {
 			socket.close();
 		}
 		socket = null;
+		
+		log.finest("MPD disconnected");
 	}
 	
 	/**
@@ -300,25 +340,30 @@ public class SoundControl {
 	 * @param cmd command to send
 	 * @throws IOException
 	 */
-	synchronized private void sendCommand(String cmd) throws IOException {
+	synchronized private String sendCommand(String cmd) throws IOException {
 		writer.print(cmd+"\n");
 		writer.flush();
 
 		// expect OK or ACK to indicate end of answer
-		int c;
+		int c = 0;
 		String answer = new String();
-		while(!answer.startsWith("OK") && !answer.startsWith("ACK")) {
-			answer = new String();
+		String line   = new String();
+		while(!line.startsWith("OK") && !line.startsWith("ACK")) {
+			line = new String();
 			// read single line
 			while ((c = reader.read()) != -1 && c!=10) {
-				answer += (char)c;
+				line += (char)c;
 			}
-			log.fine("sendCommand "+cmd+" returns "+answer);
+			log.fine("sendCommand "+cmd+" returns line "+line);
+			
+			answer += line;
 		}
 		
-		if(!answer.startsWith("OK")) {
+		if(!line.startsWith("OK")) {
 			throw new IOException("mpd error during cmd "+cmd+" : "+answer);
 		}
+		
+		return answer;
 	}
 
 	// private members
@@ -332,6 +377,5 @@ public class SoundControl {
 	private PrintWriter          writer;
 	
 	private int                  activeVolume;          // caches the active volume, 0=off
-	private Integer              activeSound;           // caches the active sound ID or null
 }
 

@@ -498,7 +498,7 @@ public class TcpRequestHandler implements Runnable {
 			String answer = new String();
 			
 			SoundControl soundControl = SoundControl.getSoundControl();
-			answer = String.format("%d %d %d\n", soundControl.getSound()!=null ? soundControl.getSound() :-1,soundControl.getVolume(),controller.getSoundTimer());
+			answer = String.format("%d %d %d\n", -1,soundControl.getVolume(),controller.getSoundTimer());
 			for(Configuration.Sound sound:Configuration.getConfiguration().getSoundList()) {
 				answer += String.format("%s %s\n", sound.name,sound.type);
 			}
@@ -524,7 +524,7 @@ public class TcpRequestHandler implements Runnable {
 			}
 			SoundControl.getSoundControl().on();
 			try {
-				SoundControl.getSoundControl().playSound(Integer.parseInt(parameters[1]),null,false);
+				SoundControl.getSoundControl().playSound(Configuration.getConfiguration().getSoundList().get(Integer.parseInt(parameters[1])),null,false);
 				return new ReturnCodeSuccess("");
 			}
 			catch(NumberFormatException | IndexOutOfBoundsException e) {
