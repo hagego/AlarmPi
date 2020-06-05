@@ -1,12 +1,8 @@
 package hagego.alarmpi;
 
-import java.util.EnumMap;
 import java.util.EnumSet;
 import java.util.concurrent.Future;
-
-import android.app.Application;
 import android.content.Context;
-import android.content.pm.ApplicationInfo;
 import android.util.Log;
 import android.view.View;
 import android.widget.AdapterView;
@@ -14,6 +10,8 @@ import android.widget.CheckBox;
 import android.widget.CompoundButton;
 import android.widget.Spinner;
 import android.widget.TimePicker;
+
+import androidx.annotation.NonNull;
 
 
 /**
@@ -105,6 +103,7 @@ public class Alarm implements TimePicker.OnTimeChangedListener,CheckBox.OnChecke
     }
 
     @Override
+    @NonNull
     public String toString() {
 
         String onOff = enabled ? context.getResources().getString(R.string.on) : context.getResources().getString(R.string.off);
@@ -166,7 +165,7 @@ public class Alarm implements TimePicker.OnTimeChangedListener,CheckBox.OnChecke
 
     /**
      * returns the active days as list of coma-separated strings
-     * @return
+     * @return the active days as list of coma-separated strings
      */
     String getWeekDays() {
         String weekdays = new String();
@@ -248,8 +247,8 @@ public class Alarm implements TimePicker.OnTimeChangedListener,CheckBox.OnChecke
      * @param timePicker TimePicker GUI widget
      */
     void setTimePicker(TimePicker timePicker) {
-        timePicker.setCurrentHour(hourOfDay);
-        timePicker.setCurrentMinute(minuteOfDay);
+        timePicker.setHour(6);
+        timePicker.setMinute(0);
         timePicker.setOnTimeChangedListener(this);
     }
 

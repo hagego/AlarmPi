@@ -64,14 +64,27 @@ public class MqttClient implements MqttCallbackExtended{
 
 	@Override
 	public void messageArrived(String topic, MqttMessage message) throws Exception {
+		temperature           = null;
+		
 		log.fine("MQTT message arrived: topic="+topic+" content="+message);
 		
 		if(Configuration.getConfiguration().getMqttSubscribeTopicTemperature()!=null
 				&& topic.equals(Configuration.getConfiguration().getMqttSubscribeTopicTemperature())) {
 			log.fine("MQTT temperature update message arrived. content="+message);
 			
-			temperature = Double.parseDouble(message.toString());
-			temperatureLastUpdate = LocalDateTime.now();
+			if(message.getPayload().length>0) {
+				try {
+					temperature = Double.parseDouble(message.toString());
+				}
+				catch(Throwable t) {
+					log.warning("Unable to parse MQTT temperature: "+t.getMessage());
+					temperatureLastUpdate = null;
+				}
+				temperatureLastUpdate = LocalDateTime.now();
+			}
+			else {
+				temperatureLastUpdate = null;
+			}
 		}
 	}
 

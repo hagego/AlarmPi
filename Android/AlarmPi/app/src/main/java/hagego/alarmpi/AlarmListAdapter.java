@@ -10,7 +10,6 @@ import android.widget.BaseExpandableListAdapter;
 import android.widget.CheckBox;
 import android.widget.CheckedTextView;
 import android.widget.Spinner;
-import android.widget.TextView;
 import android.widget.TimePicker;
 
 /**

@@ -23,10 +23,10 @@ public class AddActivity extends AppCompatActivity {
         Toolbar toolbar = findViewById(R.id.toolbar);
         setSupportActionBar(toolbar);
 
-        buttonOk         = findViewById(R.id.buttonAddOk);
-        buttonCancel     = findViewById(R.id.buttonAddCancel);
-        editTextName     = findViewById(R.id.editTextAddName);
-        editTextHostname = findViewById(R.id.editTextAddHostname);
+        Button buttonOk     = findViewById(R.id.buttonAddOk);
+        Button buttonCancel = findViewById(R.id.buttonAddCancel);
+        editTextName        = findViewById(R.id.editTextAddName);
+        editTextHostname    = findViewById(R.id.editTextAddHostname);
 
         buttonOk.setOnClickListener(new View.OnClickListener() {
             @Override
@@ -59,8 +59,6 @@ public class AddActivity extends AppCompatActivity {
     }
 
     // private members
-    private Button   buttonOk;
-    private Button   buttonCancel;
     private TextView editTextName;
     private TextView editTextHostname;
 }

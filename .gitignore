@@ -14,3 +14,7 @@ hs_err_pid*
 # AlarmPi tmp files
 tmp/
 *.odt#
+Android/AlarmPi/app/debug/*
+Android/AlarmPi/app/release/*
+Android/AlarmPi/.idea/*
+Android/AlarmPi/.idea/caches/*
