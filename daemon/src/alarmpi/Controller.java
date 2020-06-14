@@ -236,6 +236,9 @@ class Controller implements Runnable {
 				// this indicates that SIGTERM signal has been received
 				log.warning("controller loop interrupted");
 			}
+			catch( Exception e) {
+				log.severe("runtime exception in controller thread: "+e.getMessage());
+			}
 		}
 		
 		log.info("controller thread terminating");
@@ -561,7 +564,7 @@ class Controller implements Runnable {
 			eventSound.type         = Event.EventType.PLAY_SOUND;
 			eventSound.alarm        = alarm;
 			eventSound.time         = fadeInStart.plusNanos(1);
-			eventSound.paramInt1    = alarm.getSoundId();
+			eventSound.sound        = Configuration.getConfiguration().getSoundFromId(alarm.getSoundId());
 			eventSound.paramInt2    = alarm.getVolumeFadeInStart();
 			eventList.add(eventSound);
 			
@@ -665,7 +668,7 @@ class Controller implements Runnable {
 				eventPlay.type         = Event.EventType.PLAY_SOUND;
 				eventPlay.alarm        = alarm;
 				eventPlay.time         = time.plusNanos(5);
-				eventPlay.paramInt1    = alarm.getSoundId();
+				eventPlay.sound        = Configuration.getConfiguration().getSoundFromId(alarm.getSoundId());
 				eventPlay.paramBool    = true;
 				eventList.add(eventPlay);
 				
@@ -994,18 +997,27 @@ class Controller implements Runnable {
     						new SpeechToCommand().captureCommand();
     					}
     					else {
-    						// no speech control - increase LED brightness
-    						// lightControl.setBrightness(pushButtonSetting.lightId,lightControl.getBrightness(pushButtonSetting.lightId)+pushButtonSetting.brightnessIncrement);
-    						Sound sound = Configuration.getConfiguration().getSoundList().get(pushButtonSetting.soundId);
-    						soundControl.playSound(sound, pushButtonSetting.soundVolume, false);
-    						try {
-								Thread.sleep(100);
-							} catch (InterruptedException e) {
-								log.severe(e.getMessage());
-							}
-    						soundControl.on();
-    						if(pushButtonSetting.soundTimer>0) {
-    							setSoundTimer(pushButtonSetting.soundTimer*60);
+    						if(Configuration.getConfiguration().getMqttPublishTopicShortClick()!=null) {
+		            			// publish to MQTT broker (if configured)
+		            			if(mqttClient!=null) {
+		            				log.fine("publishing MQTT short click topic");
+		            				mqttClient.publishShortClick();
+		            			}
+    						}
+    						else {
+	    						// no speech control - increase LED brightness
+	    						// lightControl.setBrightness(pushButtonSetting.lightId,lightControl.getBrightness(pushButtonSetting.lightId)+pushButtonSetting.brightnessIncrement);
+	    						Sound sound = Configuration.getConfiguration().getSoundList().get(pushButtonSetting.soundId);
+	    						soundControl.playSound(sound, pushButtonSetting.soundVolume, false);
+	    						try {
+									Thread.sleep(100);
+								} catch (InterruptedException e) {
+									log.severe(e.getMessage());
+								}
+	    						soundControl.on();
+	    						if(pushButtonSetting.soundTimer>0) {
+	    							setSoundTimer(pushButtonSetting.soundTimer*60);
+	    						}
     						}
     					}
         			}

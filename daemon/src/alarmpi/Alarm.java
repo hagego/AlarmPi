@@ -41,7 +41,7 @@ public class Alarm implements Serializable {
 		soundId        = alarm.soundId;
 		
 		greeting             = alarm.greeting;
-		soundName                = alarm.soundName;
+		soundName            = alarm.soundName;
 		fadeInDuration       = alarm.fadeInDuration;
 		volumeFadeInStart    = alarm.volumeFadeInStart;
 		volumeFadeInEnd      = alarm.volumeFadeInEnd;

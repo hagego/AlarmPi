@@ -100,6 +100,21 @@ public class MqttClient implements MqttCallbackExtended{
 		}
 	}
 	
+	
+	/**
+	 * publishes the MQTT topic in case of a long button click
+	 */
+	public void publishShortClick() {
+		if(Configuration.getConfiguration().getMqttPublishTopicShortClick()!=null) {
+			log.fine("publishing short click topic: "+Configuration.getConfiguration().getMqttPublishTopicShortClick());
+			try {
+				mqttClient.publish(Configuration.getConfiguration().getMqttPublishTopicShortClick(), new byte[0], 0, false);
+			} catch (MqttException e) {
+				log.severe("Exception during MQTT publish: "+e.getMessage());
+			}
+		}
+	}
+	
 	/**
 	 * publishes the MQTT topic in case of a long button click
 	 */

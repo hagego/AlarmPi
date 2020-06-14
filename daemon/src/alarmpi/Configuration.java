@@ -282,6 +282,7 @@ public class Configuration {
 			mqttAddress    = sectionMqtt.get("address", String.class, null);
 		    mqttPort       = sectionMqtt.get("port", Integer.class, null);
 		    mqttKeepAlive  = sectionMqtt.get("keepalive", Integer.class, 60);
+		    mqttPublishTopicShortClick    = sectionMqtt.get("publishTopicShortClick", String.class, null);
 		    mqttPublishTopicLongClick     = sectionMqtt.get("publishTopicLongClick", String.class, null);
 		    mqttSubscribeTopicTemperature = sectionMqtt.get("subscribeTopicTemperature", String.class, null);
 		    mqttPublishTopicAlarmList     = sectionMqtt.get("publishTopicAlarmList", String.class, null);
@@ -422,8 +423,23 @@ public class Configuration {
 	/**
 	 * @return the sound list
 	 */
-	final ArrayList<Sound> getSoundList() {
+	final List<Sound> getSoundList() {
 		return soundList;
+	}
+	
+	/**
+	 * returns the sound object for a given sound ID
+	 * @param soundId
+	 * @return sound object for the given ID
+	 */
+	final Sound getSoundFromId(int soundId) {
+		if(soundId>=0 && soundId < soundList.size()) {
+			return soundList.get(soundId);
+		}
+		else {
+			log.severe("getSoundFromId called for invalid sound id: "+soundId);
+			return null;
+		}
 	}
 	
 	/**
@@ -486,6 +502,13 @@ public class Configuration {
 	 */
 	final String getMqttSubscribeTopicTemperature() {
 		return mqttSubscribeTopicTemperature;
+	}
+	
+	/**
+	 * @return the MQTT topic to publish on a short button click
+	 */
+	final String getMqttPublishTopicShortClick() {
+		return mqttPublishTopicShortClick;
 	}
 	
 	/**
@@ -660,6 +683,7 @@ public class Configuration {
 	private String                           mqttAddress;           // MQTT Broker address
 	private Integer                          mqttPort;              // MQTT broker port
 	private Integer                          mqttKeepAlive;         // MQTT keepalive interval in seconds
+	private String                           mqttPublishTopicShortClick;    // MQTT topic published on a short click of a connected button
 	private String                           mqttPublishTopicLongClick;     // MQTT topic published on a long click of a connected button
 	private String                           mqttPublishTopicAlarmList;     // MQTT topic for publishing alarm list as JSON object
 	private String                           mqttSubscribeTopicTemperature; // MQTT topic subscribed to get locally measured temperature
