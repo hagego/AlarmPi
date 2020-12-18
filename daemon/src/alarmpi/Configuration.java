@@ -630,7 +630,7 @@ public class Configuration {
 		dump += "         sound="+alarmSettings.getSound()+"\n";
 		dump += "  Stored alarms:\n";
 		for(Alarm alarm:alarmList) {
-			dump += "    id="+alarm.getId()+" enabled="+alarm.isEnabled()+" oneTimeOnly="+alarm.isOneTimeOnly()+" skipOnce="+alarm.isSkipOnce()+" time="+alarm.getTime()+" days="+alarm.getWeekDays()+"\n";
+			dump += "    id="+alarm.getId()+" enabled="+alarm.isEnabled()+" oneTimeOnly="+alarm.isOneTimeOnly()+" skipOnce="+alarm.isSkipOnce()+" time="+alarm.getTime()+" days="+alarm.getWeekDays()+" sound ID="+alarm.getSoundId()+"\n";
 		}
 		dump += "  push button configurations:\n";
 		for(PushButtonSettings pushButtonSettings:pushButtonList) {

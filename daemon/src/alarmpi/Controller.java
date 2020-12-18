@@ -688,7 +688,7 @@ class Controller implements Runnable {
 	 * @param alarm new alarm to process
 	 */
 	synchronized private void addAlarmEvents(Alarm alarm) {
-		log.fine("generating events for alarm ID="+alarm.getId()+" at time="+alarm.getTime());
+		log.fine("generating events for alarm ID="+alarm.getId()+" at time="+alarm.getTime()+" sound ID="+alarm.getSoundId());
 		
 		if(!alarm.getWeekDays().contains(LocalDate.now().getDayOfWeek())) {
 			log.fine("alarm not scheduled for today");

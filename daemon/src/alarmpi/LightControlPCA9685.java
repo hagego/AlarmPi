@@ -208,7 +208,7 @@ public class LightControlPCA9685 implements LightControl,Runnable {
 			pwmValue = lightControlSettings.pwmFullScale;
 		}
 		int address = lightControlSettings.addresses.get(lightId);
-		log.fine("RaspiPwm: setPWM: lightId="+lightId+" address="+address+" pwm="+pwmValue);
+		log.finest("RaspiPwm: setPWM: lightId="+lightId+" address="+address+" pwm="+pwmValue);
 		
 		int lsb = (byte)(pwmValue & 0x00FF);
 		int msb = (byte)((pwmValue & 0x0F00) >> 8);
