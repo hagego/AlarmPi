@@ -13,11 +13,15 @@ import com.pi4j.io.spi.SpiChannel;
 import com.pi4j.io.spi.SpiDevice;
 import com.pi4j.io.spi.SpiFactory;
 
+
 /**
- * class to control nRF204LO1 chip via SPI interface
- * @author hagen
+ * class to control the nRF204LO1 chip via SPI interface.
+ * This is basically a Java/PI4J clone of the  RadioHead NRF24 library
+ * https://www.airspayce.com/mikem/arduino/RadioHead/classRH__NRF24.html
+ * However, only the TX part is covered
  *
  */
+@SuppressWarnings("unused")
 public class NRF24LO1Control {
 	
 	//
@@ -25,9 +29,8 @@ public class NRF24LO1Control {
 	//
 	private static final Logger   log     = Logger.getLogger( MethodHandles.lookup().lookupClass().getName() );
 	
-	private final GpioController       gpioController ;   // GPIO controller instance
 	private final GpioPinDigitalOutput gpioOutCE;         // nRF204 chip enable
-	private       SpiDevice            spi;               // SPI object
+	private       SpiDevice            spiDevice;         // SPI object
 	
 	private       boolean              isReady;           // indicates if object can be used or not
 	
@@ -61,136 +64,131 @@ public class NRF24LO1Control {
 	public NRF24LO1Control() {
 		log.fine("Instantiating nRF204 controller");
 		
-		if( Configuration.getConfiguration().getRunningOnRaspberry() ) {
-			gpioController  = GpioFactory.getInstance();
-			if(gpioController!=null) {
-				gpioOutCE = gpioController.provisionDigitalOutputPin(RaspiPin.GPIO_21, "nRF204CE", PinState.LOW);
-			}
-			else {
-				log.severe("Unable to instantiate GPIO to control nRF204 CE");
-				gpioOutCE = null;
-			}
-			
-			try {
-				spi = SpiFactory.getInstance(SpiChannel.CS0);
-			} catch (IOException e) {
-				log.severe("Error during SPI initialize: "+e.getMessage());
-				spi = null;
-			}
+		GpioController gpioController  = GpioFactory.getInstance();
+		if(gpioController!=null) {
+			gpioOutCE = gpioController.provisionDigitalOutputPin(RaspiPin.GPIO_21, "nRF204CE", PinState.LOW);
 		}
 		else {
-			gpioController  = null;
-			gpioOutCE       = null;
-			spi             = null;
+			log.severe("Unable to instantiate GPIO to control nRF204 CE");
+			gpioOutCE = null;
 		}
 		
-		if(gpioOutCE!=null && spi!=null) {
+		try {
+			spiDevice = SpiFactory.getInstance(SpiChannel.CS0);
+		} catch (IOException e) {
+			log.severe("Error during SPI initialize: "+e.getMessage());
+			spiDevice = null;
+		}
+		
+		if(gpioOutCE!=null && spiDevice!=null) {
 			log.config("nRF204 controller successfully instantiated");
 			isReady = true;
 		}
 		else {
-			log.config("nRF204 controller was not instantiated");
+			log.severe("nRF204 controller could not be instantiated");
 			isReady = false;
 		}
 	}
 	
 
+	/**
+	 * initializes the NRF24 device
+	 * @return true on success
+	 *         false in case of any error
+	 */
 	boolean init() {
-		log.fine("Initializing nRF204 controller");
+		log.fine("Initializing nRF24 controller");
 		if(isReady) {
 			gpioOutCE.setState(PinState.LOW);
 			
 			
 		    // Clear interrupts
-		    spiWriteRegister(RH_NRF24_REG_07_STATUS, RH_NRF24_RX_DR | RH_NRF24_TX_DS | RH_NRF24_MAX_RT);
-		    // Enable dynamic payload length on all pipes
-		    spiWriteRegister(RH_NRF24_REG_1C_DYNPD, RH_NRF24_DPL_ALL);
-		    // Enable dynamic payload length, disable payload-with-ack, enable noack
-		    spiWriteRegister(RH_NRF24_REG_1D_FEATURE, RH_NRF24_EN_DPL | RH_NRF24_EN_DYN_ACK);
-		    // Test if there is actually a device connected and responding
-		    // CAUTION: RFM73 and version 2.0 silicon may require ACTIVATE
-		    short readResult = spiReadRegister(RH_NRF24_REG_1D_FEATURE);
-		    log.finest("1st read result="+readResult);
-		    if (readResult != (RH_NRF24_EN_DPL | RH_NRF24_EN_DYN_ACK))
-		    { 
-		    	spiWrite(RH_NRF24_COMMAND_ACTIVATE, 0x73);
-		        // Enable dynamic payload length, disable payload-with-ack, enable noack
-		        spiWriteRegister(RH_NRF24_REG_1D_FEATURE, RH_NRF24_EN_DPL | RH_NRF24_EN_DYN_ACK);
-		        readResult = spiReadRegister(RH_NRF24_REG_1D_FEATURE);
-			    log.finest("2nd read result="+readResult);
-		        if (readResult != (RH_NRF24_EN_DPL | RH_NRF24_EN_DYN_ACK)) {
-		        	log.severe("Unable to initialize nRF204");
-		        	
-		        	isReady = false;
-		            return isReady;
-		        }
-		    }
-		    
-		    // Make sure we are powered down
-		    setModeIdle();
-
-		    // Flush FIFOs
-		    flushTx();
-		    flushRx();
-
-		    setChannel(2); // The default, in case it was set by another app without powering down
-		    setRF(DataRate.DataRate2Mbps, TransmitPower.TransmitPower0dBm);
-
-		    log.config("nRF204 controller successfully initialized");
-		    isReady = true;
+		    try {
+				spiWriteRegister(RH_NRF24_REG_07_STATUS, RH_NRF24_RX_DR | RH_NRF24_TX_DS | RH_NRF24_MAX_RT);
+			
+			    // Enable dynamic payload length on all pipes
+			    spiWriteRegister(RH_NRF24_REG_1C_DYNPD, RH_NRF24_DPL_ALL);
+			    // Enable dynamic payload length, disable payload-with-ack, enable noack
+			    spiWriteRegister(RH_NRF24_REG_1D_FEATURE, RH_NRF24_EN_DPL | RH_NRF24_EN_DYN_ACK);
+			    // Test if there is actually a device connected and responding
+			    // CAUTION: RFM73 and version 2.0 silicon may require ACTIVATE
+			    short readResult = spiReadRegister(RH_NRF24_REG_1D_FEATURE);
+			    if (readResult != (RH_NRF24_EN_DPL | RH_NRF24_EN_DYN_ACK))
+			    { 
+			    	spiWrite(RH_NRF24_COMMAND_ACTIVATE, 0x73);
+			        // Enable dynamic payload length, disable payload-with-ack, enable noack
+			        spiWriteRegister(RH_NRF24_REG_1D_FEATURE, RH_NRF24_EN_DPL | RH_NRF24_EN_DYN_ACK);
+			        readResult = spiReadRegister(RH_NRF24_REG_1D_FEATURE);
+			        if (readResult != (RH_NRF24_EN_DPL | RH_NRF24_EN_DYN_ACK)) {
+			        	log.severe("Unable to initialize nRF24 device. Unexpected read result from REG_1D_FEATURE: "+readResult);
+			        	
+			        	isReady = false;
+			            return isReady;
+			        }
+			    }
+			    
+			    // Make sure we are powered down
+			    setModeIdle();
+	
+			    // Flush FIFOs
+			    flushTx();
+			    flushRx();
+	
+			    setChannel(2); // The default, in case it was set by another app without powering down
+			    setRF(DataRate.DataRate2Mbps, TransmitPower.TransmitPower0dBm);
+	
+			    log.config("nRF204 controller successfully initialized");
+			    isReady = true;
+			    return isReady;
+		    } catch (IOException e) {
+		    	isReady = false;
+		    	log.severe("nRF204 controller could not be initialized: "+e.getMessage());
+		    	
+		    	return isReady;
+			}
 		}
 		
+		log.severe("nRF204 is not ready for init()");
 		return isReady;
 	}
 	
 	/**
 	 * Sets the radio in power down mode, with the configuration set to the last value from setOpMode().
 	 * Sets chip enable to LOW.
+	 * @throws IOException 
 	 */
-	boolean setModeIdle()
+	void setModeIdle() throws IOException
 	{
-		if(!isReady) {
-			//throw new IOException("XX");
-			return isReady;
-		}
-		
 		spiWriteRegister(RH_NRF24_REG_00_CONFIG, configuration);
 		gpioOutCE.setState(PinState.LOW);
-		
-		return isReady;
 	}
 	
-	boolean setModeTx()
+	/**
+	 * Sets the radio into TX mode
+	 * @throws IOException 
+	 */
+	void setModeTx() throws IOException
 	{
-		if(!isReady) {
-			return isReady;
-		}
-		
 		// Its the CE rising edge that puts us into TX mode
 		// CE staying high makes us go to standby-II when the packet is sent
 		gpioOutCE.setState(PinState.LOW);
+		
 		// Ensure DS is not set
 		spiWriteRegister(RH_NRF24_REG_07_STATUS, RH_NRF24_TX_DS | RH_NRF24_MAX_RT);
 		spiWriteRegister(RH_NRF24_REG_00_CONFIG, configuration | RH_NRF24_PWR_UP);
+		
 		gpioOutCE.setState(PinState.HIGH);
-	
-		return isReady;
 	}
 	
 
 	/**
 	 * Sets the transmit and receive channel number. The frequency used is (2400 + channel) MHz
 	 * @param channel
+	 * @throws IOException 
 	 */
-	boolean setChannel(int channel)
+	void setChannel(int channel) throws IOException
 	{
-		if(!isReady) {
-			return isReady;
-		}
-		
 	    spiWriteRegister(RH_NRF24_REG_05_RF_CH, channel & RH_NRF24_RF_CH);
-	    
-	    return isReady;
 	}
 	
     /// 
@@ -201,12 +199,9 @@ public class NRF24LO1Control {
 	 * Sets the data rate and transmitter power to use. 
 	 * @param data_rate
 	 * @param power
+	 * @throws IOException 
 	 */
-    boolean setRF(DataRate data_rate, TransmitPower power) {
-    	if(!isReady) {
-			return isReady;
-		}
-    	
+    void setRF(DataRate data_rate, TransmitPower power) throws IOException {
         int value;
         switch(power) {
         	case TransmitPowerm18dBm:
@@ -240,14 +235,17 @@ public class NRF24LO1Control {
         value |= RH_NRF24_LNA_HCURR;
         
         spiWriteRegister(RH_NRF24_REG_06_RF_SETUP, value);
-        
-        return isReady;
     }
 	
-    void send(short data[]) {
+    /**
+     * transmits data
+     * @param data data (bytes) to send
+     * @throws IOException
+     */
+    void send(short data[]) throws IOException {
         if (data.length > RH_NRF24_MAX_MESSAGE_LEN) {
         	log.severe("data buffer too large");
-        	return;
+        	throw new IOException("data buffer too large");
         }
 
         // Set up the headers
@@ -273,37 +271,24 @@ public class NRF24LO1Control {
         // Radio will return to Standby II mode after transmission is complete
     }
 
-    boolean waitPacketSent()
+    /**
+     * waits until the data packet sent with sendData has been transmitted
+     * @return true if data has been sent successfully, otherwise false
+     * @throws IOException
+     */
+    boolean waitPacketSent() throws IOException
     {
         // Wait for either the Data Sent or Max ReTries flag, signalling the 
         // end of transmission
         // We dont actually use auto-ack, so prob dont expect to see RH_NRF24_MAX_RT
-    	
-    	/*
-    	private final short RH_NRF24_RX_DR                                     = 0x40;
-    	private final short RH_NRF24_TX_DS                                     = 0x20;
-    	private final short RH_NRF24_MAX_RT                                    = 0x10;
-    	private final short RH_NRF24_RX_P_NO                                   = 0x0e;
-    	private final short RH_NRF24_STATUS_TX_FULL                            = 0x01;
-    	*/
-    	
-    	
-        short status;
-        status = statusRead();
-        log.finest("status 1st read="+status+"  x="+(status & (RH_NRF24_TX_DS | RH_NRF24_MAX_RT)));
-        
+    	short status;
         long start = System.nanoTime();
-        while ((status & (RH_NRF24_TX_DS | RH_NRF24_MAX_RT))==0)
+        while (((status = statusRead()) & (RH_NRF24_TX_DS | RH_NRF24_MAX_RT))==0)
         {
-        	log.finest("status="+status);
-        	
-	    	if ((System.nanoTime() - start) > 100000000) // Longer than any possible message
+	    	if ((System.nanoTime() - start) > 100000000) // 100ms, Longer than any possible message
 	    	{
-	    		log.severe("timeout");
-	    	    break;  // Should never happen: TX never completed. Why?
+	    		throw new IOException("timeout while waiting for data to be sent");
 	    	}
-	    	
-	    	status = statusRead();
         }
 
         // Must clear RH_NRF24_MAX_RT if it is set, else no further comm
@@ -316,18 +301,18 @@ public class NRF24LO1Control {
         return (status & RH_NRF24_TX_DS) > 0;
     }
 	
-	private void flushTx()
+	private void flushTx() throws IOException
 	{
 	    spiCommand(RH_NRF24_COMMAND_FLUSH_TX);
 	}
 
-	private void flushRx()
+	private void flushRx() throws IOException
 	{
 	    spiCommand(RH_NRF24_COMMAND_FLUSH_RX);
 	}
 	
 
-	private short statusRead()
+	private short statusRead() throws IOException
 	{
 	    // status is a side-effect of NOP, faster than reading reg 07
 	    return spiCommand(RH_NRF24_COMMAND_NOP); 
@@ -336,24 +321,21 @@ public class NRF24LO1Control {
 	/**
 	 * writes a single byte (command
 	 * @param command command to write
+	 * @return status byte
+	 * @throws IOException 
 	 */
-	private short spiCommand(short command) {
+	private short spiCommand(short command) throws IOException {
 		short data[] = new short[1];
 		data[0] = command;
 		short status[] = null;
 		
-		try {
-			status = spi.write(data);
-		} catch (IOException e) {
-			log.severe("IO Exception during spiCommand: "+e.getMessage());
-		}
+		status = spiDevice.write(data);
 		
 		if(status!=null && status.length==1) {
 			return status[0];
 		}
 		else {
-			log.severe("XX");;
-			return 0;
+			throw new IOException("invalid response from spiCommand");
 		}
 	}
 	
@@ -361,8 +343,9 @@ public class NRF24LO1Control {
 	 * writes a register thru a command
 	 * @param reg register address
 	 * @param val register value
+	 * @throws IOException 
 	 */
-	private void spiWriteRegister(short reg,int val) {
+	private void spiWriteRegister(short reg,int val) throws IOException {
 		spiWrite((short)((reg & RH_NRF24_REGISTER_MASK) | RH_NRF24_COMMAND_W_REGISTER), val);
 	}
 	
@@ -370,58 +353,48 @@ public class NRF24LO1Control {
 	 * writes a register value (sends 2 bytes over SPI)
 	 * @param reg register address
 	 * @param val register value
+	 * @throws IOException 
 	 */
-	private void spiWrite(short reg,int val) {
+	private void spiWrite(short reg,int val) throws IOException {
 		short data[] = new short[2];
 		data[0] = reg;
 		data[1] = (short)val;
 		
-		try {
-			spi.write(data);
-		} catch (IOException e) {
-			log.severe("IO Exception during write: "+e.getMessage());
-		}
+		spiDevice.write(data);
 	}
 	
-	private void spiBurstWrite(short reg,short val[]) {
+	private void spiBurstWrite(short reg,short val[]) throws IOException {
 		short data[] = new short[val.length+1];
 		data[0] = reg;
 		for(int b=0 ; b<val.length ; b++) {
 			data[b+1] = val[b];
 		}
 		
-		try {
-			spi.write(data);
-		} catch (IOException e) {
-			log.severe("IO Exception during burstWrite: "+e.getMessage());
-		}
+		spiDevice.write(data);
 	}
 
 	/**
 	 * reads a register thru a command
 	 * @param reg register address
 	 * @return    register value
+	 * @throws IOException 
 	 */
-	private short spiReadRegister(short reg) {
+	private short spiReadRegister(short reg) throws IOException {
 		return spiRead((short)((reg & RH_NRF24_REGISTER_MASK) | RH_NRF24_COMMAND_R_REGISTER));
 	}
 	
-	private short spiRead(short reg) {
+	private short spiRead(short reg) throws IOException {
 		short result[] = null;
 
 		short data[] = new short[2];
 		data[0] = reg;
 		data[1] = (short)0; // shift-in data is ignored
 		
-		try {
-			result = spi.write(data);
-		} catch (IOException e) {
-			log.severe("IO Exception during write: "+e.getMessage());
-		}
+		result = spiDevice.write(data);
 		
 		if(result==null || result.length!=2) {
-			log.severe("Error during spiRead");
-			return 0;
+			log.severe("Invalid response during spiRead. result="+result);
+			throw new IOException("Invalid response during spiRead. result=+result");
 		}
 		else {
 			return result[1];

@@ -5,6 +5,7 @@
   <version>0.0.1-SNAPSHOT</version>
   <name>AlarmPi Daemon</name>
   <build>
+    <finalName>alarmpi</finalName>
     <sourceDirectory>src</sourceDirectory>
     <resources>
       <resource>
