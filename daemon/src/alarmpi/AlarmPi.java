@@ -1,9 +1,8 @@
 package alarmpi;
 
-import java.nio.file.Paths;
+import java.io.File;
 import java.io.IOException;
 import java.net.ServerSocket;
-import java.util.Locale;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.logging.LogManager;
@@ -18,19 +17,24 @@ import java.util.logging.Logger;
 public class AlarmPi {
 
 	public static void main(String[] args) {
-		// read configuration file.
-		String configDir = "";
-		if(System.getProperty("os.name").toLowerCase(Locale.ENGLISH).startsWith("windows")) {
-			// on windows (used for development/debugging), expect config files in conf subdirectory of Eclipse project
-			configDir = Paths.get(".").toAbsolutePath().normalize().toString()+"\\conf\\";
-			log.info("AlarmPi started, running on Windows");
+		// first check for a local conf directory (as it exists in the development environment)
+		String configDir = "conf/";
+		File confDir = new File(configDir);
+		if( confDir.exists() && confDir.isDirectory()) {
+			log.info("Found local conf directory. Will use this for configuration files");
 		}
 		else {
-			// on Linux/Raspberry, expect configuration data in /etc/alarmpi
-			configDir = "/etc/alarmpi/";
-			log.info("AlarmPi started, running on Linux/Raspberry");
+			configDir = "/etc/picturepi/";
+			confDir = new File(configDir);
+			if( confDir.exists() && confDir.isDirectory()) {
+				log.info("Found conf directory "+configDir+". Will use this for configuration files");
+			}
+			else {
+				log.severe("Unable to find a valid configuration directory. Exiting...");
+				
+				return;
+			}
 		}
-		log.info("config directory="+configDir);
 		
 		// can't get setting of the format to work ;-( 
 		System.setProperty( "java.util.logging.SimpleFormatter.format","%4$s: %5$s");

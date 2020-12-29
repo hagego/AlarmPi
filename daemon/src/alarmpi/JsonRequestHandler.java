@@ -11,9 +11,11 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.logging.Logger;
 import javax.json.Json;
+import javax.json.JsonArray;
 import javax.json.JsonObject;
 import javax.json.JsonObjectBuilder;
 import javax.json.JsonReader;
+import javax.json.JsonValue;
 
 
 
@@ -69,12 +71,16 @@ public class JsonRequestHandler implements Runnable {
 						String origin = clientSocket.getLocalAddress().toString();//+":50261";//+clientSocket.getLocalPort();
 						log.fine("origin="+origin);
 						
+						origin="127.0.0.1";
+						String cors="*";
+						// http:/"+origin
+						
 						if(httpMethod.equals("OPTIONS")) {
 							httpResponse = "HTTP/1.1 200 OK\r\n" + 
 									"Date: "+today+"\r\n" + 
 									"Server: AlarmPi\r\n" + 
 									"Allow: GET,HEAD,POST,OPTIONS,TRACE\r\n" +
-									"Access-Control-Allow-Origin: http:/"+origin+"\r\n";
+									"Access-Control-Allow-Origin: "+cors+"\r\n";
 							
 							processed = true;
 						}
@@ -82,19 +88,27 @@ public class JsonRequestHandler implements Runnable {
 							httpResponse = "HTTP/1.1 200 OK\r\n" + 
 									"Date: "+today+"\r\n" + 
 									"Server: AlarmPi\r\n" + 
-									"Access-Control-Allow-Origin: http:/"+origin+"\r\n" +
+									"Access-Control-Allow-Origin: "+cors+"\r\n" +
 									"\r\n" +
 									buildJsonObject().toString()+"\r\n";
 							
 							processed = true;
 						}
 						if(httpMethod.equals("POST")) {
-							Alarm.parseAllFromJsonObject(buildJasonObjectFromString(jsonString));
+							JsonObject jsonObject = buildJasonObjectFromString(jsonString);
+							Alarm.parseAllFromJsonObject(jsonObject);
+							controller.parseLightStatusFromJsonObject(jsonObject);
+							
+							JsonArray jsonArray = jsonObject.getJsonArray("actions");
+							if(jsonArray!=null) {
+								jsonArray.stream().filter(action -> action.toString().equals("\"stopActiveAlarm\"")).forEach(action -> controller.stopActiveAlarm());
+								jsonArray.stream().forEach(action -> log.info(">>"+action.toString()+"<<"));
+							}
 							
 							httpResponse = "HTTP/1.1 200 OK\r\n" + 
 									"Date: "+today+"\r\n" + 
 									"Server: AlarmPi\r\n" + 
-									"Access-Control-Allow-Origin: http:/"+origin+"\r\n" +
+									"Access-Control-Allow-Origin: "+cors+"\r\n" +
 									"\r\n";
 							
 							processed = true;
@@ -125,6 +139,7 @@ public class JsonRequestHandler implements Runnable {
 		// build final object
 		builder.add("name", Configuration.getConfiguration().getName());
 		builder.add("alarms", Configuration.getConfiguration().getAlarmsAsJsonArray());
+		builder.add("lights", controller.getLightStatusAsJsonArray());
 		JsonObject jsonObject = builder.build();
 		
 		log.fine("created JSON object:\n"+jsonObject.toString());
@@ -147,7 +162,6 @@ public class JsonRequestHandler implements Runnable {
 	//
 	private static final Logger log = Logger.getLogger( JsonRequestHandler.class.getName() );
 	private final Socket               clientSocket;
-	@SuppressWarnings("unused")
 	private final Controller           controller;
 	private       PrintWriter          clientStream;
 	final ExecutorService threadPool = Executors.newCachedThreadPool();

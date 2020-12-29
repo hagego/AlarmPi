@@ -1,4 +1,4 @@
-var alarmPiData = {};  // global object, holds all data from AlarmPi
+let alarmPiData = {};  // global object, holds all data from AlarmPi
 
 function loadData() {
     'use strict';
@@ -14,6 +14,8 @@ function loadData() {
     else {
         hostName = location.hostname;
     }
+    console.info("hostname: "+hostName);
+    
     request.open("GET", "http://"+hostName+":3948/");
     
     request.addEventListener('load', function (event) {
@@ -30,6 +32,7 @@ function loadData() {
         
         $('#name').replaceWith(alarmPiData.name);
         updateAlarms();
+        updateLights();
     });
     
     request.addEventListener('error', function (event) {
@@ -98,7 +101,7 @@ function updateAlarms() {
 function handleAlarmModification(event) {
     'use strict';
     
-    var id = event.target.parentElement.parentElement.getAttribute('id');
+    const id = event.target.parentElement.parentElement.getAttribute('id');
     var alarmId = id.substring(id.indexOf('_')+1);
     
     console.info('marking alarm index '+alarmId+', id='+alarmPiData.alarms[alarmId].id+' as modified');
@@ -150,8 +153,6 @@ function submitAlarms() {
     console.info(JSON.stringify(submissionData));
     
     var request = new XMLHttpRequest();
-    
-    // load all data from AlarmPi
 	var hostName;
     if(location.hostname.length==0) {
         hostName = "127.0.0.1";
@@ -179,4 +180,119 @@ function submitAlarms() {
     request.send();
     
     $('#alarmsSubmit').attr('disabled',true);
+}
+
+function submitData(submissionData) {
+	console.info("submitting data: ");
+    console.info(JSON.stringify(submissionData));
+    
+    var request = new XMLHttpRequest();
+	var hostName;
+    if(location.hostname.length==0) {
+        hostName = "127.0.0.1";
+    }
+    else {
+        hostName = location.hostname;
+    }
+    request.open("POST", "http://"+hostName+":3948/ "+JSON.stringify(submissionData));
+    
+    request.addEventListener('load', function (event) {
+        
+        if (request.status >= 200 && request.status < 300) {
+            console.info("POST request successfully processed, status=" + request.status);
+        } else {
+            alert("Fehler bei Kommunikation mit AlarmPi: " + request.statusText);
+        }
+        
+        console.info("received AlarmPi data: "+request.responseText);
+    });
+    
+    request.addEventListener('error', function (event) {
+        alert("Verbindung zu AlarmPi gescheitert. Fehlercode: " + request.statusText);
+    });
+    
+    request.send();
+}	
+
+function stopActiveAlarm() {
+    'use strict';
+    console.info("stopping active alarm");
+    
+    var submissionData = {};
+    submissionData.actions = [];
+    
+    var actionStopActiveAlarm = "stopActiveAlarm";
+    submissionData.actions.push(actionStopActiveAlarm);
+    
+    submitData(submissionData);
+}
+
+function updateLights() {
+    'use strict';
+    
+    const lightTableBody = $('#lightTableBody');
+    
+    // remove all existing alarm rows
+    const rows = lightTableBody.children();
+    for(let row=0 ; row<rows.length ; row++) {
+        rows[row].remove();
+    }
+    
+    for( let i=0 ; i<alarmPiData.lights.length ; i++) {
+        const light = alarmPiData.lights[i];
+        console.info("creating row for light index="+i+" id=" + light.id+" name="+light.name);
+        lightTableBody.append('<tr id="light_'+i+'"/>');
+        const lightRow = lightTableBody.children('#light_'+i);
+        lightRow.append('<td>'+light.name+'</td>');
+        lightRow.append('<td><input type="radio" name="lightId'+i+'" id="on"  class="lightOn">');
+        lightRow.append('<td><input type="radio" name="lightId'+i+'" id="off" class="lightOff">');
+        lightRow.append('<td><input type="range" min="0" max="100" class="brightness">');
+        
+        lightRow.children().children('.lightOn').attr('checked',light.brightness>0).change(handleLightModification);
+        lightRow.children().children('.lightOff').attr('checked',light.brightness===0).click(handleLightModification);
+        lightRow.children().children('.brightness').attr('value',light.brightness).click(handleLightModification);
+    }
+}
+
+function handleLightModification(event) {
+    'use strict';
+    
+    const element = event.target.getAttribute('class');
+    console.info("handleLightModification, changed element="+element);
+
+    const elementId = event.target.parentElement.parentElement.getAttribute('id');
+    const index = elementId.substring(elementId.indexOf('_')+1);
+    const light = alarmPiData.lights[index];
+
+    console.info('light index '+index+' id='+light.id+' name='+light.name+' changed');
+
+    const lightTableBody = $('#lightTableBody');
+    const row = lightTableBody.children('#light_'+index);
+
+    if(element==="lightOn") {
+        console.info("light switched on");
+        light.brightness = 30;
+        row.children().children('.brightness').attr('value',light.brightness);
+    }
+    else if(element==="lightOff") {
+        console.info("light switched off");
+        light.brightness = 0;
+        row.children().children('.brightness').attr('value',0);
+    }
+    else if(element==="brightness") {
+        light.brightness = parseInt(row.children().children('.brightness').prop('value'),10);
+        console.info("brightness changed to "+light.brightness);
+        if(light.brightness>0) {
+            row.children().children('.lightOn').prop('checked',true);
+        }
+        else {
+            row.children().children('.lightOff').prop('checked',true);
+        }
+    }
+    
+    let submissionData = {};
+    submissionData.lights = [];
+    submissionData.lights.push(light);
+    
+    submitData(submissionData);
 }

@@ -15,9 +15,11 @@ import com.pi4j.io.gpio.RaspiPin;
  * This was useful for older Versions of HiFiBerry that did not use gpio18
  * It does not work for HiFiberry DAC+
  */
-public class LightControlRaspiPwm implements LightControl,Runnable {
+public class LightControlRaspiPwm extends LightControl implements Runnable {
 
 	public LightControlRaspiPwm(Configuration.LightControlSettings lightControlSettings) {
+		super(lightControlSettings.id,lightControlSettings.name);
+		
 		this.lightControlSettings = lightControlSettings;
 		
 		USABLE_SCALE = lightControlSettings.pwmFullScale-lightControlSettings.pwmOffset;
@@ -50,12 +52,7 @@ public class LightControlRaspiPwm implements LightControl,Runnable {
 	}
 	
 	@Override
-	public int getCount() {
-		return 1;
-	}
-	
-	@Override
-	public void off() {
+	public void setOff() {
 		log.info("RaspiPwm: setting off");
 		
 		if(dimThread!=null) {
@@ -69,11 +66,6 @@ public class LightControlRaspiPwm implements LightControl,Runnable {
 		if(gpioPinLedPwm!=null) {
 			setPwm(0);
 		}
-	}
-	
-	@Override
-	public void off(int lightId) {
-		off();
 	}
 	
 	@Override
@@ -98,11 +90,6 @@ public class LightControlRaspiPwm implements LightControl,Runnable {
 	}
 	
 	@Override
-	public void setBrightness(int lightId,double percentage) {
-		setBrightness(percentage);
-	}
-
-	@Override
 	public double getBrightness() {
 		if((pwmValue-lightControlSettings.pwmOffset)<(int)((8.0/903.3)*(double)USABLE_SCALE)) {
 			return ((double)(pwmValue-lightControlSettings.pwmOffset)/(double)USABLE_SCALE)*903.3;
@@ -110,11 +97,6 @@ public class LightControlRaspiPwm implements LightControl,Runnable {
 		else {
 			return 116.0*Math.pow((double)(pwmValue-lightControlSettings.pwmOffset)/(double)USABLE_SCALE, 1.0/3.0)-16.0;
 		}
-	}
-	
-	@Override
-	public double getBrightness(int lightId) {
-		return getBrightness();
 	}
 	
 	@Override
@@ -140,11 +122,6 @@ public class LightControlRaspiPwm implements LightControl,Runnable {
 	}
 	
 	@Override
-	public void setPwm(int lightId,int pwmValue) {
-		setPwm(pwmValue);
-	}
-	
-	@Override
 	public int getPwm() {
 		return pwmValue;
 	}
@@ -152,7 +129,7 @@ public class LightControlRaspiPwm implements LightControl,Runnable {
 	@Override
 	public void dimUp(double finalPercent,int seconds) {
 		// switch off and stop thread in case a thread is still running
-		off();
+		setOff();
 		
 		dimDuration      = seconds;
 		dimTargetPercent = finalPercent;

@@ -1,0 +1,1 @@
+scp -i $HOME/Documents/Zertifikate/sshkey_generic_raspberry.private-ssh ../target/alarmpi.jar alarmpi@alarmpisarah:/opt/alarmpi/bin

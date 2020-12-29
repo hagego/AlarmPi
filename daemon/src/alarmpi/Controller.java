@@ -10,6 +10,7 @@ import java.time.temporal.ChronoField;
 import java.util.Collections;
 import java.util.Iterator;
 import java.util.LinkedList;
+import java.util.List;
 import java.util.NoSuchElementException;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
@@ -17,6 +18,13 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.logging.Logger;
+
+import javax.json.Json;
+import javax.json.JsonArray;
+import javax.json.JsonArrayBuilder;
+import javax.json.JsonObject;
+import javax.json.JsonValue;
+
 import com.pi4j.io.gpio.GpioController;
 import com.pi4j.io.gpio.GpioFactory;
 import com.pi4j.io.gpio.GpioPinDigitalInput;
@@ -43,94 +51,93 @@ class Controller implements Runnable {
 		dataExecutorService = Executors.newSingleThreadExecutor();
 		
 		// initialize pi4j objects for GPIO handling
+		final GpioController gpioController;
 		if(configuration.getRunningOnRaspberry()) {
 			log.info("running on Raspberry - initializing WiringPi");
 			
 			// initialize wiringPi library
 			// I get a crash when calling this - something changed in the new rev of pi4j
 			// com.pi4j.wiringpi.Gpio.wiringPiSetup();
-			GpioController gpioController       = GpioFactory.getInstance();
-			
+			gpioController       = GpioFactory.getInstance();
 			log.info("running on Raspberry - initializing WiringPi done.");
-			
-			// instantiate light control
-			log.info("running on Raspberry - initializing light control");
-			if(configuration.getLightControlSettings().type==Configuration.LightControlSettings.Type.RASPBERRY) {
-				lightControl = new LightControlRaspiPwm(configuration.getLightControlSettings());
-			}
-			else if(configuration.getLightControlSettings().type==Configuration.LightControlSettings.Type.PCA9685) {
-				lightControl = new LightControlPCA9685(configuration.getLightControlSettings());
-			}
-			else {
-				// dummy implementation - does nothing
-				lightControl = new LightControlNone();
-			}
-			lightControl.off();
-			log.info("running on Raspberry - initializing light control done");
-			
-			log.info("running on Raspberry - initializing sound control");
-			soundControl = SoundControl.getSoundControl();
-			log.info("running on Raspberry - initializing sound control done");
-			
-			log.info("initializing MQTT client");
-			mqttClient = MqttClient.getMqttClient();
-			log.info("initializing MQTT client done");
-			
-			// update mpd with tmp files for next alarm announcement
-			new TextToSpeech().createTempFile("dummy", "nextAlarmToday.mp3");
-			new TextToSpeech().createTempFile("dummy", "nextAlarmTomorrow.mp3");
-			soundControl.update();
-			
-			
-			// configure input key pins as input pins
-			// default: key1=GPIO06 (BRCM GPIO 25)
-			//          key2=GPIO05 (BRCM GPIO 24)
-			log.info("running on Raspberry - initializing push buttons");
-			for(Configuration.PushButtonSettings pushButtonSetting:configuration.getPushButtons()) {
-				if(pushButtonSetting.wiringpigpio!=0) {
-					GpioPinDigitalInput input = gpioController.provisionDigitalInputPin(RaspiPin.getPinByAddress(pushButtonSetting.wiringpigpio), PinPullResistance.PULL_UP);
-					
-					// add pin listener
-					input.addListener(new PushButtonListener(pushButtonSetting,input));
-				}
-
-			}
-			log.info("running on Raspberry - initializing push buttons done");
-			/*
-			LedStripControl ledControl = new LedStripControl();
-			LedStripControl.LedPattern pattern = ledControl.new LedPatternRainbow1(1000, 1.0);
-			//LedStripControl.LedPattern pattern = ledControl.new LedPatternDimUp(300, (short)255);
-			pattern.setCorrectionFactors(1.0, 0.3, 0.3);
-			ledControl.executePattern(pattern);
-			*/
-			
-			log.info("running on Raspberry - initialization done");
 		}
 		else {
-			log.info("running on PC - initializing");
-			
-			// dummy implementation - does nothing
-			lightControl = new LightControlNone();
-			
-			soundControl = SoundControl.getSoundControl();
-			
-			log.info("running on PC - initializing done");
+			gpioController = null;
 		}
+			
+		// instantiate light control
+		log.info("initializing light control");
+		Configuration.getConfiguration().getLightControlSettings().stream().forEach(setting -> {
+			switch(setting.type) {
+				case RASPBERRY:
+					log.config("creating light control for Raspberry PWM");
+					lightControlList.add(new LightControlRaspiPwm(setting));
+					break;
+				case PCA9685:
+					log.config("creating light control for PCA9685");
+					lightControlList.add(new LightControlPCA9685(setting));
+					break;
+				case NRF24LO1:
+					log.config("creating light control for nRF24LO1 remote control");
+					lightControlList.add(new LightControlNRF24LO1(setting.id,setting.name));
+					break;
+				default:
+					log.warning("unknown or NONE light control specified");
+			}
+		});
+		
+		log.info("initializing of light control done. Switching all off now");
+		lightControlList.stream().forEach(control -> control.setOff());
+		
+		// configure input key pins as input pins
+		// default: key1=GPIO06 (BRCM GPIO 25)
+		//          key2=GPIO05 (BRCM GPIO 24)
+		log.info("running on Raspberry - initializing  buttons");
+		Configuration.getConfiguration().getButtonSettings().stream().forEach(button -> {
+			switch(button.type) {
+				case GPIO :
+					if(gpioController!=null) {
+						GpioPinDigitalInput input = gpioController.provisionDigitalInputPin(RaspiPin.getPinByAddress(button.wiringpigpio), PinPullResistance.PULL_UP);
+						input.addListener(new PushButtonListener(button,input));
+					}
+					break;
+				default:
+					log.severe("Unknown button type: "+button.type);
+			}
+		});
+		
+
+		log.info("initializing push buttons done");
+
+		log.info("initializing sound control");
+		soundControl = SoundControl.getSoundControl();
+		log.info("initializing sound control done");
+		
+		log.info("initializing MQTT client");
+		mqttClient = MqttClient.getMqttClient();
+		log.info("initializing MQTT client done");
+		
+		// update mpd with tmp files for next alarm announcement
+		new TextToSpeech().createTempFile("dummy", "nextAlarmToday.mp3");
+		new TextToSpeech().createTempFile("dummy", "nextAlarmTomorrow.mp3");
+		soundControl.update();
+		
+		log.info("initialization done");
 	}
 	
 	/**
 	 * switches everything off
 	 */
 	void allOff(boolean announceNextAlarm) {
-		stopAlarm();
-		lightControl.off();
+		stopActiveAlarm();
+		lightControlList.stream().forEach(control -> control.setOff());
 		soundControl.stop();
 		
 		if(announceNextAlarm) {
 			// announce next alarms before switching off
 			Alarm alarm = getNextAlarmToday();
 			if(alarm!=null) {
-				String text = "Der nächste Alarm ist heute um "+alarm.getTime().getHour()+" Uhr";
+				String text = "Der nï¿½chste Alarm ist heute um "+alarm.getTime().getHour()+" Uhr";
 				if(alarm.getTime().getMinute()!=0) {
 					text += alarm.getTime().getMinute();
 				}
@@ -142,7 +149,7 @@ class Controller implements Runnable {
 			else {
 				alarm = getNextAlarmTomorrow();
 				if(alarm!=null) {
-					String text = "Der nächste Alarm ist morgen um "+alarm.getTime().getHour()+" Uhr";
+					String text = "Der nï¿½chste Alarm ist morgen um "+alarm.getTime().getHour()+" Uhr";
 					if(alarm.getTime().getMinute()!=0) {
 						text += alarm.getTime().getMinute();
 					}
@@ -270,7 +277,7 @@ class Controller implements Runnable {
 	/**
 	 * stops the active alarm
 	 */
-	synchronized void stopAlarm() {
+	synchronized void stopActiveAlarm() {
 		if(activeAlarm!=null) {
 			log.fine("stopping active alarm");
 			
@@ -283,14 +290,14 @@ class Controller implements Runnable {
 				log.fine("oneTimeOnly=false. Leaving alarm enabled.");
 			}
 			
-			lightControl.off();
+			lightControlList.stream().forEach(control -> control.setOff());
 			soundControl.off();
 			deleteAlarmEvents(activeAlarm);
 			
 			activeAlarm = null;
 		}
 		else {
-			log.fine("no alarm active");
+			log.fine("stopActiveAlarm: no alarm active");
 		}
 	}
 
@@ -301,7 +308,7 @@ class Controller implements Runnable {
 		log.fine("deleting all alarm events");
 		eventList.clear();
 		
-		lightControl.off();
+		lightControlList.stream().forEach(control -> control.setOff());
 		soundControl.off();
 		activeAlarm = null;
 	}
@@ -322,7 +329,7 @@ class Controller implements Runnable {
 		}
 		
 		if(activeAlarm!=null && alarm==activeAlarm) {
-			lightControl.off();
+			lightControlList.stream().forEach(control -> control.setOff());
 			soundControl.off();
 			activeAlarm = null;
 		}
@@ -860,7 +867,7 @@ class Controller implements Runnable {
 			}
 			break;
 		case LED_OFF:
-			lightControl.off();
+			lightControlList.stream().forEach(control -> control.setOff());
 			break;
 		case ALARM_START:
 			log.fine("start of alarm with id="+e.alarm.getId());
@@ -869,7 +876,7 @@ class Controller implements Runnable {
 			soundControl.on();
 			
 			// start thread to dim up the light
-			lightControl.dimUp(e.paramInt2, e.paramInt1);
+			lightControlList.stream().forEach(control -> control.dimUp(e.paramInt2, e.paramInt1));
 			
 			// trigger weather data and calendar retrieval in an extra thread
 			weatherAnnouncementFile  = dataExecutorService.submit(new WeatherProvider());
@@ -882,7 +889,7 @@ class Controller implements Runnable {
 			
 			break;
 		case ALARM_END:
-			stopAlarm();
+			stopActiveAlarm();
 			break;
 		default:
 			log.severe("Unknown event type: "+e.type);
@@ -912,13 +919,35 @@ class Controller implements Runnable {
 	}
 	
 	/**
-	 * returns the LightControl object
-	 * @return LightControl object
+	 * returns all light control objects as JSON array
+	 * @return all light control objects as JSON array
 	 */
-	LightControl getLightControl() {
-		return lightControl;
+	final JsonArray getLightStatusAsJsonArray() {
+		log.fine("creating JSON array with all light control objects");
+		// add list of all light control objects
+		JsonArrayBuilder arrayBuilder = Json.createBuilderFactory(null).createArrayBuilder();
+		lightControlList.stream().forEach(control -> arrayBuilder.add(control.toJasonObject()));
+		
+		JsonArray array=arrayBuilder.build();
+		log.fine("JSON array="+array);;
+		
+		return array;
 	}
-	
+
+	/**
+	 * parses the light status from a JSON object that contains the array "lights"
+	 * @param jsonObject
+	 */
+	final void parseLightStatusFromJsonObject(JsonObject jsonObject) {
+		log.fine("parsing light status from JSON array");
+		JsonArray jsonArray = jsonObject.getJsonArray("lights");
+		if(jsonArray!=null) {
+			lightControlList.stream().forEach(light -> light.parseFromJsonArray(jsonArray));
+		}
+		else {
+			log.fine("parseLightStatusFromJsonObject: JSON object has no array \"lights\"");
+		}
+	}
 
 		
 	//
@@ -952,16 +981,16 @@ class Controller implements Runnable {
 	 * private class implementing Listener for PushButton
 	 */
 	private class PushButtonListener implements GpioPinListenerDigital {
-		public PushButtonListener(Configuration.PushButtonSettings pushButtonSetting,GpioPinDigitalInput inputPin) {
+		public PushButtonListener(Configuration.ButtonSettings pushButtonSetting,GpioPinDigitalInput inputPin) {
 			this.pushButtonSetting = pushButtonSetting;
 			this.inputPin          = inputPin;
 			
-			log.fine("Creating PushButtonListener for button with WiringPi IO="+pushButtonSetting.wiringpigpio+" light ID="+pushButtonSetting.lightId);
+			log.fine("Creating PushButtonListener for button with WiringPi IO="+pushButtonSetting.wiringpigpio+" light IDs="+pushButtonSetting.lightIds);
 		}
 		
         @Override
         public void handleGpioPinDigitalStateChangeEvent(GpioPinDigitalStateChangeEvent event) {
-        	log.fine("LED control button state change on GPIO address "+event.getPin().getPin().getAddress()+" state="+event.getState()+" light ID="+pushButtonSetting.lightId);
+        	log.fine("LED control button state change on GPIO address "+event.getPin().getPin().getAddress()+" state="+event.getState()+" light IDy="+pushButtonSetting.lightIds);
         	if(event.getState()==PinState.LOW) {
         		start = System.currentTimeMillis();
         		boolean longClick = false;
@@ -991,35 +1020,30 @@ class Controller implements Runnable {
         			log.fine("short click");
         			if(start-lastClick>300) {
         				// single click
-    					log.fine("processing single click. useAws="+pushButtonSetting.useAws);
+    					log.fine("processing single click.");
     					
-    					if(pushButtonSetting.useAws) {
-    						new SpeechToCommand().captureCommand();
-    					}
-    					else {
-    						if(Configuration.getConfiguration().getMqttPublishTopicShortClick()!=null) {
-		            			// publish to MQTT broker (if configured)
-		            			if(mqttClient!=null) {
-		            				log.fine("publishing MQTT short click topic");
-		            				mqttClient.publishShortClick();
-		            			}
+						if(Configuration.getConfiguration().getMqttPublishTopicShortClick()!=null) {
+	            			// publish to MQTT broker (if configured)
+	            			if(mqttClient!=null) {
+	            				log.fine("publishing MQTT short click topic");
+	            				mqttClient.publishShortClick();
+	            			}
+						}
+						else {
+    						// no speech control - increase LED brightness
+    						// lightControl.setBrightness(pushButtonSetting.lightId,lightControl.getBrightness(pushButtonSetting.lightId)+pushButtonSetting.brightnessIncrement);
+    						Sound sound = Configuration.getConfiguration().getSoundList().get(pushButtonSetting.soundId);
+    						soundControl.playSound(sound, pushButtonSetting.soundVolume, false);
+    						try {
+								Thread.sleep(100);
+							} catch (InterruptedException e) {
+								log.severe(e.getMessage());
+							}
+    						soundControl.on();
+    						if(pushButtonSetting.soundTimer>0) {
+    							setSoundTimer(pushButtonSetting.soundTimer*60);
     						}
-    						else {
-	    						// no speech control - increase LED brightness
-	    						// lightControl.setBrightness(pushButtonSetting.lightId,lightControl.getBrightness(pushButtonSetting.lightId)+pushButtonSetting.brightnessIncrement);
-	    						Sound sound = Configuration.getConfiguration().getSoundList().get(pushButtonSetting.soundId);
-	    						soundControl.playSound(sound, pushButtonSetting.soundVolume, false);
-	    						try {
-									Thread.sleep(100);
-								} catch (InterruptedException e) {
-									log.severe(e.getMessage());
-								}
-	    						soundControl.on();
-	    						if(pushButtonSetting.soundTimer>0) {
-	    							setSoundTimer(pushButtonSetting.soundTimer*60);
-	    						}
-    						}
-    					}
+						}
         			}
         			else {
         				// double click
@@ -1044,7 +1068,7 @@ class Controller implements Runnable {
         }
         
         private long                             start = System.currentTimeMillis();
-        private Configuration.PushButtonSettings pushButtonSetting;
+        private Configuration.ButtonSettings pushButtonSetting;
         private GpioPinDigitalInput              inputPin;
 	}
 	
@@ -1055,7 +1079,7 @@ class Controller implements Runnable {
 	Alarm                activeAlarm;           // active alarm (or null if no alarm is active)
 	Event                soundTimerEvent;       // event to switch off sound or null if no timer is active
 	
-	LightControl         lightControl;          // light control
+	final List<LightControl>   lightControlList = new LinkedList<>();    // list of light control objects
 	
 	
 	

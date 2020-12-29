@@ -15,6 +15,7 @@ import java.util.logging.Logger;
 import java.util.prefs.BackingStoreException;
 import java.util.prefs.Preferences;
 import javax.json.Json;
+import javax.json.JsonArray;
 import javax.json.JsonObject;
 import javax.json.JsonObjectBuilder;
 import javax.json.JsonValue;
@@ -169,11 +170,17 @@ public class Alarm implements Serializable {
 	}
 	
 	public static void parseAllFromJsonObject(JsonObject jsonObject) {
-		for(JsonValue jsonValue:jsonObject.getJsonArray("alarms")) {
-			JsonObject alarm = jsonValue.asJsonObject();
-			log.fine("parseAllFromJsonObject: Found alarm with id="+alarm.getInt("id"));
-			
-			Configuration.getConfiguration().getAlarm(alarm.getInt("id")).fromJsonObject(alarm);
+		JsonArray jsonArray = jsonObject.getJsonArray("alarms");
+		if(jsonArray!=null) {
+			for(JsonValue jsonValue:jsonArray) {
+				JsonObject alarm = jsonValue.asJsonObject();
+				log.fine("parseAllFromJsonObject: Found alarm with id="+alarm.getInt("id"));
+				
+				Configuration.getConfiguration().getAlarm(alarm.getInt("id")).fromJsonObject(alarm);
+			}
+		}
+		else {
+			log.fine("parseAllFromJsonObject: JSON object has no array \"alarms\"");
 		}
 	}
 	

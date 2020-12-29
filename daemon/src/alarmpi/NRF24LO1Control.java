@@ -64,7 +64,11 @@ public class NRF24LO1Control {
 	public NRF24LO1Control() {
 		log.fine("Instantiating nRF204 controller");
 		
-		GpioController gpioController  = GpioFactory.getInstance();
+		GpioController gpioController = null;
+		
+		if(Configuration.getConfiguration().getRunningOnRaspberry()) {
+			gpioController  = GpioFactory.getInstance();
+		}
 		if(gpioController!=null) {
 			gpioOutCE = gpioController.provisionDigitalOutputPin(RaspiPin.GPIO_21, "nRF204CE", PinState.LOW);
 		}
@@ -73,11 +77,13 @@ public class NRF24LO1Control {
 			gpioOutCE = null;
 		}
 		
-		try {
-			spiDevice = SpiFactory.getInstance(SpiChannel.CS0);
-		} catch (IOException e) {
-			log.severe("Error during SPI initialize: "+e.getMessage());
-			spiDevice = null;
+		if(Configuration.getConfiguration().getRunningOnRaspberry()) {
+			try {
+				spiDevice = SpiFactory.getInstance(SpiChannel.CS0);
+			} catch (IOException e) {
+				log.severe("Error during SPI initialize: "+e.getMessage());
+				spiDevice = null;
+			}
 		}
 		
 		if(gpioOutCE!=null && spiDevice!=null) {

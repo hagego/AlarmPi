@@ -68,29 +68,39 @@ public class Configuration {
 	 */
 	static class LightControlSettings {
 		public enum Type {             // available Light Control types
+			NONE,                      // no light
 			RASPBERRY,                 // Raspberry built-in GPIO18 PWM
-			PCA9685                    // NXP PCA9685 IIC
+			PCA9685,                   // NXP PCA9685 PWM IIC
+			NRF24LO1                   // remote control based on nRF24LO1
 		};
 		
 		Type    type;                  // light control type used
-		int     address;               // i2c address for PCA9685
+		String  name;                  // light name (identifier)
+		int     id;                    // light ID
+		int     deviceAddress;         // i2c address for PCA9685
 		int     pwmOffset;             // pwm value at which light starts to glow
 		int     pwmFullScale;          // pwm full scale
 		boolean pwmInversion = false;  // invert PWM value if set to true
-		ArrayList<Integer> addresses;  // sub-addresses of lights (PCA9685 only)
+		int     ledId;                 // ID of LED to control (PCA9685 only)
 	}
 	
 	/**
 	 * local class used as structure to store push button settings
 	 */
-	class PushButtonSettings {
-		int wiringpigpio;         // WiringPi GPIO address of input key
-		boolean useAws;           // if true, single click is triggers Amazon AWS speech control
-		int brightnessIncrement;  // LED control (single click): brightness increment in percent
-		int soundId;              // sound control (double click): sound to play
-		int soundVolume;          // sound control (double click): volume (in percent)
-		int soundTimer;           // sound control (double click): timer to switch off in minutes (0 = no timer)
-		int lightId;              // light control: ID of associated light (PCA9685 only)
+	static class ButtonSettings {
+		public enum Type {        // available button types
+			GPIO,                 // direct attached to gpio
+			FLIC                  // Flic bluetooth button
+		};
+		
+		Type type;                // button type
+		int  id;                  // button ID
+		int  wiringpigpio;        // WiringPi GPIO address of input key
+		int  brightnessIncrement; // LED control (single click): brightness increment in percent
+		int  soundId;             // sound control (double click): sound to play
+		int  soundVolume;         // sound control (double click): volume (in percent)
+		int  soundTimer;          // sound control (double click): time to switch off in minutes (0 = no timer)
+		List<Integer> lightIds;   // light control: IDs of associated lights
 	}
 	
 
@@ -114,7 +124,8 @@ public class Configuration {
 	 * @param iniFile   Ini object of the configuration file
 	 */
 	private Configuration(Ini ini) {
-		if(!System.getProperty("os.name").toLowerCase(Locale.ENGLISH).startsWith("windows")) {
+		if(System.getProperty("os.name").toLowerCase(Locale.ENGLISH).contains("linux")
+				&& System.getProperty("os.arch").toLowerCase(Locale.ENGLISH).contains("arm")) {
 			runningOnRaspberry = true;
 		}
 		else {
@@ -127,8 +138,8 @@ public class Configuration {
 		soundList            = new ArrayList<Sound>();
 		alarmList            = new LinkedList<Alarm>();
 		alarmProcessQueue    = new ConcurrentLinkedQueue<Alarm>();
-		lightControlSettings = new LightControlSettings();
-		pushButtonList       = new ArrayList<PushButtonSettings>();
+		lightControlSettingsList = new ArrayList<>();;
+		buttonSettingsList       = new ArrayList<>();
 
         // general data
 		Ini.Section sectionGeneral = ini.get("general");
@@ -208,70 +219,98 @@ public class Configuration {
         	alarm.setSound(sectionAlarm.get("sound", String.class, "alarm_5s.mp3"));
         }
         
-        // light control
-        Ini.Section sectionLightControl=ini.get("light");
-        if(sectionLightControl==null) {
-        	log.warning("No light section in configuration file");
-        }
-        else {
-        	lightControlSettings = new LightControlSettings();
-        	lightControlSettings.addresses = new ArrayList<Integer>();
+        // light control. Search for sections [light1], [light2], ...
+        index = 1;
+        Ini.Section sectionLightControl;
+        while((sectionLightControl=ini.get("light"+index))!=null) {
+        	log.fine("found section light"+index);
+        	LightControlSettings lightControlSettingItem = new LightControlSettings();
         	
-	        String pwmType = sectionLightControl.get("type", String.class, "gpio18");
+        	lightControlSettingItem.id = index;
+            String pwmType = sectionLightControl.get("type", String.class, null);
 	    	if(pwmType!=null) {
-	    		if(pwmType.equalsIgnoreCase("gpio18")) {
-	    			lightControlSettings.type = LightControlSettings.Type.RASPBERRY;
+	    		if(pwmType.equalsIgnoreCase("none")) {
+	    			lightControlSettingItem.type = LightControlSettings.Type.NONE;
+	    		}
+	    		else if(pwmType.equalsIgnoreCase("gpio18")) {
+	    			lightControlSettingItem.type = LightControlSettings.Type.RASPBERRY;
 	    		}
 	    		else if(pwmType.equalsIgnoreCase("pca9685")) {
-	    			lightControlSettings.type = LightControlSettings.Type.PCA9685;
+	    			lightControlSettingItem.type = LightControlSettings.Type.PCA9685;
+	    		}
+	    		else if(pwmType.equalsIgnoreCase("nrf24lo1")) {
+	    			lightControlSettingItem.type = LightControlSettings.Type.NRF24LO1;
 	    		}
 	    		else {
-	    			log.severe("Invalid PWM type: "+pwmType);
+	    			log.severe("Invalid light control type: "+pwmType);
+	    			lightControlSettingItem.type = LightControlSettings.Type.NONE;
+	    		}
+	    		
+	    		lightControlSettingItem.name          = sectionLightControl.get("name", String.class, "");
+	    		lightControlSettingItem.deviceAddress = sectionLightControl.get("deviceAddress", Integer.class, 0);
+		    	lightControlSettingItem.pwmInversion  = sectionLightControl.get("pwmInversion", Boolean.class, false);
+		    	lightControlSettingItem.pwmOffset     = sectionLightControl.get("pwmOffset", Integer.class, 0);
+		    	lightControlSettingItem.pwmFullScale  = sectionLightControl.get("pwmFullScale", Integer.class, 0);
+		    	lightControlSettingItem.ledId         = sectionLightControl.get("ledId", Integer.class, 0);
+	    	}
+	    	else {
+	    		lightControlSettingItem.type = LightControlSettings.Type.NONE;
+	    	}
+	    	
+	    	lightControlSettingsList.add(lightControlSettingItem);
+	    	index++;
+        }
+        
+        // push buttons. Search for sections [button1], [button2], ...
+        index = 1;
+        Ini.Section sectionButton;
+        while((sectionButton=ini.get("button"+index))!=null) {
+        	log.fine("found section light"+index);
+        	ButtonSettings buttonSettingItem = new ButtonSettings();
+        	
+        	buttonSettingItem.id = index;
+        	String buttonType = sectionButton.get("type", String.class, null);
+	    	if(buttonType!=null) {
+	    		if(buttonType.equalsIgnoreCase("gpio")) {
+	    			buttonSettingItem.type = ButtonSettings.Type.GPIO;
+	    		}
+	    		else if(buttonType.equalsIgnoreCase("flic")) {
+	    			buttonSettingItem.type = ButtonSettings.Type.FLIC;
+	    		}
+	    		else {
+	    			log.severe("Unknown button type: "+buttonType+" for button"+index);
 	    		}
 	    	}
-        
-	    	lightControlSettings.address      = sectionLightControl.get("address", Integer.class, 0);
-	    	lightControlSettings.pwmInversion = sectionLightControl.get("pwmInversion", Boolean.class, false);
-	    	lightControlSettings.pwmOffset    = sectionLightControl.get("pwmOffset", Integer.class, 0);
-	    	lightControlSettings.pwmFullScale = sectionLightControl.get("pwmFullScale", Integer.class, 0);
-	    
-	    	index=1;
-	    	while(sectionLightControl.get("address"+index, Integer.class) != null ) {
-	    		lightControlSettings.addresses.add(sectionLightControl.get("address"+index, Integer.class));
-	    		index++;
+	    	else {
+	    		log.severe("no button type specified for button"+index);
 	    	}
-        }
-    	
-    	// push buttons
-        Ini.Section sectionButton;
-        index=1;
-        while((sectionButton=ini.get("button"+index)) != null) {
-        	PushButtonSettings pushButtonSettings = new PushButtonSettings();
-        	pushButtonSettings.wiringpigpio        = sectionButton.get("wiringpigpio", Integer.class, 0);
-        	pushButtonSettings.useAws              = sectionButton.get("useAws", Boolean.class, false);
-			pushButtonSettings.brightnessIncrement = sectionButton.get("brightnessIncrement", Integer.class, 10);
-			// config file starts counting from 1, internally we use array indexes (starting from 0)
-			pushButtonSettings.lightId             = sectionButton.get("light", Integer.class, 0)-1;
-			pushButtonSettings.soundId             = sectionButton.get("sound", Integer.class, 0)-1;
-			pushButtonSettings.soundVolume         = sectionButton.get("soundVolume", Integer.class, 40);
-			pushButtonSettings.soundTimer          = sectionButton.get("soundTimer", Integer.class, 30);
+	    	buttonSettingItem.wiringpigpio        = sectionButton.get("wiringpigpio", Integer.class, 0);
+	    	buttonSettingItem.brightnessIncrement = sectionButton.get("brightnessIncrement", Integer.class, 10);
+			buttonSettingItem.soundId             = sectionButton.get("sound", Integer.class, 0)-1;
+			buttonSettingItem.soundVolume         = sectionButton.get("soundVolume", Integer.class, 40);
+			buttonSettingItem.soundTimer          = sectionButton.get("soundTimer", Integer.class, 30);
 			
-			// sanity checks
-			if(pushButtonSettings.lightId<0 || pushButtonSettings.lightId>=lightControlSettings.addresses.size()) {
-				log.severe("push button index "+index+" references invalid light "+pushButtonSettings.lightId+1);
+			// light can be a comma-separated list of IDs
+			buttonSettingItem.lightIds = new ArrayList<Integer>();
+			String lightString = sectionButton.get("light", String.class, null);
+			if(lightString!=null) {
+				for(String id:lightString.split(",")) {
+					try {
+						buttonSettingItem.lightIds.add(Integer.parseInt(id));
+					}
+					catch(NumberFormatException e) {
+						log.severe("parsing exception for light property of button"+index);
+					}
+				}
 			}
-			else {
-				if(pushButtonSettings.soundId<0 || pushButtonSettings.soundId>=soundList.size()) {
-					log.severe("push button index "+index+" references invalid sound "+pushButtonSettings.soundId+1);
-				}
-				else {
-					pushButtonList.add(pushButtonSettings);
-				}
+			
+			if(buttonSettingItem.type!=null) {
+				buttonSettingsList.add(buttonSettingItem);
 			}
 			
 			index++;
         }
-    	
+        
         // weather
 		Ini.Section sectionWeather = ini.get("weather");
 		weatherLocation = sectionWeather.get("location", String.class, "");
@@ -465,15 +504,15 @@ public class Configuration {
 	/**
 	 * @return light control settings as read-only object
 	 */
-	final LightControlSettings getLightControlSettings() {
-		return lightControlSettings;
+	final List<LightControlSettings> getLightControlSettings() {
+		return lightControlSettingsList;
 	}
 
 	/**
 	 * @return the push button settings
 	 */
-	final List<PushButtonSettings> getPushButtons() {
-		return pushButtonList;
+	final List<ButtonSettings> getButtonSettings() {
+		return buttonSettingsList;
 	}
 	
 	/**
@@ -612,12 +651,21 @@ public class Configuration {
 		dump += "  cmdServerPort="+port+"\n";
 		dump += "  jsonServerPort="+jsonServerPort+"\n";
 		dump += "  weather location="+weatherLocation+"\n";
-		dump += "  light control: type="+lightControlSettings.type+" address=" + lightControlSettings.address+"\n";
-		dump += "                 pwmInversion="+lightControlSettings.pwmInversion+" pwmOffset="+lightControlSettings.pwmOffset+" pwmFullScale="+lightControlSettings.pwmFullScale+" addresses: ";
-		for(Integer address:lightControlSettings.addresses) {
-			dump += address+" ";
+		
+		dump += "  lights\n";
+		for(LightControlSettings lightControlSettings:lightControlSettingsList) {
+			dump += "    id="+lightControlSettings.id+" type="+lightControlSettings.type+" name="+lightControlSettings.name+" deviceAddress=" + lightControlSettings.deviceAddress;
+			dump += "    pwmInversion="+lightControlSettings.pwmInversion+" pwmOffset="+lightControlSettings.pwmOffset+" pwmFullScale="+lightControlSettings.pwmFullScale;
+			dump += "    ledId: "+lightControlSettings.ledId+"\n";
 		}
-		dump += "\n";
+		
+		dump += "  button settings:\n";
+		for(ButtonSettings pushButtonSettings:buttonSettingsList) {
+			dump += "    id="+pushButtonSettings.id+" brightnessIncrement="+pushButtonSettings.brightnessIncrement;
+			dump += "    sound: internal ID="+pushButtonSettings.soundId+" volume="+pushButtonSettings.soundVolume+" timer="+pushButtonSettings.soundTimer;
+			dump += "    light IDs: "+pushButtonSettings.lightIds+"\n";
+		}
+		
 		dump += "  Sounds:\n";
 		for(Sound sound:soundList) {
 			dump += "    name="+sound.name+"  type="+sound.type+"  source="+sound.source+"\n";
@@ -631,12 +679,6 @@ public class Configuration {
 		dump += "  Stored alarms:\n";
 		for(Alarm alarm:alarmList) {
 			dump += "    id="+alarm.getId()+" enabled="+alarm.isEnabled()+" oneTimeOnly="+alarm.isOneTimeOnly()+" skipOnce="+alarm.isSkipOnce()+" time="+alarm.getTime()+" days="+alarm.getWeekDays()+" sound ID="+alarm.getSoundId()+"\n";
-		}
-		dump += "  push button configurations:\n";
-		for(PushButtonSettings pushButtonSettings:pushButtonList) {
-			dump += "    light: internal ID="+pushButtonSettings.lightId+" increment="+pushButtonSettings.brightnessIncrement+"\n";
-			dump += "    useAws="+pushButtonSettings.useAws+"\n";
-			dump += "    sound: internal ID="+pushButtonSettings.soundId+" volume="+pushButtonSettings.soundVolume+" timer="+pushButtonSettings.soundTimer+"\n";
 		}
 		
 		if(mqttAddress==null || mqttPort==null) {
@@ -667,22 +709,22 @@ public class Configuration {
 	
 	// settings in configuration file
 	private final boolean                    runningOnRaspberry;
-	private String                           name;                  // AlarmPi Name
-	private int                              volumeDefault;         // default sound volume
-	private int                              port;                  // AlarmPi networt port for remote control
-	private int                              jsonServerPort;        // tcp port for HTTP JSON based control
-	private String                           mpdAddress;            // mpd network address
-	private int                              mpdPort;               // mpd network port
-	private String                           mpdFiles;              // directory for MPD sound files
-	private String                           mpdTmpSubDir;          // subdirectory for MPD temporary sound files
-	private String                           weatherLocation;       // Open Weather Map location for weather forecast
-	private LightControlSettings             lightControlSettings;  // light control settings
-	private ArrayList<Sound>                 soundList;             // list with available sounds (as defined in configuration)
-	private ArrayList<PushButtonSettings>    pushButtonList;        // pushbutton settings
-	private String                           googleCalendarSummary; // summary name of google calendar (or null)
-	private String                           mqttAddress;           // MQTT Broker address
-	private Integer                          mqttPort;              // MQTT broker port
-	private Integer                          mqttKeepAlive;         // MQTT keepalive interval in seconds
+	private String                           name;                      // AlarmPi Name
+	private int                              volumeDefault;             // default sound volume
+	private int                              port;                      // AlarmPi networt port for remote control
+	private int                              jsonServerPort;            // tcp port for HTTP JSON based control
+	private String                           mpdAddress;                // mpd network address
+	private int                              mpdPort;                   // mpd network port
+	private String                           mpdFiles;                  // directory for MPD sound files
+	private String                           mpdTmpSubDir;              // subdirectory for MPD temporary sound files
+	private String                           weatherLocation;           // Open Weather Map location for weather forecast
+	private ArrayList<Sound>                 soundList;                 // list with available sounds (as defined in configuration)
+	private List<LightControlSettings>       lightControlSettingsList;  // list of light control settings
+	private List<ButtonSettings>             buttonSettingsList;        // list of button settings
+	private String                           googleCalendarSummary;     // summary name of google calendar (or null)
+	private String                           mqttAddress;               // MQTT Broker address
+	private Integer                          mqttPort;                  // MQTT broker port
+	private Integer                          mqttKeepAlive;             // MQTT keepalive interval in seconds
 	private String                           mqttPublishTopicShortClick;    // MQTT topic published on a short click of a connected button
 	private String                           mqttPublishTopicLongClick;     // MQTT topic published on a long click of a connected button
 	private String                           mqttPublishTopicAlarmList;     // MQTT topic for publishing alarm list as JSON object

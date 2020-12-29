@@ -25,6 +25,13 @@
                 document.getElementById('alarmsSubmit').addEventListener('click', submitAlarms);	  
             });
         </script>
+        
+        <script>
+            document.addEventListener('DOMContentLoaded', function () {
+                document.getElementById('alarmsStopActive').addEventListener('click', stopActiveAlarm);	  
+            });
+        </script>
+        
     </head>
     <body>
         <header>
@@ -77,7 +84,38 @@
             <p>
                 <button id="alarmsRead" type="button">Laden</button>
                 <button id="alarmsSubmit" type="button">Update</button>
+                <button id="alarmsStopActive" type="button">Aktiver Alarm stop</button>
             </p>
+            
+            <h2>Lichter</h2>
+            
+            <!-- table shows all lights -->
+            <table id="lighttable">
+                <colgroup id="light_name"></colgroup>
+                <colgroup id="light_on"></colgroup>
+                <colgroup id="light_off"></colgroup>
+                <colgroup id="brightness"></colgroup>
+                <thead>
+                    <tr>
+                        <th>Name</th>
+                        <th>An</th>
+                        <th>Aus</th>
+                        <th>Helligkeit</th>
+                    </tr>
+                </thead>
+                <tbody id="lightTableBody">
+                    <!--
+                        add a dummy line - will be dynamically replaced
+                    -->
+                    <tr id="light_1">
+                        <td><type="text"></td>
+                        <td><input type="radio"></td>
+                        <td><input type="radio"></td>
+                        <td><input type="range" min="0" max="100" value="30"></td>
+                    </tr>
+                </tbody>
+            </table>
+
         </main>        
     </body>
 </html>
