@@ -24,7 +24,7 @@ public class AlarmPi {
 			log.info("Found local conf directory. Will use this for configuration files");
 		}
 		else {
-			configDir = "/etc/picturepi/";
+			configDir = "/etc/alarmpi/";
 			confDir = new File(configDir);
 			if( confDir.exists() && confDir.isDirectory()) {
 				log.info("Found conf directory "+configDir+". Will use this for configuration files");
@@ -56,6 +56,14 @@ public class AlarmPi {
 		Configuration configuration = Configuration.getConfiguration();
 		
 		log.info("configuration read successfully");
+		
+		boolean runLexOnly = true;
+		if(runLexOnly) {
+			SpeechToCommand speechToCommand = new SpeechToCommand();
+			speechToCommand.captureCommand();
+			
+			return;
+		}
 		
 		// add sound duration and build playlists
 		Configuration.getConfiguration().processSoundList();

@@ -5,6 +5,7 @@ import alarmpi.Configuration.Sound.Type;
 import java.io.FileNotFoundException;
 import java.io.FileReader;
 import java.io.IOException;
+import java.lang.invoke.MethodHandles;
 import java.time.DayOfWeek;
 import java.time.LocalTime;
 import java.util.ArrayList;
@@ -22,6 +23,8 @@ import java.util.stream.Collectors;
 import javax.json.Json;
 import javax.json.JsonArray;
 import javax.json.JsonArrayBuilder;
+import javax.json.JsonObject;
+import javax.json.JsonObjectBuilder;
 
 import org.ini4j.Ini;
 import org.ini4j.InvalidFileFormatException;
@@ -60,6 +63,20 @@ public class Configuration {
 			this.name     = name;
 			this.type     = type;
 			this.source   = source;
+		}
+		
+		/**
+		 * Creates a JsonObject representation of the sound
+		 * @return JsonObject representation of the sound
+		 */
+		final JsonObject toJasonObject() {
+			JsonObjectBuilder builder = Json.createBuilderFactory(null).createObjectBuilder();
+			builder.add("type", type.toString());
+			builder.add("name", name);
+			
+			JsonObject jsonObject = builder.build();
+			
+			return jsonObject;
 		}
 	}
 	
@@ -170,7 +187,7 @@ public class Configuration {
         Ini.Section sectionSound;
         int index=1;
         while((sectionSound=ini.get("sound"+index)) != null) {
-        	log.config("found sound "+index);
+        	log.finest("found sound "+index);
         	
         	String soundType=sectionSound.get("type");
 	    	boolean found = false;
@@ -704,7 +721,7 @@ public class Configuration {
 	
 
 	// private members
-	private static final Logger   log    = Logger.getLogger( Configuration.class.getName() );
+	private static final Logger   log    = Logger.getLogger( MethodHandles.lookup().lookupClass().getName() );
 	private static Configuration  object = null;             // singleton object
 	
 	// settings in configuration file

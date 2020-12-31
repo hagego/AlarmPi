@@ -619,46 +619,45 @@ public class TcpRequestHandler implements Runnable {
 
 		@Override
 		public ReturnCode set() throws CommandHandlerException{
-//			if(parameters==null || parameters.length!=2) {
-//				return new ReturnCodeError("light: invalid parameter count ("+parameters.length+"). Syntax: lights <id> <brightness in percent>");
-//			}
-//			
-//			int id = Integer.parseInt(parameters[0]);
-//			
-//			if(parameters[1].equalsIgnoreCase("off")) {
-//				controller.getLightControl().off(id);
-//			}
-//			else if(parameters[1].equalsIgnoreCase("dim")) {
-//				controller.getLightControl().dimUp(100, 600);
-//			}
-//			else {
-//				try {
-//					int percentage = Integer.parseInt(parameters[1]);
-//					if(percentage>=0) {
-//						controller.getLightControl().setBrightness(id,percentage);
-//					}
-//					else {
-//						// debugging only. If number is negative, set raw PWM value
-//						controller.getLightControl().setPwm(id,-percentage);
-//					}
-//				} catch(NumberFormatException e) {
-//					return new ReturnCodeError("unable to parse light pwm percentage value");
-//				}
-//			}
+			if(parameters==null || parameters.length!=2) {
+				return new ReturnCodeError("light: invalid parameter count ("+parameters.length+"). Syntax: lights <id> <brightness in percent>");
+			}
+			
+			int id = Integer.parseInt(parameters[0]);
+			List<LightControl> lightControls = controller.getLightControlList();
+			
+			if(parameters[1].equalsIgnoreCase("off")) {
+				lightControls.stream().filter(light->light.getId()==id).forEach(light->light.setOff());
+			}
+			else if(parameters[1].equalsIgnoreCase("dim")) {
+				lightControls.stream().filter(light->light.getId()==id).forEach(light->light.dimUp(100, 600));
+			}
+			else {
+				try {
+					int percentage = Integer.parseInt(parameters[1]);
+					if(percentage>=0) {
+						lightControls.stream().filter(light->light.getId()==id).forEach(light->light.setBrightness(percentage));
+					}
+					else {
+						// debugging only. If number is negative, set raw PWM value
+						lightControls.stream().filter(light->light.getId()==id).forEach(light->light.setPwm(-percentage));
+					}
+				} catch(NumberFormatException e) {
+					return new ReturnCodeError("unable to parse light pwm percentage value");
+				}
+			}
 			
 			return new ReturnCodeSuccess();
 		}
 		
 		@Override
 		protected ReturnCode get() throws CommandHandlerException {
-//			LightControl lightControl = controller.getLightControl();
-			String answer = "1 0 ";
-//			if(lightControl!=null) {
-//				answer = lightControl.getCount()+" ";
-//				for(int i=0 ; i<lightControl.getCount() ; i++) {
-//					answer += String.valueOf(Math.round(lightControl.getBrightness(i))+" ");
-//				}
-//			}
+			List<LightControl> lightControls = controller.getLightControlList();
+			String answer = lightControls.size()+" ";
+			for(LightControl lightControl:lightControls) {
+				answer += String.valueOf(Math.round(lightControl.getBrightness())+" ");
+			}
+
 			return new ReturnCodeSuccess(answer);
 		}
 	};

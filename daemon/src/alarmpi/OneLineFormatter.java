@@ -14,7 +14,7 @@ public class OneLineFormatter extends Formatter {
     @Override
     public String format(final LogRecord record) {
         return String.format(
-                "%1$s %2$-7s %3$-25s %4$s\n",
+                "%1$s %2$-7s %3$-30s %4$s\n",
                 new SimpleDateFormat(PATTERN).format(new Date(record.getMillis())),
                 record.getLevel().getName(), record.getSourceClassName(), formatMessage(record));
     }

@@ -244,13 +244,13 @@ function updateLights() {
         lightTableBody.append('<tr id="light_'+i+'"/>');
         const lightRow = lightTableBody.children('#light_'+i);
         lightRow.append('<td>'+light.name+'</td>');
-        lightRow.append('<td><input type="radio" name="lightId'+i+'" id="on"  class="lightOn">');
         lightRow.append('<td><input type="radio" name="lightId'+i+'" id="off" class="lightOff">');
+        lightRow.append('<td><input type="radio" name="lightId'+i+'" id="on"  class="lightOn">');
         lightRow.append('<td><input type="range" min="0" max="100" class="brightness">');
         
+        lightRow.children().children('.lightOff').attr('checked',light.brightness===0).change(handleLightModification);
         lightRow.children().children('.lightOn').attr('checked',light.brightness>0).change(handleLightModification);
-        lightRow.children().children('.lightOff').attr('checked',light.brightness===0).click(handleLightModification);
-        lightRow.children().children('.brightness').attr('value',light.brightness).click(handleLightModification);
+        lightRow.children().children('.brightness').attr('value',light.brightness).change(handleLightModification);
     }
 }
 

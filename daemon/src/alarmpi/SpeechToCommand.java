@@ -1,11 +1,23 @@
 package alarmpi;
 
 import java.io.FileInputStream;
+import java.io.FileNotFoundException;
 import java.io.IOException;
+import java.lang.invoke.MethodHandles;
 import java.util.logging.Logger;
+
+import com.amazonaws.auth.AWSCredentialsProvider;
+import com.amazonaws.auth.DefaultAWSCredentialsProviderChain;
+import com.amazonaws.services.lexruntime.AmazonLexRuntime;
+import com.amazonaws.services.lexruntime.AmazonLexRuntimeClient;
+import com.amazonaws.services.lexruntime.AmazonLexRuntimeClientBuilder;
+import com.amazonaws.services.lexruntime.model.PostContentRequest;
+import com.amazonaws.services.lexruntime.model.PostContentResult;
 import com.fasterxml.jackson.core.JsonFactory;
 import com.fasterxml.jackson.core.JsonParser;
 import com.fasterxml.jackson.core.JsonToken;
+
+import alarmpi.Configuration.Sound;
 
 /**
  * Uses Amazon AWS Lex service to capture a voice command
@@ -13,38 +25,52 @@ import com.fasterxml.jackson.core.JsonToken;
  */
 public class SpeechToCommand {
 	
+	/**
+	 * constructor
+	 */
+	public SpeechToCommand(Controller controller) {
+		this.controller = controller;
+	}
+	
+	
 	void captureCommand() {
-		final String tmpAwsLexFilename = "/tmp/alarmpiawslex.wav";
+		final String tmpAwsLexFilename = "alarmpilex.wav";
+		final String recordingDevice   = "plughw:1";
 		
-		log.fine("starting recording of AWS speech control to "+tmpAwsLexFilename);
+//		log.fine("starting recording of AWS speech control to "+tmpAwsLexFilename);
 		try {
-	        ProcessBuilder pb = new ProcessBuilder("/usr/bin/arecord", "-f","S16_LE","-r","16000","-d","5","-vv","-D","plughw:1",tmpAwsLexFilename);
-	        final Process p=pb.start();
-            p.waitFor();
-            log.fine("arecord exit code: "+p.exitValue());
+//	        ProcessBuilder pb = new ProcessBuilder("/usr/bin/arecord", "-f","S16_LE","-r","16000","-d","3","-vv","-D","plughw:1",tmpAwsLexFilename);
+	        
+	        // PC: /usr/bin/arecord -f S16_LE -r 16000 -d 3 -vv -D plughw:CARD=Device,DEV=0 /tmp/alarmpilex.wav
+	        
+//	        final Process p=pb.start();
+//            p.waitFor();
+//            log.fine("arecord exit code: "+p.exitValue());
              
      		FileInputStream inputStream;
-    		//try {
+    		try {
     			log.finest("processing speech control recording");
     			
-    			/*
     			AmazonLexRuntimeClientBuilder builder = AmazonLexRuntimeClient.builder();
     			builder.setRegion("us-east-1");
     			AmazonLexRuntime runtime = builder.build();
     			PostContentRequest request = new PostContentRequest();
     			
+    			log.fine("reading file "+tmpAwsLexFilename);
     			inputStream = new FileInputStream(tmpAwsLexFilename);
     			
 	    		AWSCredentialsProvider provider = new DefaultAWSCredentialsProviderChain();
 	    		request.setRequestCredentialsProvider(provider);
-	    		request.setBotName("AlarmPi");
-	    		request.setBotAlias("AlarmPiProd");
+	    		request.setBotName("AlarmPiGerman");
+	    		request.setBotAlias("AlarmPiGermanProd");
 	    		request.setUserId("AlarmPi");
 	    		request.setContentType("audio/l16; rate=16000; channels=1");
 	    		request.setInputStream(inputStream);
 	    		
 	    		log.finest("sending AWS request");
 	    		PostContentResult result = runtime.postContent(request);
+	    		
+	    		log.fine("result of AWS LEX request: intent="+result.getIntentName()+" slots="+result.getSlots());
 	    		
 	    		log.finest("transcript: "+result.getInputTranscript());
 	    		log.finest("dialog state: "+result.getDialogState());
@@ -57,23 +83,19 @@ public class SpeechToCommand {
 	    		if(result.getIntentName().equalsIgnoreCase("SetNextAlarm")) {
 	    			processSetAlarm(result.getSlots());
 	    		}
-	    		else if(result.getIntentName().equalsIgnoreCase("DimLight")) {
-	    			dimLight(result.getSlots());
-	    		}
-	    		else if(result.getIntentName().equalsIgnoreCase("TurnLightOn")) {
-	    			turnLightOn(result.getSlots());
+	    		else if(result.getIntentName().equalsIgnoreCase("TurnOn")) {
+	    			turnOn(result.getSlots());
 	    		}
 	    		else {
 	    			log.warning("Ein Sprachbefehl wurde nicht verstanden: "+result.getInputTranscript());
 	    			String filename = new TextToSpeech().createPermanentFile("Ich habe dich leider nicht verstanden.");
 	    			SoundControl.getSoundControl().playFile(filename, FEEDBACK_VOLUME, false);
 	    		}
-	    		*/
     		
-    		/*} catch (FileNotFoundException e) {
+    		} catch (FileNotFoundException e) {
     			log.severe("Unable to find AWS recording file: "+e.getMessage());
     			feedbackError();
-    		}*/
+    		}
 	      } catch (Exception ex) {
 	    	  log.severe("Exception during recording of AWS speech control command: "+ex.getMessage());
 	    	  feedbackError();
@@ -152,8 +174,19 @@ public class SpeechToCommand {
 		}
 	}
 	
-	private void turnLightOn(String slots) {
-		log.fine("deteced intent: turnLightOn. Slots:"+slots);
+	private void turnOn(String slots) {
+		log.fine("deteced intent: turnOn, slots="+slots);
+		
+		if(slots.contains("Licht")) {
+			controller.getLightControlList().stream().forEach(light -> light.setBrightness(30));
+		}
+		if(slots.contains("Radio")) {
+			SoundControl soundControl = SoundControl.getSoundControl();
+			soundControl.on();
+			Sound sound = Configuration.getConfiguration().getSoundFromId(1);
+			soundControl.playSound(sound, 50, false);
+		}
+		
 	}
 	
 	private void feedbackError() {
@@ -162,6 +195,7 @@ public class SpeechToCommand {
 	}
 	
 	// private members
-	private static final int      FEEDBACK_VOLUME = 50;  // sound volume of feedback to the user
-	private static final Logger   log             = Logger.getLogger( SpeechToCommand.class.getName() );
+	private static final int        FEEDBACK_VOLUME = 50;  // sound volume of feedback to the user
+	private static final Logger     log             = Logger.getLogger( MethodHandles.lookup().lookupClass().getName() );
+	private              Controller controller;
 }

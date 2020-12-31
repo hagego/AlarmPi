@@ -5,6 +5,7 @@ import java.io.IOException;
 import java.io.InputStreamReader;
 import java.io.PrintWriter;
 import java.io.StringReader;
+import java.lang.invoke.MethodHandles;
 import java.net.Socket;
 import java.util.Date;
 import java.util.concurrent.ExecutorService;
@@ -15,7 +16,6 @@ import javax.json.JsonArray;
 import javax.json.JsonObject;
 import javax.json.JsonObjectBuilder;
 import javax.json.JsonReader;
-import javax.json.JsonValue;
 
 
 
@@ -53,7 +53,8 @@ public class JsonRequestHandler implements Runnable {
 							+ BUFFER_SIZE + ". Ignoring...");
 				} else {
 					String message = new String(buffer, 0, length).trim();
-					log.fine("received HTTP request from client:\n" + message);
+					log.fine("received HTTP request from client");
+					log.finest("message details: " + message);
 					
 					Date today = new Date();
 					String httpResponse = "HTTP/1.1 100 ERROR\r\n" + 
@@ -121,7 +122,8 @@ public class JsonRequestHandler implements Runnable {
 					else {
 						log.severe("Unable to process HTTP request. Message=="+message);
 					}
-					log.fine("sending HTTP response to client:"+clientSocket.getRemoteSocketAddress()+"\n" + httpResponse);
+					log.fine("sending HTTP response to client: "+clientSocket.getRemoteSocketAddress());
+					log.finest("message details: "+httpResponse);
 					
 					clientStream.print(httpResponse);
 					clientStream.flush();
@@ -142,7 +144,12 @@ public class JsonRequestHandler implements Runnable {
 		builder.add("lights", controller.getLightStatusAsJsonArray());
 		JsonObject jsonObject = builder.build();
 		
-		log.fine("created JSON object:\n"+jsonObject.toString());
+		String logString = jsonObject.toString();
+		if(logString.length()>30) {
+			logString = logString.substring(0,29);
+		}
+		log.fine("created JSON object: "+logString);
+		log.finest("full JSON Object: "+jsonObject.toString());
 		
 		return jsonObject;
 	}
@@ -150,8 +157,14 @@ public class JsonRequestHandler implements Runnable {
 	private JsonObject buildJasonObjectFromString(String stringifedObject) {
 		JsonReader reader = Json.createReaderFactory(null).createReader(new StringReader(stringifedObject));
 		JsonObject jsonObject = reader.readObject();
+		 
+		String logString = jsonObject.toString();
+		if(logString.length()>30) {
+			logString = logString.substring(0,29);
+		}
 		
-		log.fine("buildJasonObjectFromString: created JSON object:\n"+jsonObject.toString());
+		log.fine("buildJasonObjectFromString: created JSON object: "+logString);
+		log.finest("full JSON object: "+jsonObject.toString());
 		
 		return jsonObject;
 	}
@@ -160,7 +173,8 @@ public class JsonRequestHandler implements Runnable {
 	//
 	// private data members
 	//
-	private static final Logger log = Logger.getLogger( JsonRequestHandler.class.getName() );
+	private static final Logger   log     = Logger.getLogger( MethodHandles.lookup().lookupClass().getName() );
+	
 	private final Socket               clientSocket;
 	private final Controller           controller;
 	private       PrintWriter          clientStream;

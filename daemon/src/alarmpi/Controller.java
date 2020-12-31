@@ -23,7 +23,6 @@ import javax.json.Json;
 import javax.json.JsonArray;
 import javax.json.JsonArrayBuilder;
 import javax.json.JsonObject;
-import javax.json.JsonValue;
 
 import com.pi4j.io.gpio.GpioController;
 import com.pi4j.io.gpio.GpioFactory;
@@ -792,6 +791,11 @@ class Controller implements Runnable {
 		}
 		
 		return secondsFromNow;
+	}
+	
+	
+	synchronized List<LightControl> getLightControlList() {
+		return lightControlList;
 	}
 	
 	

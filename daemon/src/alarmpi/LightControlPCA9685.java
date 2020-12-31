@@ -29,59 +29,60 @@ public class LightControlPCA9685 extends LightControl implements Runnable {
 		USABLE_SCALE = lightControlSettings.pwmFullScale-lightControlSettings.pwmOffset;
 		pwmValue  = lightControlSettings.pwmOffset;
 		
-		if(Configuration.getConfiguration().getRunningOnRaspberry()) {
-			log.info("Initializing PCA9685 IIC Light Control");
-			
-			try {
-				I2CBus bus = I2CFactory.getInstance(I2CBus.BUS_1);
+		// initialization of the I2C device must happen only once
+		if(pca9685==null) {
+			if(Configuration.getConfiguration().getRunningOnRaspberry()) {
+				log.info("Initializing PCA9685 IIC Light Control");
 				
-				// reset PCA9685
-				I2CDevice pcaReset = bus.getDevice(0x00);
-				pcaReset.write((byte)0x06);
-				log.fine("PCA9685: reset done");
 				try {
-					Thread.sleep(100);
-				} catch (InterruptedException e) {
-					log.severe("PCA9685: sleep exception "+e.getMessage());
+					I2CBus bus = I2CFactory.getInstance(I2CBus.BUS_1);
+					
+					// reset PCA9685
+					I2CDevice pcaReset = bus.getDevice(0x00);
+					pcaReset.write((byte)0x06);
+					log.fine("PCA9685: reset done");
+					try {
+						Thread.sleep(100);
+					} catch (InterruptedException e) {
+						log.severe("PCA9685: sleep exception "+e.getMessage());
+					}
+					
+					pca9685 = bus.getDevice(lightControlSettings.deviceAddress);
+					
+					// read status registers and dump to logfile
+					log.fine("PCA9685: MODE1 register after reset: "+pca9685.read(0x00));
+					log.fine("PCA9685: MODE2 register after reset: "+pca9685.read(0x01));
+					
+					// turn oscillator on at 1.5MHz, inversion depends on configuration
+					pca9685.write(0x00,(byte) 0x10);
+					pca9685.write(0xFE,(byte) 0x05);
+					pca9685.write(0x00,(byte) 0x00);
+					if(lightControlSettings.pwmInversion) {
+						pca9685.write(0x01,(byte) 0x15);
+					}
+					else {
+						pca9685.write(0x01,(byte) 0x05);
+					}
+					
+					log.fine("PCA9685: MODE1 register after setup: "+pca9685.read(0x00));
+					log.fine("PCA9685: MODE2 register after setup: "+pca9685.read(0x01));
+					
+					// all LEDs off
+					pca9685.write(0xFA,(byte) 0x00);
+					pca9685.write(0xFB,(byte) 0x00);
+					pca9685.write(0xFC,(byte) 0x00);
+					pca9685.write(0xFD,(byte) 0x10);
+					
+					GpioController gpioController = GpioFactory.getInstance();
+					GpioPinDigitalOutput output   = gpioController.provisionDigitalOutputPin (RaspiPin.GPIO_27); 
+					output.setState(PinState.LOW);
+				} catch (IOException | UnsupportedBusNumberException e) {
+					log.severe("PCA9685 light control: Unable to initialize: "+e.getMessage());
+					pca9685 = null;
 				}
-				
-				pca9685 = bus.getDevice(lightControlSettings.deviceAddress);
-				
-				// read status registers and dump to logfile
-				log.fine("PCA9685: MODE1 register after reset: "+pca9685.read(0x00));
-				log.fine("PCA9685: MODE2 register after reset: "+pca9685.read(0x01));
-				
-				// turn oscillator on at 1.5MHz, inversion depends on configuration
-				pca9685.write(0x00,(byte) 0x10);
-				pca9685.write(0xFE,(byte) 0x05);
-				pca9685.write(0x00,(byte) 0x00);
-				if(lightControlSettings.pwmInversion) {
-					pca9685.write(0x01,(byte) 0x15);
-				}
-				else {
-					pca9685.write(0x01,(byte) 0x05);
-				}
-				
-				log.fine("PCA9685: MODE1 register after setup: "+pca9685.read(0x00));
-				log.fine("PCA9685: MODE2 register after setup: "+pca9685.read(0x01));
-				
-				// all LEDs off
-				pca9685.write(0xFA,(byte) 0x00);
-				pca9685.write(0xFB,(byte) 0x00);
-				pca9685.write(0xFC,(byte) 0x00);
-				pca9685.write(0xFD,(byte) 0x10);
-				
-				GpioController gpioController = GpioFactory.getInstance();
-				GpioPinDigitalOutput output   = gpioController.provisionDigitalOutputPin (RaspiPin.GPIO_27); 
-				output.setState(PinState.LOW);
-			} catch (IOException | UnsupportedBusNumberException e) {
-				log.severe("PCA9685 light control: Unable to initialize: "+e.getMessage());
-				pca9685 = null;
 			}
 		}
-		else {
-			pca9685 = null;
-		}
+		
 		log.info("Initializing PCA9685 IIC Light Control done.");
 	}
 	
@@ -138,6 +139,10 @@ public class LightControlPCA9685 extends LightControl implements Runnable {
 		}
 		else {
 			brightness = 116.0*Math.pow((double)(pwmValue-lightControlSettings.pwmOffset)/(double)USABLE_SCALE, 1.0/3.0)-16.0;
+		}
+		
+		if(brightness<0) {
+			brightness = 0.0;
 		}
 		
 		log.fine("get Brightness returns "+brightness);
@@ -227,9 +232,9 @@ public class LightControlPCA9685 extends LightControl implements Runnable {
 	private final        int                                USABLE_SCALE;
 	private final        int                                DIM_STEP_COUNT = 150;
 	
-	private I2CDevice           pca9685;
-	private int                 pwmValue;                // actual PWM value of each LED controlled thru me
-	private Thread              dimThread        = null; // thread used for dimming
-	private int                 dimDuration      = 0;    // duration for dim up
-	private double              dimTargetPercent = 0;    // target brightness in % for dim up
+	private static       I2CDevice pca9685          = null;
+	private int                    pwmValue;                // actual PWM value of each LED controlled thru me
+	private Thread                 dimThread        = null; // thread used for dimming
+	private int                    dimDuration      = 0;    // duration for dim up
+	private double                 dimTargetPercent = 0;    // target brightness in % for dim up
 }

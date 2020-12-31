@@ -23,6 +23,14 @@ abstract class LightControl {
 	}
 	
 	/**
+	 * returns the light ID
+	 * @return light ID
+	 */
+	final int getId() {
+		return id;
+	}
+	
+	/**
 	 * switches the light off
 	 */
 	abstract void setOff();
