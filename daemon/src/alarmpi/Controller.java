@@ -97,7 +97,7 @@ class Controller implements Runnable {
 				case GPIO :
 					if(gpioController!=null) {
 						GpioPinDigitalInput input = gpioController.provisionDigitalInputPin(RaspiPin.getPinByAddress(button.wiringpigpio), PinPullResistance.PULL_UP);
-						input.addListener(new PushButtonListener(button,input));
+						input.addListener(new PushButtonListener(button,input,this));
 					}
 					break;
 				default:
@@ -985,88 +985,117 @@ class Controller implements Runnable {
 	 * private class implementing Listener for PushButton
 	 */
 	private class PushButtonListener implements GpioPinListenerDigital {
-		public PushButtonListener(Configuration.ButtonSettings pushButtonSetting,GpioPinDigitalInput inputPin) {
+		public PushButtonListener(Configuration.ButtonSettings pushButtonSetting,GpioPinDigitalInput inputPin,Controller controller) {
 			this.pushButtonSetting = pushButtonSetting;
 			this.inputPin          = inputPin;
 			
 			log.fine("Creating PushButtonListener for button with WiringPi IO="+pushButtonSetting.wiringpigpio+" light IDs="+pushButtonSetting.lightIds);
+			
+			if(pushButtonSetting.triggerSpeechControl) {
+				// prepare speech control
+				try {
+					speechToCommand = new SpeechToCommand(controller);
+				}
+				catch(Throwable e) {
+	        		log.severe("runtime exception in preparing speechToCommand: "+e.getMessage());
+	        		log.severe("runtime exception in preparing speechToCommand: "+e.getCause());
+	        		for(StackTraceElement element:e.getStackTrace()) {
+	        			log.severe(element.toString());
+	        		}
+	        	}
+			}
 		}
 		
         @Override
         public void handleGpioPinDigitalStateChangeEvent(GpioPinDigitalStateChangeEvent event) {
-        	log.fine("LED control button state change on GPIO address "+event.getPin().getPin().getAddress()+" state="+event.getState()+" light IDy="+pushButtonSetting.lightIds);
-        	if(event.getState()==PinState.LOW) {
-        		start = System.currentTimeMillis();
-        		boolean longClick = false;
-        		while(inputPin.getState()==PinState.LOW) {
-        			try {
-						TimeUnit.MILLISECONDS.sleep(50);
-	            		if(System.currentTimeMillis()-start > 400) {
-	            			// long click. Turn off everything
-	            			log.fine("long click");
-	            			longClick = true;
-	            			
-	            			// publish to MQTT broker (if configured)
-	            			if(mqttClient!=null) {
-	            				log.fine("publishing MQTT long click topic");
-	            				mqttClient.publishLongClick();
-	            			}
-	            			
-	            			allOff(activeAlarm==null);
-	        				
-	            			break;
-	            		}
-					} catch (InterruptedException e) {
-						log.severe(e.getMessage());
-					}
-        		}
-        		if(!longClick) {
-        			log.fine("short click");
-        			if(start-lastClick>300) {
-        				// single click
-    					log.fine("processing single click.");
-    					
-						if(Configuration.getConfiguration().getMqttPublishTopicShortClick()!=null) {
-	            			// publish to MQTT broker (if configured)
-	            			if(mqttClient!=null) {
-	            				log.fine("publishing MQTT short click topic");
-	            				mqttClient.publishShortClick();
-	            			}
+        	try {
+	        	log.fine("LED control button state change on GPIO address "+event.getPin().getPin().getAddress()+" state="+event.getState()+" light IDy="+pushButtonSetting.lightIds);
+	        	if(event.getState()==PinState.LOW) {
+	        		start = System.currentTimeMillis();
+	        		boolean longClick = false;
+	        		while(inputPin.getState()==PinState.LOW) {
+	        			try {
+							TimeUnit.MILLISECONDS.sleep(50);
+		            		if(System.currentTimeMillis()-start > 400) {
+		            			// long click. Turn off everything
+		            			log.fine("long click");
+		            			longClick = true;
+		            			
+		            			// publish to MQTT broker (if configured)
+		            			if(mqttClient!=null) {
+		            				log.fine("publishing MQTT long click topic");
+		            				mqttClient.publishLongClick();
+		            			}
+		            			
+		            			allOff(activeAlarm==null);
+		        				
+		            			break;
+		            		}
+						} catch (InterruptedException e) {
+							log.severe(e.getMessage());
 						}
-						else {
-    						// no speech control - increase LED brightness
-    						// lightControl.setBrightness(pushButtonSetting.lightId,lightControl.getBrightness(pushButtonSetting.lightId)+pushButtonSetting.brightnessIncrement);
-    						Sound sound = Configuration.getConfiguration().getSoundList().get(pushButtonSetting.soundId);
-    						soundControl.playSound(sound, pushButtonSetting.soundVolume, false);
-    						try {
-								Thread.sleep(100);
-							} catch (InterruptedException e) {
-								log.severe(e.getMessage());
-							}
-    						soundControl.on();
-    						if(pushButtonSetting.soundTimer>0) {
-    							setSoundTimer(pushButtonSetting.soundTimer*60);
-    						}
-						}
-        			}
-        			else {
-        				// double click
-    					log.fine("procesing double click");
-    					if(soundControl.getVolume()>0) {
-    						// sound already on - switch it off
-    						soundControl.off();
-    					}
-    					else {
-    						soundControl.on();
-    						Sound sound = Configuration.getConfiguration().getSoundList().get(pushButtonSetting.soundId);
-    						soundControl.playSound(sound, pushButtonSetting.soundVolume, false);
-    						if(pushButtonSetting.soundTimer>0) {
-    							setSoundTimer(pushButtonSetting.soundTimer*60);
-    						}
-    					}
-        			}
-        			
-        			lastClick = start;
+	        		}
+	        		if(!longClick) {
+	        			log.fine("short click");
+	        			if(start-lastClick>300) {
+	        				// single click
+	    					log.fine("processing single click.");
+	    					
+	    					if(speechToCommand!=null) {
+	    						// trigger speech control
+	    						speechToCommand.captureCommand();
+	    					}
+	    					else {
+								if(Configuration.getConfiguration().getMqttPublishTopicShortClick()!=null) {
+			            			// publish to MQTT broker (if configured)
+			            			if(mqttClient!=null) {
+			            				log.fine("publishing MQTT short click topic");
+			            				mqttClient.publishShortClick();
+			            			}
+								}
+								else {
+		    						// no speech control - increase LED brightness
+		    						// lightControl.setBrightness(pushButtonSetting.lightId,lightControl.getBrightness(pushButtonSetting.lightId)+pushButtonSetting.brightnessIncrement);
+		    						Sound sound = Configuration.getConfiguration().getSoundList().get(pushButtonSetting.soundId);
+		    						soundControl.playSound(sound, pushButtonSetting.soundVolume, false);
+		    						try {
+										Thread.sleep(100);
+									} catch (InterruptedException e) {
+										log.severe(e.getMessage());
+									}
+		    						soundControl.on();
+		    						if(pushButtonSetting.soundTimer>0) {
+		    							setSoundTimer(pushButtonSetting.soundTimer*60);
+		    						}
+								}
+	    					}
+	        			}
+	        			else {
+	        				// double click
+	    					log.fine("procesing double click");
+	    					if(soundControl.getVolume()>0) {
+	    						// sound already on - switch it off
+	    						soundControl.off();
+	    					}
+	    					else {
+	    						soundControl.on();
+	    						Sound sound = Configuration.getConfiguration().getSoundList().get(pushButtonSetting.soundId);
+	    						soundControl.playSound(sound, pushButtonSetting.soundVolume, false);
+	    						if(pushButtonSetting.soundTimer>0) {
+	    							setSoundTimer(pushButtonSetting.soundTimer*60);
+	    						}
+	    					}
+	        			}
+	        			
+	        			lastClick = start;
+	        		}
+	        	}
+        	}
+        	catch(Throwable e) {
+        		log.severe("runtime exception in button handler: "+e.getMessage());
+        		log.severe("runtime exception in button handler: "+e.getCause());
+        		for(StackTraceElement element:e.getStackTrace()) {
+        			log.severe(element.toString());
         		}
         	}
         }
@@ -1074,6 +1103,8 @@ class Controller implements Runnable {
         private long                             start = System.currentTimeMillis();
         private Configuration.ButtonSettings pushButtonSetting;
         private GpioPinDigitalInput              inputPin;
+        
+        private SpeechToCommand                  speechToCommand; 
 	}
 	
 	LinkedList<Event>    eventList;             // list of events to process, sorted by fire time

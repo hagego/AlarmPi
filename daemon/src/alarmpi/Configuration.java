@@ -110,14 +110,15 @@ public class Configuration {
 			FLIC                  // Flic bluetooth button
 		};
 		
-		Type type;                // button type
-		int  id;                  // button ID
-		int  wiringpigpio;        // WiringPi GPIO address of input key
-		int  brightnessIncrement; // LED control (single click): brightness increment in percent
-		int  soundId;             // sound control (double click): sound to play
-		int  soundVolume;         // sound control (double click): volume (in percent)
-		int  soundTimer;          // sound control (double click): time to switch off in minutes (0 = no timer)
-		List<Integer> lightIds;   // light control: IDs of associated lights
+		Type    type;                 // button type
+		int     id;                   // button ID
+		boolean triggerSpeechControl; // if set to true, single click triggers speech control
+		int     wiringpigpio;         // WiringPi GPIO address of input key
+		int     brightnessIncrement;  // LED control (single click): brightness increment in percent
+		int     soundId;              // sound control (double click): sound to play
+		int     soundVolume;          // sound control (double click): volume (in percent)
+		int     soundTimer;           // sound control (double click): time to switch off in minutes (0 = no timer)
+		List<Integer> lightIds;       // light control: IDs of associated lights
 	}
 	
 
@@ -301,11 +302,12 @@ public class Configuration {
 	    	else {
 	    		log.severe("no button type specified for button"+index);
 	    	}
-	    	buttonSettingItem.wiringpigpio        = sectionButton.get("wiringpigpio", Integer.class, 0);
-	    	buttonSettingItem.brightnessIncrement = sectionButton.get("brightnessIncrement", Integer.class, 10);
-			buttonSettingItem.soundId             = sectionButton.get("sound", Integer.class, 0)-1;
-			buttonSettingItem.soundVolume         = sectionButton.get("soundVolume", Integer.class, 40);
-			buttonSettingItem.soundTimer          = sectionButton.get("soundTimer", Integer.class, 30);
+	    	buttonSettingItem.wiringpigpio         = sectionButton.get("wiringpigpio", Integer.class, 0);
+	    	buttonSettingItem.brightnessIncrement  = sectionButton.get("brightnessIncrement", Integer.class, 10);
+			buttonSettingItem.soundId              = sectionButton.get("sound", Integer.class, 0)-1;
+			buttonSettingItem.soundVolume          = sectionButton.get("soundVolume", Integer.class, 40);
+			buttonSettingItem.soundTimer           = sectionButton.get("soundTimer", Integer.class, 30);
+			buttonSettingItem.triggerSpeechControl = sectionButton.get("speechControl",Boolean.class,false);
 			
 			// light can be a comma-separated list of IDs
 			buttonSettingItem.lightIds = new ArrayList<Integer>();
@@ -344,6 +346,11 @@ public class Configuration {
 		    mqttPublishTopicAlarmList     = sectionMqtt.get("publishTopicAlarmList", String.class, null);
 		}
         
+		Ini.Section sectionSpeechControl = ini.get("speechcontrol");
+		if(sectionSpeechControl!=null) {
+			speechControlDevice = sectionSpeechControl.get("device",String.class,null);
+			speechControlSound  = sectionSpeechControl.get("sound",Integer.class,null);
+		}
         
         // calendar
         Ini.Section sectionCalendar = ini.get("calendar");
@@ -581,6 +588,14 @@ public class Configuration {
 		return mqttPublishTopicAlarmList;
 	}
 	
+	final String getSpeechControlDevice() {
+		return speechControlDevice;
+	}
+	
+	final Integer getSpeechControlSound() {
+		return speechControlSound;
+	}
+	
 	/**
 	 * returns the summary name of the Google calendar to check or null
 	 * @return summary name of the Google calendar to check or null
@@ -678,9 +693,9 @@ public class Configuration {
 		
 		dump += "  button settings:\n";
 		for(ButtonSettings pushButtonSettings:buttonSettingsList) {
-			dump += "    id="+pushButtonSettings.id+" brightnessIncrement="+pushButtonSettings.brightnessIncrement;
+			dump += "    id="+pushButtonSettings.id+" speechControl="+pushButtonSettings.triggerSpeechControl+"\n";
 			dump += "    sound: internal ID="+pushButtonSettings.soundId+" volume="+pushButtonSettings.soundVolume+" timer="+pushButtonSettings.soundTimer;
-			dump += "    light IDs: "+pushButtonSettings.lightIds+"\n";
+			dump += "    brightnessIncrement="+pushButtonSettings.brightnessIncrement+" light IDs: "+pushButtonSettings.lightIds+"\n";
 		}
 		
 		dump += "  Sounds:\n";
@@ -712,6 +727,13 @@ public class Configuration {
 			if(mqttSubscribeTopicTemperature!=null) {
 				dump += "    MQTT subscribeTopicTemperature="+mqttSubscribeTopicTemperature+"\n";
 			}
+		}
+		
+		if(speechControlSound==null) {
+			dump += "  no spechcontrol configured";
+		}
+		else {
+			dump += "  speech control: device="+speechControlDevice+" sound="+speechControlSound+"\n";
 		}
 		dump += "  calendar:\n";
 		dump += "    summary="+googleCalendarSummary+"\n";
@@ -746,6 +768,8 @@ public class Configuration {
 	private String                           mqttPublishTopicLongClick;     // MQTT topic published on a long click of a connected button
 	private String                           mqttPublishTopicAlarmList;     // MQTT topic for publishing alarm list as JSON object
 	private String                           mqttSubscribeTopicTemperature; // MQTT topic subscribed to get locally measured temperature
+	private String                           speechControlDevice;
+	private Integer                          speechControlSound;
 	
 	// other data
 	private Alarm              alarmSettings; 
