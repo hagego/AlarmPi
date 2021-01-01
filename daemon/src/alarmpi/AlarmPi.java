@@ -159,7 +159,7 @@ public class AlarmPi {
 					// write timestamp of shutdown to a /tmp file
 					if(configuration.getRunningOnRaspberry()) {
 						try {
-							FileWriter writer = new FileWriter("/tmp/AlarmPiShutdown.txt");
+							FileWriter writer = new FileWriter("/etc/alarmpi/tmp/AlarmPiShutdown.txt");
 							writer.write(LocalTime.now().toString());
 							writer.close();
 						} catch (IOException e) {}
