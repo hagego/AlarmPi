@@ -73,10 +73,6 @@ public class SoundControl {
 		stop();
 		if(Configuration.getConfiguration().getRunningOnRaspberry()) {
 			gpioPinAudioControl.low();
-			// dummy wait - experiment to see if this prevents the crashes
-			try {
-				Thread.sleep(1000);
-			} catch (InterruptedException e) {}
 		}
 		log.fine("GPIO for audio set to low");
 		

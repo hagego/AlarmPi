@@ -399,8 +399,8 @@ public class NRF24LO1Control {
 		result = spiDevice.write(data);
 		
 		if(result==null || result.length!=2) {
-			log.severe("Invalid response during spiRead. result="+result);
-			throw new IOException("Invalid response during spiRead. result=+result");
+			log.severe("Invalid response during spiRead");
+			throw new IOException("Invalid response during spiRead");
 		}
 		else {
 			return result[1];

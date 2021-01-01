@@ -1,8 +1,10 @@
 package alarmpi;
 
 import java.io.File;
+import java.io.FileWriter;
 import java.io.IOException;
 import java.net.ServerSocket;
+import java.time.LocalTime;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.logging.LogManager;
@@ -126,7 +128,7 @@ public class AlarmPi {
 					
 					Thread jsonServerThread = new Thread(new TcpServer(TcpServer.Type.JSON,controller,jsonServerSocket,threadPool));
 					jsonServerThread.setDaemon(true);
-					jsonServerThread.setDefaultUncaughtExceptionHandler(handler);
+					jsonServerThread.setUncaughtExceptionHandler(handler);
 					jsonServerThread.start();
 					
 				    Runtime.getRuntime().addShutdownHook( new Thread() {
@@ -151,7 +153,17 @@ public class AlarmPi {
 			// actually copy & paste code from some forum on the web - no idea if it is working
 		    Runtime.getRuntime().addShutdownHook( new Thread() {
 				public void run() {
+					// logging in shutdown hook does not work
 					log.info("shutdown hook started to end controller thread");
+					
+					// write timestamp of shutdown to a /tmp file
+					if(configuration.getRunningOnRaspberry()) {
+						try {
+							FileWriter writer = new FileWriter("/tmp/AlarmPiShutdown.txt");
+							writer.write(LocalTime.now().toString());
+							writer.close();
+						} catch (IOException e) {}
+					}
 					
 					// switch all lights and alarms off
 					controller.allOff(false);

@@ -173,12 +173,14 @@ class Controller implements Runnable {
 	@Override
 	public void run() {
 		
-		final int sleepPeriod        = 1000;   // thread sleep period: 1s
-		final int watchDogCounterMax = 60;     // update watchdog file every 60*sleepPeriod
+		final int    sleepPeriod        = 1000;   // thread sleep period: 1s
+		final int    watchDogCounterMax = 60;     // update watchdog file every 60*sleepPeriod
+		final String watchDogFile       = "/var/log/alarmpi/watchdog";   
 		
 		log.info("controller daemon thread started");
-		
+
 		LocalDate date = LocalDate.now();
+		LocalTime time = LocalTime.now();
 		int watchDogCounter = watchDogCounterMax;
 		
 		// create all the events for the alarms of today which are still in the future
@@ -198,14 +200,21 @@ class Controller implements Runnable {
 					// touch watchdog file
 					if(configuration.getRunningOnRaspberry()) {
 						try {
-							FileWriter writer = new FileWriter("/var/log/alarmpi/watchdog");
+							FileWriter writer = new FileWriter(watchDogFile);
 							writer.write(LocalTime.now().toString());
 							writer.close();
 						} catch (IOException e) {
 							log.severe("Unable to update watchdog file: "+e.getMessage());
 						}
 					}
+					
+					// write some sign of life into logfile each hour
+					if(LocalTime.now().getHour() > time.getHour()) {
+						log.fine("sign of life from controller - still running");;
+						time = LocalTime.now();
+					}
 				}
+				
 				
 				// check for a new day
 				if(!date.equals(LocalDate.now())) {

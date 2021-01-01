@@ -369,7 +369,7 @@ public class Configuration {
 	 * @param  filename full filename of ini file
 	 * @return true if ini file could be loaded, otherwise false 
 	 */
-	static boolean read(String filename) {
+	static synchronized boolean read(String filename) {
 		Ini iniFile = new Ini();
 		
 		try {

@@ -31,6 +31,14 @@ abstract class LightControl {
 	}
 	
 	/**
+	 * returns the light name
+	 * @return light name
+	 */
+	final String getName() {
+		return name;
+	}
+	
+	/**
 	 * switches the light off
 	 */
 	abstract void setOff();

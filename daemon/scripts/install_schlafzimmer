@@ -1,0 +1,6 @@
+SSHKEY=$HOME/Documents/Zertifikate/sshkey_generic_raspberry.private-ssh
+TARGET=alarmpi@alarmpischlafzimmer:/opt/alarmpi
+
+scp -i $SSHKEY  ../target/alarmpi.jar $TARGET/bin
+scp -i $SSHKEY  ../../www/index.html $TARGET/www
+scp -i $SSHKEY  ../../www/alarms.js $TARGET/www

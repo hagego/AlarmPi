@@ -619,7 +619,11 @@ public class TcpRequestHandler implements Runnable {
 
 		@Override
 		public ReturnCode set() throws CommandHandlerException{
-			if(parameters==null || parameters.length!=2) {
+			if(parameters==null ) {
+				return new ReturnCodeError("light: paramaters is null");
+			}
+			
+			if(parameters.length!=2) {
 				return new ReturnCodeError("light: invalid parameter count ("+parameters.length+"). Syntax: lights <id> <brightness in percent>");
 			}
 			
@@ -672,7 +676,10 @@ public class TcpRequestHandler implements Runnable {
 
 		@Override
 		public ReturnCode set() throws CommandHandlerException{
-			if(parameters==null || parameters.length!=1) {
+			if(parameters==null) {
+				return new ReturnCodeError("led: parameters is null");
+			}
+			if(parameters.length!=1) {
 				return new ReturnCodeError("led: invalid parameter count ("+parameters.length+"). Syntax: timer off | <seconds from now>");
 			}
 			
@@ -708,7 +715,10 @@ public class TcpRequestHandler implements Runnable {
 		
 		@Override
 		public ReturnCode set() throws CommandHandlerException {
-			if(parameters==null || parameters.length>2) {
+			if(parameters==null ) {
+				return new ReturnCodeError("calendar: parameters is null");
+			}
+			if(parameters.length>2) {
 				return new ReturnCodeError("calendar: invalid parameter count ("+parameters.length+").");
 			}
 			

@@ -244,49 +244,51 @@ function updateLights() {
         lightTableBody.append('<tr id="light_'+i+'"/>');
         const lightRow = lightTableBody.children('#light_'+i);
         lightRow.append('<td>'+light.name+'</td>');
-        lightRow.append('<td><input type="radio" name="lightId'+i+'" id="off" class="lightOff">');
-        lightRow.append('<td><input type="radio" name="lightId'+i+'" id="on"  class="lightOn">');
-        lightRow.append('<td><input type="range" min="0" max="100" class="brightness">');
+        lightRow.append(`<td><input type="radio" id="${i}_off">`);
+        lightRow.append(`<td><input type="radio" id="${i}_on">`);
+        lightRow.append(`<td><input type="range" min="0" max="100" id="${i}_brightness">`);
         
-        lightRow.children().children('.lightOff').attr('checked',light.brightness===0).change(handleLightModification);
-        lightRow.children().children('.lightOn').attr('checked',light.brightness>0).change(handleLightModification);
-        lightRow.children().children('.brightness').attr('value',light.brightness).change(handleLightModification);
+        $(`#${i}_off`).attr('checked',light.brightness===0).change(handleLightModification);
+        $(`#${i}_on`).attr('checked',light.brightness>0).change(handleLightModification);
+        $(`#${i}_brightness`).attr('value',light.brightness).change(handleLightModification);
     }
 }
 
 function handleLightModification(event) {
     'use strict';
     
-    const element = event.target.getAttribute('class');
-    console.info("handleLightModification, changed element="+element);
+    const elementId = String(event.target.getAttribute('id'));
+    const lightId = elementId.split('_')[0];
+    console.info("handleLightModification, changed id="+elementId);
 
-    const elementId = event.target.parentElement.parentElement.getAttribute('id');
-    const index = elementId.substring(elementId.indexOf('_')+1);
-    const light = alarmPiData.lights[index];
+    const light = alarmPiData.lights[lightId];
 
-    console.info('light index '+index+' id='+light.id+' name='+light.name+' changed');
+    console.info(`light index: ${light.index} id: ${light.id} name: ${light.name} changed`);
 
     const lightTableBody = $('#lightTableBody');
-    const row = lightTableBody.children('#light_'+index);
 
-    if(element==="lightOn") {
+    if(elementId.includes("on")) {
         console.info("light switched on");
         light.brightness = 30;
-        row.children().children('.brightness').attr('value',light.brightness);
+        document.getElementById(`${lightId}_brightness`).value = light.brightness;
+        document.getElementById(`${lightId}_off`).checked = false;
     }
-    else if(element==="lightOff") {
+    else if(elementId.includes("off")) {
         console.info("light switched off");
         light.brightness = 0;
-        row.children().children('.brightness').attr('value',0);
+        document.getElementById(`${lightId}_brightness`).value = light.brightness;
+        document.getElementById(`${lightId}_on`).checked = false;
     }
-    else if(element==="brightness") {
-        light.brightness = parseInt(row.children().children('.brightness').prop('value'),10);
+    else if(elementId.includes("brightness")) {
+        light.brightness = parseInt(document.getElementById(`${lightId}_brightness`).value,10);
         console.info("brightness changed to "+light.brightness);
         if(light.brightness>0) {
-            row.children().children('.lightOn').prop('checked',true);
-        }
-        else {
-            row.children().children('.lightOff').prop('checked',true);
+            document.getElementById(`${lightId}_on`).checked = true;
+            document.getElementById(`${lightId}_off`).checked = false;
+
+        } else {
+            document.getElementById(`${lightId}_on`).checked = false;
+            document.getElementById(`${lightId}_off`).checked = true;
         }
     }
     

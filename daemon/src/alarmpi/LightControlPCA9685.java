@@ -29,6 +29,12 @@ public class LightControlPCA9685 extends LightControl implements Runnable {
 		USABLE_SCALE = lightControlSettings.pwmFullScale-lightControlSettings.pwmOffset;
 		pwmValue  = lightControlSettings.pwmOffset;
 		
+		initializeDevice();
+		
+		log.info("Initializing PCA9685 IIC Light Control done.");
+	}
+	
+	private synchronized void initializeDevice() {
 		// initialization of the I2C device must happen only once
 		if(pca9685==null) {
 			if(Configuration.getConfiguration().getRunningOnRaspberry()) {
@@ -82,8 +88,6 @@ public class LightControlPCA9685 extends LightControl implements Runnable {
 				}
 			}
 		}
-		
-		log.info("Initializing PCA9685 IIC Light Control done.");
 	}
 	
 	@Override

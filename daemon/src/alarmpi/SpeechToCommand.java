@@ -2,7 +2,6 @@ package alarmpi;
 
 import java.io.FileInputStream;
 import java.io.FileNotFoundException;
-import java.io.IOException;
 import java.lang.invoke.MethodHandles;
 import java.util.logging.Logger;
 
@@ -13,9 +12,6 @@ import com.amazonaws.services.lexruntime.AmazonLexRuntimeClient;
 import com.amazonaws.services.lexruntime.AmazonLexRuntimeClientBuilder;
 import com.amazonaws.services.lexruntime.model.PostContentRequest;
 import com.amazonaws.services.lexruntime.model.PostContentResult;
-import com.fasterxml.jackson.core.JsonFactory;
-import com.fasterxml.jackson.core.JsonParser;
-import com.fasterxml.jackson.core.JsonToken;
 
 import alarmpi.Configuration.Sound;
 
@@ -111,88 +107,17 @@ public class SpeechToCommand {
 	    }
 	}
 	
-	private void processSetAlarm(String slots) {
-		log.fine("deteced intent: SetNextAlarm. Slots:"+slots);
-		
-		try {
-			JsonFactory factory = new JsonFactory();
-			JsonParser parser;
-			parser = factory.createParser(slots);
-			
-			JsonToken token = parser.nextToken();
-			log.finest(token.toString()); // START_OBJECT
-			log.finest("name="+parser.getCurrentName());
-			log.finest("value1="+parser.getValueAsString());
-			
-			token = parser.nextToken();
-			log.finest(token.toString()); // FIELD_NAME
-			log.finest("name="+parser.getCurrentName());
-			log.finest("value1="+parser.getValueAsString());
-			
-			token = parser.nextToken();
-			log.finest(token.toString()); // should be VALUE_STRING
-			log.finest("name="+parser.getCurrentName());
-			log.finest("value1="+parser.getValueAsString());
-			
-			if(token==JsonToken.VALUE_STRING && parser.getCurrentName().compareToIgnoreCase("alarmTime")==0) {
-				String alarmTime = parser.getValueAsString();
-				log.fine("alarm time: "+alarmTime);
-				return;
-			}
-			log.severe("Error during processing of AWS speech control command: ");
-			feedbackError();
-		} catch (IOException e) {
-			log.severe("Exception during processing of AWS speech control command: "+e.getMessage());
-			feedbackError();
-		}
-	}
-	
-	private void dimLight(String slots) {
-		log.fine("deteced intent: dimLight. Slots:"+slots);
-		
-		try {
-			JsonFactory factory = new JsonFactory();
-			JsonParser parser;
-			parser = factory.createParser(slots);
-			
-			JsonToken token = parser.nextToken();
-			log.finest(token.toString()); // START_OBJECT
-			log.finest("name="+parser.getCurrentName());
-			log.finest("value1="+parser.getValueAsString());
-			
-			token = parser.nextToken();
-			log.finest(token.toString()); // FIELD_NAME
-			log.finest("name="+parser.getCurrentName());
-			log.finest("value1="+parser.getValueAsString());
-			
-			token = parser.nextToken();
-			log.finest(token.toString()); // should be VALUE_STRING
-			log.finest("name="+parser.getCurrentName());
-			log.finest("value1="+parser.getValueAsString());
-			
-			if(token==JsonToken.VALUE_STRING && parser.getCurrentName().compareToIgnoreCase("brightness")==0) {
-				String brightness = parser.getValueAsString();
-				log.fine("brightness: "+brightness);
-				return;
-			}
-			log.severe("Error during processing of AWS speech control command: ");
-			feedbackError();
-		} catch (IOException e) {
-			log.severe("Exception during processing of AWS speech control command: "+e.getMessage());
-			feedbackError();
-		}
-	}
 	
 	private void turnOn(String slots) {
 		log.fine("deteced intent: turnOn, slots="+slots);
 		
 		if(slots.contains("Licht")) {
 			log.fine("turning on lights");
-			controller.getLightControlList().stream().forEach(light -> light.setBrightness(30));
+			controller.getLightControlList().stream().filter(light -> light.getClass()!=LightControlPCA9685.class).forEach(light -> light.setBrightness(30));
 		}
 		if(slots.contains("Lichterkette")) {
-			log.fine("turning on lights");
-			controller.getLightControlList().stream().forEach(light -> light.setBrightness(30));
+			log.fine("turning on light chains");
+			controller.getLightControlList().stream().filter(light -> light.getClass()!=LightControlPCA9685.class).forEach(light -> light.setBrightness(30));
 		}
 		if(slots.contains("Radio")) {
 			log.fine("turning on radio");
