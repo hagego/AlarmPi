@@ -88,7 +88,8 @@ public class Configuration {
 			NONE,                      // no light
 			RASPBERRY,                 // Raspberry built-in GPIO18 PWM
 			PCA9685,                   // NXP PCA9685 PWM IIC
-			NRF24LO1                   // remote control based on nRF24LO1
+			NRF24LO1,                  // remote control based on nRF24LO1
+			MQTT
 		};
 		
 		Type    type;                  // light control type used
@@ -142,6 +143,8 @@ public class Configuration {
 	 * @param iniFile   Ini object of the configuration file
 	 */
 	private Configuration(Ini ini) {
+		this.iniFile = ini;
+		
 		if(System.getProperty("os.name").toLowerCase(Locale.ENGLISH).contains("linux")
 				&& System.getProperty("os.arch").toLowerCase(Locale.ENGLISH).contains("arm")) {
 			runningOnRaspberry = true;
@@ -258,6 +261,9 @@ public class Configuration {
 	    		}
 	    		else if(pwmType.equalsIgnoreCase("nrf24lo1")) {
 	    			lightControlSettingItem.type = LightControlSettings.Type.NRF24LO1;
+	    		}
+	    		else if(pwmType.equalsIgnoreCase("mqtt")) {
+	    			lightControlSettingItem.type = LightControlSettings.Type.MQTT;
 	    		}
 	    		else {
 	    			log.severe("Invalid light control type: "+pwmType);
@@ -397,6 +403,82 @@ public class Configuration {
 			log.severe("IO Exception during reading of ini file "+filename);
 			log.severe(e.getMessage());
 			return false;
+		}
+	}
+	
+	/**
+	 * returns a boolean value from the ini file
+	 * @param section          section name
+	 * @param key              key name
+	 * @param defaultValue     default value that will be returned if the value cannot be found
+	 * @return                 value read from ini file or default if not found
+	 */
+	boolean getValue(String section,String key,boolean defaultValue) {
+		Ini.Section iniSection= iniFile.get(section);
+		
+		if(iniSection!=null) {
+			return iniSection.get(key,Boolean.class,defaultValue);
+		}
+		else {
+			log.warning("Section "+section+" not found");
+			return defaultValue;
+		}
+	}
+	
+	/**
+	 * returns an integer value from the ini file
+	 * @param section          section name
+	 * @param key              key name
+	 * @param defaultValue     default value that will be returned if the value cannot be found
+	 * @return                 value read from ini file or default if not found
+	 */
+	int getValue(String section,String key,int defaultValue) {
+		Ini.Section iniSection= iniFile.get(section);
+		
+		if(iniSection!=null) {
+			return iniSection.get(key,Integer.class,defaultValue);
+		}
+		else {
+			log.warning("Section "+section+" not found");
+			return defaultValue;
+		}
+	}
+	
+	/**
+	 * returns a double value from the ini file
+	 * @param section          section name
+	 * @param key              key name
+	 * @param defaultValue     default value that will be returned if the value cannot be found
+	 * @return                 value read from ini file or default if not found
+	 */
+	double getValue(String section,String key,double defaultValue) {
+		Ini.Section iniSection= iniFile.get(section);
+		
+		if(iniSection!=null) {
+			return iniSection.get(key,Double.class,defaultValue);
+		}
+		else {
+			log.warning("Section "+section+" not found");
+			return defaultValue;
+		}
+	}
+	
+	/**
+	 * returns a string value from the ini file
+	 * @param section          section name
+	 * @param key              key name
+	 * @param defaultValue     default value that will be returned if the value cannot be found
+	 * @return                 value read from ini file or default if not found
+	 */
+	String getValue(String section,String key,String defaultValue) {
+		Ini.Section iniSection= iniFile.get(section);
+		
+		if(iniSection!=null) {
+			return iniSection.get(key,String.class,defaultValue);
+		}
+		else {
+			log.warning("Section "+section+" not found");
+			return defaultValue;
 		}
 	}
 
@@ -745,6 +827,8 @@ public class Configuration {
 	// private members
 	private static final Logger   log    = Logger.getLogger( MethodHandles.lookup().lookupClass().getName() );
 	private static Configuration  object = null;             // singleton object
+	
+	private Ini                              iniFile;
 	
 	// settings in configuration file
 	private final boolean                    runningOnRaspberry;

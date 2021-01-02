@@ -80,6 +80,10 @@ class Controller implements Runnable {
 					log.config("creating light control for nRF24LO1 remote control");
 					lightControlList.add(new LightControlNRF24LO1(setting.id,setting.name));
 					break;
+				case MQTT:
+					log.config("creating light control for MQTT controlled light");
+					lightControlList.add(new LightControlMqtt(setting.id,setting.name));
+					break;
 				default:
 					log.warning("unknown or NONE light control specified");
 			}

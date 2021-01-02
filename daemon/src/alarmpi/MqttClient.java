@@ -148,6 +148,15 @@ public class MqttClient implements MqttCallbackExtended{
 		}
 	}
 	
+	public void publish(String topic, String value) {
+		log.fine("publishing topic: "+topic+", value="+value);
+		try {
+			mqttClient.publish(topic, value.getBytes(), 0, false);
+		} catch (MqttException e) {
+			log.severe("Exception during MQTT publish: "+e.getMessage());
+		}
+	}
+	
 	/**
 	 * @return The actual temperature as retrieved from the MQTT broker, or null if the MQTT broker
 	 *         did not publish a new temperature since more than 2h
