@@ -32,7 +32,7 @@ public class JsonRequestHandler implements Runnable {
 
 	@Override
 	public void run() {
-		final int BUFFER_SIZE = 10000; // size of command buffer
+		final int BUFFER_SIZE = 10000; // size of read buffer
 		log.info("client connected from "+clientSocket.getRemoteSocketAddress());
 		
 
@@ -97,13 +97,20 @@ public class JsonRequestHandler implements Runnable {
 						}
 						if(httpMethod.equals("POST")) {
 							JsonObject jsonObject = buildJasonObjectFromString(jsonString);
-							Alarm.parseAllFromJsonObject(jsonObject);
-							controller.parseLightStatusFromJsonObject(jsonObject);
 							
-							JsonArray jsonArray = jsonObject.getJsonArray("actions");
+							JsonArray jsonArray = jsonObject.getJsonArray("alarms");
+							if(jsonArray!=null) {
+								Alarm.parseAllFromJsonObject(jsonObject);
+							}
+							
+							jsonArray = jsonObject.getJsonArray("lights");
+							if(jsonArray!=null) {
+								controller.parseLightStatusFromJsonObject(jsonObject);
+							}
+							
+							jsonArray = jsonObject.getJsonArray("actions");
 							if(jsonArray!=null) {
 								jsonArray.stream().filter(action -> action.toString().equals("\"stopActiveAlarm\"")).forEach(action -> controller.stopActiveAlarm());
-								jsonArray.stream().forEach(action -> log.info(">>"+action.toString()+"<<"));
 							}
 							
 							httpResponse = "HTTP/1.1 200 OK\r\n" + 
@@ -141,14 +148,16 @@ public class JsonRequestHandler implements Runnable {
 		// build final object
 		builder.add("name", Configuration.getConfiguration().getName());
 		builder.add("alarms", Configuration.getConfiguration().getAlarmsAsJsonArray());
+		builder.add("sounds", Configuration.getConfiguration().getSoundsAsJsonArray());
+		builder.add("soundStatus", controller.getSoundStatus());
 		builder.add("lights", controller.getLightStatusAsJsonArray());
 		JsonObject jsonObject = builder.build();
 		
 		String logString = jsonObject.toString();
-		if(logString.length()>30) {
-			logString = logString.substring(0,29);
+		if(logString.length()>50) {
+			logString = logString.substring(0,49);
 		}
-		log.fine("created JSON object: "+logString);
+		log.fine("created JSON object: "+logString+"...");
 		log.finest("full JSON Object: "+jsonObject.toString());
 		
 		return jsonObject;
@@ -159,11 +168,11 @@ public class JsonRequestHandler implements Runnable {
 		JsonObject jsonObject = reader.readObject();
 		 
 		String logString = jsonObject.toString();
-		if(logString.length()>30) {
-			logString = logString.substring(0,29);
+		if(logString.length()>50) {
+			logString = logString.substring(0,49);
 		}
 		
-		log.fine("buildJasonObjectFromString: created JSON object: "+logString);
+		log.fine("buildJasonObjectFromString: created JSON object: "+logString+"...");
 		log.finest("full JSON object: "+jsonObject.toString());
 		
 		return jsonObject;

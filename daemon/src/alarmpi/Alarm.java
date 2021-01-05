@@ -20,6 +20,8 @@ import javax.json.JsonObject;
 import javax.json.JsonObjectBuilder;
 import javax.json.JsonValue;
 
+import alarmpi.Configuration.Sound;
+
 /**
  * Class representing alarm settings
  */
@@ -42,7 +44,7 @@ public class Alarm implements Serializable {
 		soundId        = alarm.soundId;
 		
 		greeting             = alarm.greeting;
-		soundName            = alarm.soundName;
+		alarmSoundName            = alarm.alarmSoundName;
 		fadeInDuration       = alarm.fadeInDuration;
 		volumeFadeInStart    = alarm.volumeFadeInStart;
 		volumeFadeInEnd      = alarm.volumeFadeInEnd;
@@ -95,6 +97,21 @@ public class Alarm implements Serializable {
 		}
 		
 		return alarmList;
+	}
+	
+	/**
+	 * hack needed as long as I use sound index (ID) ins serialized object
+	 */
+	void setSoundObject() {
+		if(soundId!=null) {
+			sound = Configuration.getConfiguration().getSoundFromId(soundId);
+			if(sound==null) {
+				log.severe("unable to find sound object for ID "+soundId);
+			}
+		}
+		else {
+			sound = null;
+		}
 	}
 	
 	/**
@@ -161,7 +178,7 @@ public class Alarm implements Serializable {
 		builder.add("skipOnce", skipOnce);
 		builder.add("time", time.toString());
 		builder.add("weekDays",weekDays.toString());
-		builder.add("soundId", soundId);
+		builder.add("soundName", sound.getName());
 		
 		JsonObject jsonObject = builder.build();
 		log.fine("Created JsonObject for alarm: "+jsonObject.toString());
@@ -199,7 +216,23 @@ public class Alarm implements Serializable {
 		oneTimeOnly = jsonObject.getBoolean("oneTimeOnly");
 		skipOnce    = jsonObject.getBoolean("skipOnce");
 		time        = LocalTime.parse(jsonObject.getString("time"));
-		soundId     = jsonObject.getInt("soundId");
+		
+		// get Sound based on its name
+		boolean found = false;
+		int index     = 0;
+		for(Sound sound:Configuration.getConfiguration().getSoundList()) {
+			if(jsonObject.getString("soundName").equals(sound.getName())) {
+				this.soundId = index;
+				this.sound   = sound;
+				found        = true;
+				break;
+			}
+		}
+		if(!found) {
+			log.severe("Unable to find sound ");
+			this.sound   = null;
+			this.soundId = null;
+		}
 		
 		weekDays.clear();
 		String weekDaysString = jsonObject.getString("weekDays");
@@ -342,9 +375,23 @@ public class Alarm implements Serializable {
 		return soundId;
 	}
 	
-	public void setSoundId(int soundId) {
+	public Sound getSound() {
+		return sound;
+	}
+	
+	
+	public void setSoundId(Integer soundId) {
 		if(this.soundId==null || this.soundId.equals(soundId) == false) {
 			this.soundId = soundId;
+			if(soundId!=null) {
+				this.sound = Configuration.getConfiguration().getSoundFromId(soundId);
+				if(sound==null) {
+					log.severe("Unable to find sound for ID "+soundId);
+				}
+			}
+			else {
+				this.sound = null;
+			}
 			
 			if(transactionStarted) {
 				hasModifications = true;
@@ -364,12 +411,12 @@ public class Alarm implements Serializable {
 		this.greeting = greeting;
 	}
 
-	public String getSound() {
-		return soundName;
+	public String getAlarmSoundName() {
+		return alarmSoundName;
 	}
 
-	public void setSound(String sound) {
-		this.soundName = sound;
+	public void setAlarmSoundName(String sound) {
+		this.alarmSoundName = sound;
 	}
 
 	public int getFadeInDuration() {
@@ -450,9 +497,10 @@ public class Alarm implements Serializable {
 	private LocalTime          time;                         // alarm time
 	private EnumSet<DayOfWeek> weekDays         = EnumSet.noneOf(DayOfWeek.class);  // weekdays when this alarm is active
 	private Integer            soundId;                      // ID of sound to play. Must be configured in configuration file
+	private transient Sound    sound;                        // sound to play. Currently maintained in addition to the above ID     
 	
 	private String             greeting;                     // greeting text
-	private String             soundName;                    // filename of alarm sound (or null)
+	private String             alarmSoundName;               // filename of alarm sound (or null)
 	private int                fadeInDuration       = 0;     // fade in time in seconds
 	private int                volumeFadeInStart    = 0;     // alarm sound fade-in start volume
 	private int                volumeFadeInEnd      = 0;     // alarm sound fade-in end volume

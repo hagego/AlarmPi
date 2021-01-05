@@ -23,6 +23,7 @@ import javax.json.Json;
 import javax.json.JsonArray;
 import javax.json.JsonArrayBuilder;
 import javax.json.JsonObject;
+import javax.json.JsonObjectBuilder;
 
 import com.pi4j.io.gpio.GpioController;
 import com.pi4j.io.gpio.GpioFactory;
@@ -125,6 +126,15 @@ class Controller implements Runnable {
 		new TextToSpeech().createTempFile("dummy", "nextAlarmTomorrow.mp3");
 		soundControl.update();
 		
+		mqttSendAliveTopic    = Configuration.getConfiguration().getValue("mqtt", "sendAliveTopic", null);
+		mqttSendAliveInterval = Configuration.getConfiguration().getValue("mqtt", "sendAliveInterval", 30);
+		if(mqttSendAliveTopic!=null) {
+			log.config(String.format("Publishing MQTT alive messages to topic %s, interval=%d minutes",mqttSendAliveTopic,mqttSendAliveInterval));
+		}
+		else {
+			log.config("No MQTT alive messages configured");
+		}
+		
 		log.info("initialization done");
 	}
 	
@@ -179,7 +189,6 @@ class Controller implements Runnable {
 		
 		final int    sleepPeriod        = 1000;   // thread sleep period: 1s
 		final int    watchDogCounterMax = 60;     // update watchdog file every 60*sleepPeriod
-		final String watchDogFile       = "/var/log/alarmpi/watchdog";   
 		
 		log.info("controller daemon thread started");
 
@@ -212,9 +221,11 @@ class Controller implements Runnable {
 						}
 					}
 					
-					// write some sign of life into logfile each hour
-					if(LocalTime.now().getHour() > time.getHour()) {
-						log.fine("sign of life from controller - still running");;
+					// send sign of life to MQTT broker
+					if(mqttSendAliveTopic!=null && LocalTime.now().minusMinutes(mqttSendAliveInterval).isAfter(time)) {
+						log.fine("publishing sign of life to MQTT");;
+						
+						MqttClient.getMqttClient().publish(mqttSendAliveTopic, LocalDateTime.now().toString());
 						time = LocalTime.now();
 					}
 				}
@@ -454,16 +465,16 @@ class Controller implements Runnable {
 			
 			// alarm sound
 			Integer alarmSoundDuration = null;
-			if(alarm.getSound()!=null) {
+			if(alarm.getAlarmSoundName()!=null) {
 				Event eventAlarm = new Event();
 				eventAlarm.type         = Event.EventType.PLAY_FILE;
 				eventAlarm.alarm        = alarm;
 				eventAlarm.time         = time;
-				eventAlarm.paramString  = alarm.getSound();
+				eventAlarm.paramString  = alarm.getAlarmSoundName();
 				eventAlarm.paramBool    = true;
 				eventList.add(eventAlarm);
 				
-				alarmSoundDuration = SoundControl.getSoundControl().getSongDuration(alarm.getSound());
+				alarmSoundDuration = SoundControl.getSoundControl().getSongDuration(alarm.getAlarmSoundName());
 				if(alarmSoundDuration != null) {
 					time = time.plusSeconds(alarmSoundDuration);
 				}
@@ -520,13 +531,13 @@ class Controller implements Runnable {
 					time = time.plusSeconds(duration);
 				}
 				
-				if(alarm.getSound()!=null) {
+				if(alarm.getAlarmSoundName()!=null) {
 					log.finest("adding alarm sound at"+time);
 					Event eventAlarm = new Event();
 					eventAlarm.type         = Event.EventType.PLAY_FILE;
 					eventAlarm.alarm        = alarm;
 					eventAlarm.time         = time;
-					eventAlarm.paramString  = alarm.getSound();
+					eventAlarm.paramString  = alarm.getAlarmSoundName();
 					eventAlarm.paramBool    = true;
 					eventList.add(eventAlarm);
 					
@@ -583,7 +594,7 @@ class Controller implements Runnable {
 			eventSound.type         = Event.EventType.PLAY_SOUND;
 			eventSound.alarm        = alarm;
 			eventSound.time         = fadeInStart.plusNanos(1);
-			eventSound.sound        = Configuration.getConfiguration().getSoundFromId(alarm.getSoundId());
+			eventSound.sound        = alarm.getSound();
 			eventSound.paramInt2    = alarm.getVolumeFadeInStart();
 			eventList.add(eventSound);
 			
@@ -646,12 +657,12 @@ class Controller implements Runnable {
 			
 			for(LocalDateTime time=alarmDateTime ;  time.isBefore(alarmDateTime.plusSeconds(alarm.getDuration())) ; time=time.plusSeconds(alarm.getReminderInterval())) {
 				boolean append = false;
-				if(alarm.getSound()!=null) {
+				if(alarm.getAlarmSoundName()!=null) {
 					Event eventAlarm = new Event();
 					eventAlarm.type         = Event.EventType.PLAY_FILE;
 					eventAlarm.alarm        = alarm;
 					eventAlarm.time         = time;
-					eventAlarm.paramString  = alarm.getSound();
+					eventAlarm.paramString  = alarm.getAlarmSoundName();
 					eventAlarm.paramBool    = append;
 					eventList.add(eventAlarm);
 					
@@ -687,7 +698,7 @@ class Controller implements Runnable {
 				eventPlay.type         = Event.EventType.PLAY_SOUND;
 				eventPlay.alarm        = alarm;
 				eventPlay.time         = time.plusNanos(5);
-				eventPlay.sound        = Configuration.getConfiguration().getSoundFromId(alarm.getSoundId());
+				eventPlay.sound        = alarm.getSound();
 				eventPlay.paramBool    = true;
 				eventList.add(eventPlay);
 				
@@ -707,7 +718,7 @@ class Controller implements Runnable {
 	 * @param alarm new alarm to process
 	 */
 	synchronized private void addAlarmEvents(Alarm alarm) {
-		log.fine("generating events for alarm ID="+alarm.getId()+" at time="+alarm.getTime()+" sound ID="+alarm.getSoundId());
+		log.fine("generating events for alarm ID="+alarm.getId()+" at time="+alarm.getTime()+" sound="+alarm.getSound().getName());
 		
 		if(!alarm.getWeekDays().contains(LocalDate.now().getDayOfWeek())) {
 			log.fine("alarm not scheduled for today");
@@ -809,6 +820,18 @@ class Controller implements Runnable {
 	
 	synchronized List<LightControl> getLightControlList() {
 		return lightControlList;
+	}
+	
+	synchronized JsonObject getSoundStatus() {
+		JsonObjectBuilder builder = Json.createBuilderFactory(null).createObjectBuilder();
+		builder.add("activeSound", "");
+		builder.add("activeVolume", 0);
+		builder.add("activeTimer", 0);
+		
+		JsonObject jsonObject = builder.build();
+		log.fine("Created JsonObject for sound status: "+jsonObject.toString());
+		
+		return jsonObject;
 	}
 	
 	
@@ -1119,6 +1142,11 @@ class Controller implements Runnable {
         
         private SpeechToCommand                  speechToCommand; 
 	}
+	
+	final static String watchDogFile       = "/var/log/alarmpi/watchdog";
+	
+	String               mqttSendAliveTopic;    // MQTT topic name used to publish alive messages
+	int                  mqttSendAliveInterval; // interval for sending alive messages in minutes
 	
 	LinkedList<Event>    eventList;             // list of events to process, sorted by fire time
 	Configuration        configuration;         // configuration data

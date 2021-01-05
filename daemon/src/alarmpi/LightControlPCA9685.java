@@ -115,23 +115,25 @@ public class LightControlPCA9685 extends LightControl implements Runnable {
 	
 	@Override
 	public void setBrightness(double percentage) {
-		if(percentage<0) {
-			percentage = 0;
-		}
-		if(percentage>100) {
-			percentage = 100.0;
-		}
-		int pwm = 0;
-		// found the following relation between physical luminance power and perceived human lightness
-		if(percentage<=8.0) {
-			pwm = lightControlSettings.pwmOffset+(int)((percentage/903.3)*(double)USABLE_SCALE);
+		if(percentage<=0) {
+			setOff();
 		}
 		else {
-			pwm = lightControlSettings.pwmOffset+(int)(Math.pow((percentage+16.0)/116.0, 3.0)*(double)USABLE_SCALE);
+			if(percentage>100) {
+				percentage = 100.0;
+			}
+			int pwm = 0;
+			// found the following relation between physical luminance power and perceived human lightness
+			if(percentage<=8.0) {
+				pwm = lightControlSettings.pwmOffset+(int)((percentage/903.3)*(double)USABLE_SCALE);
+			}
+			else {
+				pwm = lightControlSettings.pwmOffset+(int)(Math.pow((percentage+16.0)/116.0, 3.0)*(double)USABLE_SCALE);
+			}
+			
+			log.fine("PCA9685: setBrightness to "+percentage+"% pwm="+pwm);;
+			setPwm(pwm);
 		}
-		
-		log.fine("PCA9685: setBrightness to "+percentage+"% pwm="+pwm);;
-		setPwm(pwm);
 	}
 
 	@Override

@@ -4,7 +4,10 @@ import java.io.File;
 import java.io.FileWriter;
 import java.io.IOException;
 import java.net.ServerSocket;
+import java.time.DayOfWeek;
+import java.time.LocalDate;
 import java.time.LocalTime;
+import java.util.EnumSet;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.logging.LogManager;
@@ -54,15 +57,24 @@ public class AlarmPi {
 			
 			log.info("AlarmPi started successfully, now reading configuration");
 			
+			
 			// read configuration file
 			Configuration.read(configDir+"alarmpi.cfg");
 			Configuration configuration = Configuration.getConfiguration();
 			
 			log.info("configuration read successfully");
+			// touch (create) watchdog file
+			if(configuration.getRunningOnRaspberry()) {
+				try {
+					FileWriter writer = new FileWriter(watchDogFile);
+					writer.write(LocalTime.now().toString());
+					writer.close();
+				} catch (IOException e) {
+					log.severe("Unable to update watchdog file: "+e.getMessage());
+				}
+			}
 			
-			// add sound duration and build playlists
-			Configuration.getConfiguration().processSoundList();
-
+				
 			// thread runtime exception handler
 			Thread.UncaughtExceptionHandler handler = new Thread.UncaughtExceptionHandler() {
 			    @Override
@@ -74,6 +86,18 @@ public class AlarmPi {
 	        		}
 			    }
 			};
+			
+			if(Configuration.getConfiguration().getAlarmList().size()==0) {
+				// first time ??? Create initial default alarms
+				for(int i=0 ; i<4 ; i++) {
+					log.info("Creating new default alarm");;
+					Configuration.getConfiguration().createAlarm(EnumSet.noneOf(DayOfWeek.class),LocalTime.now(),0);
+				}
+			}
+			
+			// explicitly instantiate sound control and add sound duration and build playlists
+			SoundControl.getSoundControl();
+			Configuration.getConfiguration().processSoundList();
 			
 			// create the user thread to manage alarms and HW buttons
 			final Controller controller = new Controller();
@@ -160,6 +184,7 @@ public class AlarmPi {
 					if(configuration.getRunningOnRaspberry()) {
 						try {
 							FileWriter writer = new FileWriter("/etc/alarmpi/tmp/AlarmPiShutdown.txt");
+							writer.write(LocalDate.now().toString());
 							writer.write(LocalTime.now().toString());
 							writer.close();
 						} catch (IOException e) {}
@@ -185,4 +210,6 @@ public class AlarmPi {
 
 	// private members
 	private static final Logger log = Logger.getLogger( AlarmPi.class.getName() );
+	
+	final static String watchDogFile       = "/var/log/alarmpi/watchdog";
 }

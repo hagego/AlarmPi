@@ -65,6 +65,10 @@ public class Configuration {
 			this.source   = source;
 		}
 		
+		String getName() {
+			return name;
+		}
+		
 		/**
 		 * Creates a JsonObject representation of the sound
 		 * @return JsonObject representation of the sound
@@ -225,7 +229,7 @@ public class Configuration {
         alarmSettings.setVolumeAlarmEnd(sectionAlarm.get("volumeAlarmEnd", Integer.class, 70));
         alarmSettings.setLightDimUpDuration(sectionAlarm.get("lightDimUpDuration", Integer.class, 600));
         alarmSettings.setLightDimUpBrightness(sectionAlarm.get("lightDimUpBrightness", Integer.class, 50));
-        alarmSettings.setSound(sectionAlarm.get("sound", String.class, "alarm_5s.mp3"));
+        alarmSettings.setAlarmSoundName(sectionAlarm.get("sound", String.class, "alarm_5s.mp3"));
         
         for(Alarm alarm:alarmList) {
         	alarm.setGreeting(sectionAlarm.get("greeting", String.class, ""));
@@ -237,7 +241,7 @@ public class Configuration {
         	alarm.setVolumeAlarmEnd(sectionAlarm.get("volumeAlarmEnd", Integer.class, 70));
         	alarm.setLightDimUpDuration(sectionAlarm.get("lightDimUpDuration", Integer.class, 600));
         	alarm.setLightDimUpBrightness(sectionAlarm.get("lightDimUpBrightness", Integer.class, 50));
-        	alarm.setSound(sectionAlarm.get("sound", String.class, "alarm_5s.mp3"));
+        	alarm.setAlarmSoundName(sectionAlarm.get("sound", String.class, "alarm_5s.mp3"));
         }
         
         // light control. Search for sections [light1], [light2], ...
@@ -384,6 +388,8 @@ public class Configuration {
 			
 			if(object==null) {
 				object = new Configuration(iniFile);
+				
+				object.alarmList.stream().forEach(alarm -> alarm.setSoundObject());
 			}
 			else {
 				log.severe("Configuration.read() can only be called once");
@@ -600,8 +606,21 @@ public class Configuration {
 	final JsonArray getAlarmsAsJsonArray() {
 		// add list of all alarms
 		JsonArrayBuilder alarmArrayBuilder = Json.createBuilderFactory(null).createArrayBuilder();
-		for(Alarm alarm:Configuration.getConfiguration().getAlarmList()) {
+		for(Alarm alarm:alarmList) {
 			alarmArrayBuilder.add(alarm.toJasonObject());
+		}
+		
+		return alarmArrayBuilder.build();
+	}
+	
+	/**
+	 * @return the alarm list as JsonArray
+	 */
+	final JsonArray getSoundsAsJsonArray() {
+		// add list of all sounds
+		JsonArrayBuilder alarmArrayBuilder = Json.createBuilderFactory(null).createArrayBuilder();
+		for(Sound sound:soundList) {
+			alarmArrayBuilder.add(sound.toJasonObject());
 		}
 		
 		return alarmArrayBuilder.build();
@@ -789,7 +808,7 @@ public class Configuration {
 		dump += "         fadeInDuration="+alarmSettings.getFadeInDuration()+" duration="+alarmSettings.getDuration()+" reminderInterval="+alarmSettings.getReminderInterval()+"\n";
 		dump += "         volumeFadeInStart="+alarmSettings.getVolumeFadeInStart()+" volumeFadeInEnd="+alarmSettings.getVolumeFadeInEnd()+" volumeAlarmEnd="+alarmSettings.getVolumeAlarmEnd()+"\n";
 		dump += "         lightDimUpDuration="+alarmSettings.getLightDimUpDuration()+" lightDimUpBrightness="+alarmSettings.getLightDimUpBrightness()+"\n";
-		dump += "         sound="+alarmSettings.getSound()+"\n";
+		dump += "         sound="+alarmSettings.getAlarmSoundName()+"\n";
 		dump += "  Stored alarms:\n";
 		for(Alarm alarm:alarmList) {
 			dump += "    id="+alarm.getId()+" enabled="+alarm.isEnabled()+" oneTimeOnly="+alarm.isOneTimeOnly()+" skipOnce="+alarm.isSkipOnce()+" time="+alarm.getTime()+" days="+alarm.getWeekDays()+" sound ID="+alarm.getSoundId()+"\n";
