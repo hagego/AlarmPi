@@ -1,6 +1,8 @@
 package hagego.alarmpi;
 
+import java.time.LocalTime;
 import java.util.EnumSet;
+import java.util.Map;
 import java.util.concurrent.Future;
 import android.content.Context;
 import android.util.Log;
@@ -12,6 +14,9 @@ import android.widget.Spinner;
 import android.widget.TimePicker;
 
 import androidx.annotation.NonNull;
+
+import org.json.JSONException;
+import org.json.JSONObject;
 
 
 /**
@@ -34,6 +39,71 @@ public class Alarm implements TimePicker.OnTimeChangedListener,CheckBox.OnChecke
      */
     static void setApplicationContext(Context context_) {
         context = context_;
+    }
+
+    static Alarm parseFromJsonObject(JSONObject jsonAlarm, Map<String,Integer> soundNameToIndexMap) {
+        Alarm alarm = new Alarm();
+
+        try {
+            alarm.id          = jsonAlarm.getInt("id");
+            alarm.enabled     = jsonAlarm.getBoolean("enabled");
+            alarm.oneTimeOnly = jsonAlarm.getBoolean("oneTimeOnly");
+            alarm.skipOnce    = jsonAlarm.getBoolean("skipOnce");
+            alarm.hourOfDay   = LocalTime.parse(jsonAlarm.getString("time")).getHour();
+            alarm.minuteOfDay = LocalTime.parse(jsonAlarm.getString("time")).getMinute();
+
+            alarm.weekDays.clear();
+            String weekDaysString = jsonAlarm.getString("weekDays");
+            for(DayOfWeek dayOfWeek:DayOfWeek.values()) {
+                if(weekDaysString.contains(dayOfWeek.toString())) {
+                    alarm.weekDays.add(dayOfWeek);
+                }
+            }
+
+            alarm.soundName = jsonAlarm.getString("soundName");
+            Integer soundId = soundNameToIndexMap.get(alarm.soundName);
+            if(soundId!=null) {
+                alarm.sound = soundId;
+            }
+            else {
+                Log.e(Constants.LOG, "parseFromJsonObject: no ID available for sound "+ jsonAlarm.getString("soundName"));
+                return null;
+            }
+
+        } catch (JSONException e) {
+            Log.e(Constants.LOG, "parseFromJsonObject: JSON exception: "+e.getMessage());
+
+            return null;
+        }
+        return alarm;
+    }
+
+    /**
+     * Creates a JsonObject representation of the alarm
+     * @return JSONObject representation of the alarm or null in case of error
+     */
+    public JSONObject toJasonObject() {
+        JSONObject jsonObject = new JSONObject();
+
+        try {
+            jsonObject.put("id",id);
+            jsonObject.put("enabled",enabled);
+            jsonObject.put("oneTimeOnly",oneTimeOnly);
+            jsonObject.put("skipOnce",skipOnce);
+            jsonObject.put("time",String.format("%02d:%02d",hourOfDay,minuteOfDay));
+            jsonObject.put("weekDays",weekDays.toString());
+            jsonObject.put("soundName",soundName);
+        } catch (JSONException e) {
+            Log.e(Constants.LOG,"Exception during creation of Alarm JSON Object: "+e.getMessage());
+            return null;
+        }
+
+        Log.v(Constants.LOG,"Created JSON object for alarm: "+jsonObject.toString());
+        return jsonObject;
+    }
+
+    private Alarm() {
+
     }
 
     /**
@@ -281,6 +351,7 @@ public class Alarm implements TimePicker.OnTimeChangedListener,CheckBox.OnChecke
     private int                         hourOfDay;                                   // alarm hour
     private int                         minuteOfDay;                                 // alarm minute
     private int                         sound;                                       // sound to play (index into sound list)
+    private String                      soundName;                                   // sound to play (unique name)
 
     private boolean                     hasChanged;                                  // stores if alarm got changed locally and needs an update on AlarmPi server
 

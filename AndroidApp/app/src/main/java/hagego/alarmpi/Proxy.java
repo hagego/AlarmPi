@@ -3,12 +3,23 @@ package hagego.alarmpi;
 import android.content.Context;
 import android.content.SharedPreferences;
 import android.util.Log;
-
+import org.json.JSONArray;
+import org.json.JSONException;
+import org.json.JSONObject;
 import java.io.BufferedOutputStream;
+import java.io.OutputStream;
+import java.net.HttpURLConnection;
+import java.net.MalformedURLException;
+import java.net.URL;
+import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.Callable;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
@@ -16,6 +27,11 @@ import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.net.Socket;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
+import java.util.logging.Logger;
+
+
 import static android.content.Context.MODE_PRIVATE;
 
 /**
@@ -28,30 +44,98 @@ class Proxy {
     /**
      * private constructor - this class implements the singleton pattern
      */
-    private Proxy() { }
+    private Proxy(Context context) {
+        this.context = context;
+
+        // get/construct connetion details
+        url = null;
+
+        SharedPreferences prefs = context.getSharedPreferences(Constants.PREFS_KEY, MODE_PRIVATE);
+        int active = prefs.getInt("active", -1);
+        if (active == -1) {
+            log.severe("No active AlarmPi set in SharedPreferences");
+        }
+        else {
+            String addr = prefs.getString("hostname" + active, "");
+
+            if (addr.isEmpty()) {
+                log.severe("No hostname found in SharedPrefs for AlarmPi index " + active);
+                return;
+            }
+
+            try {
+                url = new URL("http://" + addr + ":" + Constants.JSON_PORT);
+
+                log.info("Proxy created with URL String "+url.toString());
+            } catch (MalformedURLException e) {
+                log.severe("Unable to build URL to connect to AlarmPi server: " + e.getMessage());
+            }
+        }
+    }
 
     /**
      * returns the singleton object
      * @return singleton object
      */
     static Proxy getProxy(Context context) {
-        object.context=context;
+        if(object==null) {
+            object = new Proxy(context);
+        }
+
         return object;
     }
 
     /**
-     * Connects to AlarmPi server
-     * @return Future Boolean indicating success of the connect operation
+     * Executes an HTTP POST query, returning the result as JSON object
+     * @param jsonObject        JSON object to post
+     * @return                  true on success, false on error
      */
-    Future<Boolean> connect() {
-        return threadExecutor.submit(new Connect());
-    }
+    boolean executeHttpPostJsonQuery(JSONObject jsonObject) {
+        log.info("executing HTTP Post query");
 
-    /**
-     * disconnects from AlarmPi
-     */
-    void disconnect() {
-        threadExecutor.execute(new Disconnect());
+        if(url!=null) {
+            try {
+                // add POST parameter to URL
+                String urlString = url.toString();
+                urlString += "/"+ URLEncoder.encode(jsonObject.toString(),"UTF-8");
+                log.finest("new URL: "+urlString);
+                URL postUrl = new URL(urlString);
+
+
+                HttpURLConnection con = (HttpURLConnection) postUrl.openConnection();
+                con.setRequestMethod("POST");
+                con.setRequestProperty("Content-Type", "application/json");
+                con.setDoInput(true);
+
+                log.finest("sending POST content: "+jsonObject.toString());
+                OutputStream os = con.getOutputStream();
+                byte[] input = jsonObject.toString().getBytes(StandardCharsets.UTF_8);
+                os.write(input, 0, input.length);
+
+                BufferedReader br = new BufferedReader(new InputStreamReader(con.getInputStream(), StandardCharsets.UTF_8));
+                StringBuilder response = new StringBuilder();
+                String responseLine;
+                while ((responseLine = br.readLine()) != null) {
+                    response.append(responseLine.trim());
+                }
+                log.finest("received response: "+response);
+
+                return true;
+            } catch (MalformedURLException e) {
+                log.severe("executeHttpPostJsonQuery: MalformedURLException: "+e.getMessage());
+
+                return false;
+            } catch (IOException e) {
+                log.severe("executeHttpPostJsonQuery: IOException: " + e.getMessage());
+
+                return false;
+            }
+        }
+        else {
+            log.severe("executeHttpPostJsonQuery: Unable to execute POST query - no valid URL");
+
+            return false;
+        }
     }
 
     /**
@@ -129,19 +213,73 @@ class Proxy {
      * @return Future of Boolean with the success of the update
      */
     Future<Boolean> updateAlarm(Alarm alarm, android.os.Handler handler) {
-        return threadExecutor.submit(new UpdateAlarm(alarm,handler));
+        log.finest("updateAlarm called for alarm ID="+alarm.getId());
+
+        return threadExecutor.submit(new Callable<Boolean>() {
+            @Override
+            public Boolean call() throws Exception {
+                JSONArray jsonArray   = new JSONArray();
+                JSONObject jsonObject = new JSONObject();
+
+                JSONObject jsonAlarmObject = alarm.toJasonObject();
+                if(jsonAlarmObject!=null) {
+                    try {
+                        jsonArray.put(jsonAlarmObject);
+                        jsonObject.put("alarms",jsonArray);
+
+                        if(executeHttpPostJsonQuery(jsonObject)==true) {
+                            log.fine("Alarm updates successfully: ID="+alarm.getId());
+                            alarm.resetHasChanged();
+
+                            handler.sendEmptyMessage(Constants.MESSAGE_PROXY_ALARM_UPDATED);
+                            return true;
+                        }
+                        else {
+                            handler.sendEmptyMessage(Constants.MESSAGE_PROXY_ALARM_UPDATED);
+                            return false;
+                        }
+                    } catch (JSONException e) {
+                        log.severe("updateAlarm: JSON Exception: "+e.getMessage());
+                    }
+                }
+
+                handler.sendEmptyMessage(Constants.MESSAGE_PROXY_ALARM_UPDATED);
+                return false;
+            }
+        });
     }
 
     /**
      * Updates the LED brightness on AlarmPi
-     * @param lightId
+     * @param lightId    index of light to update
      * @param brightness in percent (0 means off)
      * @return Future of Boolean with the success of the update
      */
     Future<Boolean> updateBrightness(int lightId,int brightness) {
-        this.brightness[lightId] = brightness;
-        String cmd = brightness==0 ? String.format("lights %d off", lightId) : String.format("lights %d %d", lightId,brightness);
-        return threadExecutor.submit(new UpdateCommand(cmd));
+        log.finest("updateBrightness  called for light ID="+lightId);
+
+        return threadExecutor.submit(new Callable<Boolean>() {
+            @Override
+            public Boolean call() throws Exception {
+                JSONArray jsonArray   = new JSONArray();
+                JSONObject jsonObject = new JSONObject();
+                JSONObject jsonLightObject = new JSONObject();
+
+                jsonLightObject.put("id",lightId+1);
+                jsonLightObject.put("brightness",brightness);
+
+                try {
+                    jsonArray.put(jsonLightObject);
+                    jsonObject.put("lights",jsonArray);
+
+                     return executeHttpPostJsonQuery(jsonObject);
+                } catch (JSONException e) {
+                    log.severe("updateBrightness: JSON Exception: "+e.getMessage());
+                }
+
+                return false;
+            }
+        });
     }
 
     /**
@@ -150,9 +288,37 @@ class Proxy {
      * @return Future of Boolean with the success of the update
      */
     Future<Boolean> updateVolume(int volume) {
+        log.finest("updateVolume called, volume="+volume);
         activeVolume=volume;
-        String cmd = volume==0 ? "sound off" : String.format("sound volume %d", volume);
-        return threadExecutor.submit(new UpdateCommand(cmd));
+
+        // TODO: implement updateVolume
+        // String cmd = volume==0 ? "sound off" : String.format("sound volume %d", volume);
+        return new Future<Boolean>() {
+            @Override
+            public boolean cancel(boolean mayInterruptIfRunning) {
+                return false;
+            }
+
+            @Override
+            public boolean isCancelled() {
+                return false;
+            }
+
+            @Override
+            public boolean isDone() {
+                return false;
+            }
+
+            @Override
+            public Boolean get() throws ExecutionException, InterruptedException {
+                return false;
+            }
+
+            @Override
+            public Boolean get(long timeout, TimeUnit unit) throws ExecutionException, InterruptedException, TimeoutException {
+                return false;
+            }
+        };
     }
 
     /**
@@ -161,8 +327,35 @@ class Proxy {
      * @return Future of Boolean with the success of the operation
      */
     Future<Boolean> playSound(int soundId) {
+        log.finest("updateSound called, soundID="+soundId);
         activeSound = soundId;
-        return threadExecutor.submit(new UpdateCommand("sound play "+soundId));
+        // TODO: implement playSound
+         return new Future<Boolean>() {
+             @Override
+             public boolean cancel(boolean mayInterruptIfRunning) {
+                 return false;
+             }
+
+             @Override
+             public boolean isCancelled() {
+                 return false;
+             }
+
+             @Override
+             public boolean isDone() {
+                 return false;
+             }
+
+             @Override
+             public Boolean get() throws ExecutionException, InterruptedException {
+                 return false;
+             }
+
+             @Override
+             public Boolean get(long timeout, TimeUnit unit) throws ExecutionException, InterruptedException, TimeoutException {
+                 return false;
+             }
+         };
     }
 
     /**
@@ -171,78 +364,40 @@ class Proxy {
      * @return Future of Boolean with the success of the operation
      */
     Future<Boolean> updateTimer(int secondsFromNow) {
-        String cmd = secondsFromNow==0 ? "sound timer off" : String.format("sound timer %d", secondsFromNow);
-        return threadExecutor.submit(new UpdateCommand(cmd));
+        log.finest("updatTimer called, timer="+secondsFromNow);
+        //String cmd = secondsFromNow==0 ? "sound timer off" : String.format("sound timer %d", secondsFromNow);
+        // TODO: implement updateTimer
+        return new Future<Boolean>() {
+            @Override
+            public boolean cancel(boolean mayInterruptIfRunning) {
+                return false;
+            }
+
+            @Override
+            public boolean isCancelled() {
+                return false;
+            }
+
+            @Override
+            public boolean isDone() {
+                return false;
+            }
+
+            @Override
+            public Boolean get() throws ExecutionException, InterruptedException {
+                return false;
+            }
+
+            @Override
+            public Boolean get(long timeout, TimeUnit unit) throws ExecutionException, InterruptedException, TimeoutException {
+                return false;
+            }
+        };
     }
 
     //
     // private data
     //
-
-    /**
-     * nested class implementing Callable for the connect method
-     */
-    private class Connect implements Callable<Boolean> {
-        @Override
-        public Boolean call() {
-            SharedPreferences prefs = context.getSharedPreferences(Constants.PREFS_KEY,MODE_PRIVATE);
-            int active = prefs.getInt("active",-1);
-            if(active==-1) {
-                Log.e(Constants.LOG,"No active AlarmPi set in SharedPreferences");
-                return false;
-            }
-
-            String name = prefs.getString("name"+active,"");
-            String addr = prefs.getString("hostname"+active,"");
-
-            if(addr.isEmpty()) {
-                Log.e(Constants.LOG,"No hostname found in SharedPrefs for AlarmPi index "+active);
-                return false;
-            }
-            Log.d(Constants.LOG, "trying to connect to AlarmPi "+name+" at address "+addr);
-
-            try {
-                socket = new Socket(addr, Constants.PORT);
-                alarmPiOut = new BufferedOutputStream(socket.getOutputStream());
-                alarmPiIn = new BufferedReader(new InputStreamReader(socket.getInputStream()));
-                // synchronize prompt
-                readData();
-                Log.d(Constants.LOG, "connected to AlarmPi "+name+" at address "+addr);
-
-                return true;
-            } catch (IOException e) {
-                Log.e(Constants.LOG,"Unable to connect to AlarmPi "+name+" at address "+addr,e);
-                socket = null;
-            }
-
-            return false;
-        }
-    }
-
-    /**
-     * nested class implementing Callable for the disconnect method
-     */
-    private class Disconnect implements Runnable {
-        @Override
-        public void run() {
-            if(socket!=null) {
-                try {
-                    alarmPiOut.write("exit\n".getBytes());
-                    alarmPiOut.flush();
-
-                    socket.close();
-                    socket     = null;
-                    alarmPiOut = null;
-                    alarmPiIn  = null;
-                    Log.d(Constants.LOG, "disconnected from AlarmPi");
-                } catch (IOException e) {
-                    Log.e(Constants.LOG, "Unable to disconnect from AlarmPi", e);
-                    socket = null;
-                }
-            }
-        }
-    }
-
     /**
      * nested class implementing Callable for the synchronize method
      */
@@ -254,112 +409,119 @@ class Proxy {
 
         @Override
         public Boolean call() {
-            if(socket!=null) {
-                try {
-                    // get alarms
-                    alarmPiOut.write("alarm?".getBytes());
-                    alarmPiOut.flush();
 
-                    String status = alarmPiIn.readLine();
-                    if(!status.endsWith("OK")) {
-                        Log.e(Constants.LOG, "Unable to synchronize alarm data from AlarmPi: "+readData());
-                        return false;
-                    }
-
-                    String alarmData = readData();
-
-                    // clear alarm list
-                    alarmList.clear();
-
-                    // process answer
-                    for (String line : alarmData.split("\n")) {
-                        String items[] = line.trim().split(" ");
-                        if (items.length == 7) {
-                            // this is a line with alarm data
-                            Alarm alarm = new Alarm(Integer.parseInt(items[0]), Boolean.parseBoolean(items[1]),items[2], items[3], Integer.parseInt(items[4]),Boolean.parseBoolean(items[5]),Boolean.parseBoolean(items[6]));
-                            Log.d(Constants.LOG, "synchronized alarm: id=" + alarm.getId() + " " + alarm.toString()+" oneTime="+ alarm.getOneTimeOnly()+" skip="+alarm.getSkipOnce());
-                            alarmList.add(alarm);
-                        }
-                        else {
-                            Log.e(Constants.LOG, "Unable to synchronize lights data from AlarmPi: "+alarmData);
-                        }
-                    }
-
-
-                    // get light settings
-                    alarmPiOut.write("lights?".getBytes());
-                    alarmPiOut.flush();
-
-                    status = alarmPiIn.readLine();
-                    if(!status.endsWith("OK")) {
-                        Log.e(Constants.LOG, "Unable to synchronize lights data from AlarmPi: "+readData());
-                        return false;
-                    }
-                    String lightData = readData();
-                    brightness = new int[0];
-                    try {
-                        String parts[] = lightData.split(" +");
-                        lightCount = Integer.parseInt(parts[0]);
-                        Log.d(Constants.LOG, "synchronized light count: " + lightCount);
-                        brightness = new int[lightCount];
-                        for(int i=0 ; i<lightCount ; i++) {
-                            brightness[i] = Integer.parseInt(parts[i+1]);
-                            Log.d(Constants.LOG, "synchronized brightness for light ID " + i + " : "+brightness[i]);
-                        }
-                    } catch (NumberFormatException e ) {
-                        Log.e(Constants.LOG, "Exception while parsing light data: ", e);
-                        return false;
-                    }
-                    catch (IndexOutOfBoundsException e) {
-                        Log.e(Constants.LOG, "Exception while parsing light data: ", e);
-                        return false;
-
-                    }
-
-                    // get active sound and sound list
-                    alarmPiOut.write("sound?".getBytes());
-                    alarmPiOut.flush();
-
-                    status = alarmPiIn.readLine();
-                    if(!status.endsWith("OK")) {
-                        Log.e(Constants.LOG, "Unable to synchronize activeSound data from AlarmPi: " + readData());
-                        return false;
-                    }
-                    // read active settings
-                    String activeSettings = alarmPiIn.readLine();
-                    String items[] = activeSettings.trim().split(" ");
-                    activeSound    = Integer.parseInt(items[0]);
-                    activeVolume   = Integer.parseInt(items[1]);
-                    activeTimer    = Integer.parseInt(items[2]);
-
-                    if(activeSound<0) {
-                        activeSound  = null;
-                        activeVolume = 0;
-                    }
-
-                    // clear and process activeSound list
-                    String soundData = readData();
-                    soundList.clear();
-                    for(String line: soundData.split("\n")) {
-                        items = line.trim().split(" ");
-                        if(items.length==2) {
-                            // this is a line with activeSound data
-                            Log.d(Constants.LOG, "synchronized sound: "+items[0]);
-                            soundList.add(items[0]);
-                        }
-                    }
-
-                    Log.d(Constants.LOG, "synchronized active sound settings: index="+activeSound+" vol="+activeVolume+" timer="+activeTimer);
-                } catch (IOException e) {
-                    Log.e(Constants.LOG, "Unable to synchronize data from AlarmPi", e);
-                    return false;
-                }
-            }
-            else {
-                // not connected
-                Log.e(Constants.LOG, "Not connected to AlarmPi - Unable to synchronize data");
+            SharedPreferences prefs = context.getSharedPreferences(Constants.PREFS_KEY, MODE_PRIVATE);
+            int active = prefs.getInt("active", -1);
+            if (active == -1) {
+                Log.e(Constants.LOG, "No active AlarmPi set in SharedPreferences");
                 return false;
             }
+
+            String addr = prefs.getString("hostname" + active, "");
+
+            if (addr.isEmpty()) {
+                Log.e(Constants.LOG, "No hostname found in SharedPrefs for AlarmPi index " + active);
+                return false;
+            }
+
+            String urlString = "http://" + addr + ":" + Constants.JSON_PORT;
+            Log.d(Constants.LOG, "executing HTTP GET query for URL " + urlString);
+
+            HttpURLConnection con = null;
+            try {
+                URL url = new URL(urlString);
+                con = (HttpURLConnection) url.openConnection();
+                Log.d(Constants.LOG, "connection opened");
+
+                con.setRequestMethod("GET");
+                con.setRequestProperty("Content-Type", "application/json");
+                con.setRequestProperty("Accept", "application/json");
+
+                con.setDoInput(true);
+
+                BufferedReader br;
+
+                br = new BufferedReader(new InputStreamReader(con.getInputStream(), StandardCharsets.UTF_8));
+                StringBuilder response = new StringBuilder();
+                String responseLine;
+                while ((responseLine = br.readLine()) != null) {
+                    response.append(responseLine.trim());
+                }
+                Log.d(Constants.LOG, "response: " + response.toString());
+
+                JSONObject jsonObject = new JSONObject(response.toString());
+
+                // process sound list
+                soundList.clear();
+                soundName2ListIndexMap.clear();
+
+                JSONArray jsonArray = jsonObject.getJSONArray("sounds");
+                for (int i = 0; i < jsonArray.length(); i++) {
+                    JSONObject jsonSound = jsonArray.getJSONObject(i);
+                    Log.v(Constants.LOG, "parsed sound: " + jsonSound.getString("name"));
+                    soundList.add(jsonSound.getString("name"));
+                    soundName2ListIndexMap.put(jsonSound.getString("name"), i);
+                }
+                Log.d(Constants.LOG, "processed sound list. Found " +jsonArray.length()+" sounds" );
+
+                // process sound status
+                JSONObject jsonSoundStatus = jsonObject.getJSONObject("soundStatus");
+                String activeSoundName = jsonSoundStatus.getString("activeSound");
+                if(activeSoundName==null || activeSoundName.isEmpty()) {
+                    activeSound = -1;
+                }
+                else {
+                    activeSound = soundName2ListIndexMap.get(activeSoundName);
+                    if(activeSoundName==null) {
+                        Log.e(Constants.LOG,"invalid sound name for active sound: "+activeSoundName);
+                        activeSound = -1;
+                    }
+                }
+                activeVolume = jsonSoundStatus.getInt("activeVolume");
+                activeTimer  = jsonSoundStatus.getInt("activeTimer");
+                Log.d(Constants.LOG, "processed sound status" );
+
+                // process alarm list
+                alarmList.clear();
+
+                jsonArray = jsonObject.getJSONArray("alarms");
+                for (int i = 0; i < jsonArray.length(); i++) {
+                    JSONObject jsonAlarm = jsonArray.getJSONObject(i);
+                    Alarm alarm = Alarm.parseFromJsonObject(jsonAlarm,soundName2ListIndexMap);
+                    if(alarm!=null) {
+                        alarmList.add(alarm);
+                    }
+                }
+                Log.d(Constants.LOG, "processed alarm list. Found " +jsonArray.length()+" alarms" );
+
+                // process lights
+                jsonArray = jsonObject.getJSONArray("lights");
+                lightCount = jsonArray.length();
+                brightness = new int[lightCount];
+                for (int i = 0 ; i < lightCount ; i++) {
+                    JSONObject jsonLight = jsonArray.getJSONObject(i);
+                    brightness[i] = jsonLight.getInt("brightness");
+                }
+                Log.d(Constants.LOG, "processed light list. Found " +lightCount+" lights" );
+
+            } catch (MalformedURLException e) {
+                Log.e(Constants.LOG, "malformed URL Exception in synchronze: " + e.getMessage());
+
+                return false;
+            } catch (IOException e) {
+                Log.e(Constants.LOG, "IOException in synchronize: " + e.getMessage());
+                if (con != null) {
+                    try {
+                        Log.e(Constants.LOG, con.getResponseMessage());
+                    } catch (IOException e1) {
+                        e1.printStackTrace();
+                    }
+                }
+                return false;
+            } catch (JSONException e) {
+                Log.e(Constants.LOG, "JSON exception in synchronize: " + e.getMessage());
+            }
+
 
             Log.d(Constants.LOG, "sending synchonized complete message");
             handler.obtainMessage(Constants.MESSAGE_PROXY_SYNCHRONIZED).sendToTarget();
@@ -372,148 +534,25 @@ class Proxy {
         android.os.Handler handler;
     }
 
-    /**
-     * nested class implementing Callable for the updateAlarm method
-     * sends updated alarm settings to AlarmPi server
-     */
-    private class UpdateAlarm implements Callable<Boolean> {
-        /**
-         * Constructor
-         * @param alarm alarm to update
-         */
-        UpdateAlarm(Alarm alarm, android.os.Handler handler) {
-            this.handler = handler;
-            this.alarm   = alarm;
-        }
-
-        @Override
-        public Boolean call() {
-            boolean result = false;
-            if(socket!=null) {
-                try {
-                    // update alarm data
-                    String cmd = String.format("alarm modify %d %s %s %d %b %b %b",alarm.getId(),alarm.getWeekDays(),alarm.getTime(),alarm.getSound(),alarm.getEnabled(),alarm.getOneTimeOnly(),alarm.getSkipOnce());
-                    Log.d(Constants.LOG, "Sending update cmd: "+cmd);
-                    alarmPiOut.write(cmd.getBytes());
-                    alarmPiOut.flush();
-
-                    String status = alarmPiIn.readLine();
-                    if(status.endsWith("OK")) {
-                        readData();
-                        alarm.resetHasChanged();
-                        result = true;
-                    }
-                    else {
-                        String error = readData();
-                        Log.e(Constants.LOG, "Unable to update alarm to AlarmPi: "+error);
-                    }
-                } catch (IOException e) {
-                    Log.e(Constants.LOG, "Unable to update alarm to AlarmPi", e);
-                }
-            }
-            else {
-                // not connected
-                Log.e(Constants.LOG, "Not connected to AlarmPi - Unable to update data");
-            }
-
-            // an error occured
-            handler.sendEmptyMessage(Constants.MESSAGE_PROXY_ALARM_UPDATED);
-            return result;
-        }
-
-        // private members
-        private Alarm               alarm;             // alarm to update
-        private android.os.Handler  handler;
-    }
-
-    /**
-     * nested private class implementing the Callable Interface
-     * Used by all update commands to to the communication in a background thread
-     */
-    private class UpdateCommand implements Callable<Boolean> {
-        /**
-         * Constructor
-         *
-         * @param cmd command to send
-         */
-        UpdateCommand(String cmd) {
-            this.cmd = cmd;
-        }
-
-        @Override
-        public Boolean call() {
-            if (socket != null) {
-                try {
-                    Log.d(Constants.LOG, "Sending update cmd: " + cmd);
-                    alarmPiOut.write(cmd.getBytes());
-                    alarmPiOut.flush();
-
-                    String status = alarmPiIn.readLine();
-                    if (status.endsWith("OK")) {
-                        readData();
-                        return true;
-                    } else {
-                        String error = readData();
-                        Log.e(Constants.LOG, "Failed to send command " + cmd + " : " + error);
-                    }
-                } catch (IOException e) {
-                    Log.e(Constants.LOG, "Failed to send command " + cmd,e);
-                }
-            } else {
-                // not connected
-                Log.e(Constants.LOG, "Not connected to AlarmPi - Unable to send command " + cmd);
-            }
-
-            // an error occured
-            return false;
-        }
-
-        // private members
-        private String cmd;
-    }
-
-    /**
-     * reads data from AlarmPi until no more data is available
-     */
-    private String readData() {
-        String retVal;
-        final int SIZE = 1000;
-        int       pos  = 0;
-        char[] buffer = new char[SIZE];
-
-        try {
-            int bytes;
-            do {
-                bytes = alarmPiIn.read(buffer, pos, SIZE);
-            } while(bytes<=0);
-
-            retVal = new String(buffer,0,bytes);
-        } catch (IOException e) {
-            Log.e(Constants.LOG,"Unable to synchronize from AlarmPi",e);
-            retVal = "";
-        }
-
-        return retVal;
-    }
-
 
     //
     // private members
     //
-    private static Proxy          object = new Proxy();         // singleton object
-    private Context               context;                      // Android application context
-    private ExecutorService       threadExecutor = Executors.newSingleThreadExecutor();
+    private final Logger   log     = Logger.getLogger( this.getClass().getSimpleName() );
+
+    private static Proxy          object = null;         // singleton object
+    private final Context         context;                      // Android application context
+    private final ExecutorService threadExecutor = Executors.newSingleThreadExecutor();
 
 
-    private Socket                socket;                       // networking objects
-    private BufferedOutputStream  alarmPiOut;
-    private BufferedReader        alarmPiIn;
+    private URL                   url;
 
     // thread safe alarm list
-    private CopyOnWriteArrayList<Alarm> alarmList   = new CopyOnWriteArrayList<Alarm>();
+    private final CopyOnWriteArrayList<Alarm> alarmList   = new CopyOnWriteArrayList<>();
 
     // read-only list with possible sounds (radio stations or playlists)
-    private ArrayList<String>           soundList   = new ArrayList<String>();
+    private final ArrayList<String>           soundList              = new ArrayList<>();
+    private final Map<String,Integer>         soundName2ListIndexMap = new HashMap<>();     // helper tp map sound names to index in array list
 
     private int     lightCount;                  // number of lights controlled by this AlarmPi
     private int[]   brightness;                  // LED brightness in percent

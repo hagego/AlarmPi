@@ -35,6 +35,8 @@ public class MainActivity extends AppCompatActivity
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
 
+        AndroidLoggingHandler.reset(new AndroidLoggingHandler());
+
         Log.d(Constants.LOG, "AlarmPi MainActivity onCreate()");
         setContentView(R.layout.activity_main);
         Toolbar toolbar = (Toolbar) findViewById(R.id.toolbar);
@@ -292,7 +294,7 @@ public class MainActivity extends AppCompatActivity
 
         // connect to AlarmPi and synchronize data
         // Proxy will serialize the 2 methods in a different thread
-        proxy.connect();
+
         proxyStatusSynchronized = proxy.synchronize(handler);
         listenersEnabled = false;
     }
@@ -308,9 +310,6 @@ public class MainActivity extends AppCompatActivity
                 proxyStatusAlarmUpdated = proxy.updateAlarm(alarm,handler);
             }
         }
-
-        // disconnect from AlarmPi
-        proxy.disconnect();
 
         super.onPause();
     }
