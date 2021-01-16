@@ -110,9 +110,9 @@ public class AlarmPi {
 			final ExecutorService threadPool = Executors.newCachedThreadPool();
 			
 			// start TCP server to listen for external commands
-			if(configuration.getPort()==0) {
+			if(configuration.getPort()==null) {
 				// no port specified (or set to 0)
-				log.severe("No TCP cmd server port specified - no server is started");
+				log.warning("No TCP cmd server port specified - no server is started");
 			}
 			else {
 			    try {
@@ -142,7 +142,7 @@ public class AlarmPi {
 				}
 			}
 			
-			if(configuration.getJsonServerPort()==0) {
+			if(configuration.getJsonServerPort()==null) {
 				// no port specified (or set to 0)
 				log.severe("No HTTP JSON server port specified - no server is started");
 			}

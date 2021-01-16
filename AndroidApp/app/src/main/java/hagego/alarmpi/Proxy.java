@@ -213,7 +213,7 @@ class Proxy {
      * @return Future of Boolean with the success of the update
      */
     Future<Boolean> updateAlarm(Alarm alarm, android.os.Handler handler) {
-        log.finest("updateAlarm called for alarm ID="+alarm.getId());
+        log.fine("updateAlarm called for alarm ID="+alarm.getId());
 
         return threadExecutor.submit(new Callable<Boolean>() {
             @Override
@@ -256,7 +256,7 @@ class Proxy {
      * @return Future of Boolean with the success of the update
      */
     Future<Boolean> updateBrightness(int lightId,int brightness) {
-        log.finest("updateBrightness  called for light ID="+lightId);
+        log.fine("updateBrightness  called for light ID="+lightId);
 
         return threadExecutor.submit(new Callable<Boolean>() {
             @Override
@@ -288,37 +288,27 @@ class Proxy {
      * @return Future of Boolean with the success of the update
      */
     Future<Boolean> updateVolume(int volume) {
-        log.finest("updateVolume called, volume="+volume);
+        log.fine("updateVolume called, volume="+volume);
         activeVolume=volume;
 
-        // TODO: implement updateVolume
-        // String cmd = volume==0 ? "sound off" : String.format("sound volume %d", volume);
-        return new Future<Boolean>() {
+        return threadExecutor.submit(new Callable<Boolean>() {
             @Override
-            public boolean cancel(boolean mayInterruptIfRunning) {
-                return false;
-            }
+            public Boolean call() throws Exception {
+                JSONObject jsonObject = new JSONObject();
+                JSONObject jsonSoundObject = new JSONObject();
 
-            @Override
-            public boolean isCancelled() {
-                return false;
-            }
+                try {
+                    jsonSoundObject.put("activeVolume",volume);
+                    jsonObject.put("soundStatus",jsonSoundObject);
 
-            @Override
-            public boolean isDone() {
-                return false;
-            }
+                    return executeHttpPostJsonQuery(jsonObject);
+                } catch (JSONException e) {
+                    log.severe("updateVolume: JSON Exception: "+e.getMessage());
+                }
 
-            @Override
-            public Boolean get() throws ExecutionException, InterruptedException {
                 return false;
             }
-
-            @Override
-            public Boolean get(long timeout, TimeUnit unit) throws ExecutionException, InterruptedException, TimeoutException {
-                return false;
-            }
-        };
+        });
     }
 
     /**
@@ -327,35 +317,27 @@ class Proxy {
      * @return Future of Boolean with the success of the operation
      */
     Future<Boolean> playSound(int soundId) {
-        log.finest("updateSound called, soundID="+soundId);
+        log.fine("updateSound called, soundID="+soundId);
         activeSound = soundId;
-        // TODO: implement playSound
-         return new Future<Boolean>() {
-             @Override
-             public boolean cancel(boolean mayInterruptIfRunning) {
-                 return false;
-             }
 
-             @Override
-             public boolean isCancelled() {
-                 return false;
-             }
+        return threadExecutor.submit(new Callable<Boolean>() {
+            @Override
+            public Boolean call() throws Exception {
+                JSONObject jsonObject = new JSONObject();
+                JSONObject jsonSoundObject = new JSONObject();
 
-             @Override
-             public boolean isDone() {
-                 return false;
-             }
+                try {
+                    jsonSoundObject.put("activeSound",soundList.get(soundId));
+                    jsonObject.put("soundStatus",jsonSoundObject);
 
-             @Override
-             public Boolean get() throws ExecutionException, InterruptedException {
-                 return false;
-             }
+                    return executeHttpPostJsonQuery(jsonObject);
+                } catch (JSONException e) {
+                    log.severe("playSound: JSON Exception: "+e.getMessage());
+                }
 
-             @Override
-             public Boolean get(long timeout, TimeUnit unit) throws ExecutionException, InterruptedException, TimeoutException {
-                 return false;
-             }
-         };
+                return false;
+            }
+        });
     }
 
     /**
@@ -364,7 +346,7 @@ class Proxy {
      * @return Future of Boolean with the success of the operation
      */
     Future<Boolean> updateTimer(int secondsFromNow) {
-        log.finest("updatTimer called, timer="+secondsFromNow);
+        log.fine("updatTimer called, timer="+secondsFromNow);
         //String cmd = secondsFromNow==0 ? "sound timer off" : String.format("sound timer %d", secondsFromNow);
         // TODO: implement updateTimer
         return new Future<Boolean>() {

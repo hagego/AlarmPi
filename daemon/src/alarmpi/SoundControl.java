@@ -77,6 +77,7 @@ public class SoundControl {
 		log.fine("GPIO for audio set to low");
 		
 		activeVolume = 0;
+		activeSound  = null;
 	}
 	
 	/**
@@ -89,6 +90,8 @@ public class SoundControl {
 			try {
 				sendCommand("stop");
 				sendCommand("clear");
+				
+				activeSound  = null;
 			} catch (IOException e) {
 				disconnect();
 				throw e;
@@ -181,6 +184,8 @@ public class SoundControl {
 			log.warning("SoundControl.playSound called for a playlist");
 			break;
 		}
+		
+		activeSound = sound;
 	}
 	
 	/**
@@ -216,6 +221,8 @@ public class SoundControl {
 				throw e;
 			}
 			disconnect();
+			
+			activeSound = null;
 		} catch (IOException e) {
 			log.severe("Exception in playFile, filename="+filename);
 			log.severe(e.getMessage());
@@ -249,6 +256,13 @@ public class SoundControl {
 	synchronized int getVolume() {
 		log.fine("returning active volume: "+activeVolume);
 		return activeVolume;
+	}
+	
+	/**
+	 * @return the active sound or null if no sound is played
+	 */
+	synchronized Sound getActiveSound() {
+		return activeSound;
 	}
 	
 	
@@ -371,7 +385,8 @@ public class SoundControl {
 	private Socket               socket;                // TCP socket
 	private BufferedReader       reader;
 	private PrintWriter          writer;
-	
+
+	private Sound                activeSound;           // stores the currently active sound, or null
 	private int                  activeVolume;          // caches the active volume, 0=off
 }
 

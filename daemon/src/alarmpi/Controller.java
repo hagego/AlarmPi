@@ -822,16 +822,52 @@ class Controller implements Runnable {
 		return lightControlList;
 	}
 	
-	synchronized JsonObject getSoundStatus() {
+	synchronized JsonObject getSoundStatusAsJsonObject() {
 		JsonObjectBuilder builder = Json.createBuilderFactory(null).createObjectBuilder();
-		builder.add("activeSound", "");
-		builder.add("activeVolume", 0);
+		SoundControl soundControl = SoundControl.getSoundControl();
+		
+		builder.add("activeSound",soundControl.getActiveSound()==null ? "" : soundControl.getActiveSound().name );
+		builder.add("activeVolume", soundControl.getVolume());
 		builder.add("activeTimer", 0);
 		
 		JsonObject jsonObject = builder.build();
 		log.fine("Created JsonObject for sound status: "+jsonObject.toString());
 		
 		return jsonObject;
+	}
+	
+	synchronized void parseSoundStatusFromJsonObject(JsonObject jsonObject) {
+		try {
+			String soundName = jsonObject.getString("activeSound");
+			if(soundName!=null && !soundName.isEmpty()) {
+				try {
+					Sound sound = Configuration.getConfiguration().getSoundList().stream().filter(s -> s.name.equals(soundName)).findAny().get();
+					if(sound!=null) {
+						
+						SoundControl.getSoundControl().on();
+						SoundControl.getSoundControl().playSound(sound, null, false);
+					}
+				}
+				catch(NoSuchElementException e) {
+					log.severe("parseSoundStatusFromJsonObject: sound not found");
+				}
+			}
+		}
+		catch(NullPointerException e) {
+			// activeSound is not stored in the JsonObject
+		}
+		
+		try {
+			int volume = jsonObject.getInt("activeVolume");
+			SoundControl.getSoundControl().setVolume(volume);
+			
+			if(volume==0) {
+				SoundControl.getSoundControl().off();
+			}
+		}
+		catch(NullPointerException e) {
+			// activeVolume is not stored in the Json Object
+		}
 	}
 	
 	

@@ -181,15 +181,8 @@ public class Configuration {
         mpdTmpSubDir  = ini.get("mpd", "tmpSubDir", String.class);
         
         // network access (thru TCP clients)
-        port           = ini.get("network", "port", Integer.class);
-        Integer jsonServerPortTemp = ini.get("network", "jsonServerPort", Integer.class);
-        if(jsonServerPortTemp==null) {
-        	jsonServerPort = 0;
-        	log.info("JSON Server disabled (no port specified)");
-        }
-        else {
-        	jsonServerPort = jsonServerPortTemp;
-        }
+        port = ini.get("network", "port", Integer.class);
+        jsonServerPort = ini.get("network", "jsonServerPort", Integer.class);
         
         // sounds (radio stations)
         Ini.Section sectionSound;
@@ -503,16 +496,16 @@ public class Configuration {
 	}
 	
 	/**
-	 * @return the network port for the AlarmPi TCP remote interface
+	 * @return the network port for the AlarmPi TCP remote interface. null if no TCP server is configured
 	 */
-	int getPort() {
+	Integer getPort() {
 		return port;
 	}
 
 	/**
 	 * @return the network port for the HTTP JSON server remote interface
 	 */
-	int getJsonServerPort() {
+	Integer getJsonServerPort() {
 		return jsonServerPort;
 	}
 	
@@ -853,8 +846,8 @@ public class Configuration {
 	private final boolean                    runningOnRaspberry;
 	private String                           name;                      // AlarmPi Name
 	private int                              volumeDefault;             // default sound volume
-	private int                              port;                      // AlarmPi networt port for remote control
-	private int                              jsonServerPort;            // tcp port for HTTP JSON based control
+	private Integer                          port;                      // AlarmPi networt port for remote control
+	private Integer                          jsonServerPort;            // tcp port for HTTP JSON based control
 	private String                           mpdAddress;                // mpd network address
 	private int                              mpdPort;                   // mpd network port
 	private String                           mpdFiles;                  // directory for MPD sound files

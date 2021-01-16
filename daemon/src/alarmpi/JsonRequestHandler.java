@@ -113,6 +113,11 @@ public class JsonRequestHandler implements Runnable {
 								jsonArray.stream().filter(action -> action.toString().equals("\"stopActiveAlarm\"")).forEach(action -> controller.stopActiveAlarm());
 							}
 							
+							JsonObject jsonObjectSoundStatus = jsonObject.getJsonObject("soundStatus");
+							if(jsonObjectSoundStatus!=null) {
+								controller.parseSoundStatusFromJsonObject(jsonObjectSoundStatus);
+							}
+							
 							httpResponse = "HTTP/1.1 200 OK\r\n" + 
 									"Date: "+today+"\r\n" + 
 									"Server: AlarmPi\r\n" + 
@@ -149,7 +154,7 @@ public class JsonRequestHandler implements Runnable {
 		builder.add("name", Configuration.getConfiguration().getName());
 		builder.add("alarms", Configuration.getConfiguration().getAlarmsAsJsonArray());
 		builder.add("sounds", Configuration.getConfiguration().getSoundsAsJsonArray());
-		builder.add("soundStatus", controller.getSoundStatus());
+		builder.add("soundStatus", controller.getSoundStatusAsJsonObject());
 		builder.add("lights", controller.getLightStatusAsJsonArray());
 		JsonObject jsonObject = builder.build();
 		
