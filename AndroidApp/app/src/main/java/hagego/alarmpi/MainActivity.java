@@ -175,7 +175,7 @@ public class MainActivity extends AppCompatActivity
                                     radioButtonTimerOff.setEnabled(false);
                                 }
 
-                                if(proxy.getActiveTimer()>0) {
+                                if(proxy.getActiveTimer()!=null && proxy.getActiveTimer()>0) {
                                     // timer active
                                     radioButtonTimerOn.setChecked(true);
                                     radioButtonTimerOff.setChecked(false);
