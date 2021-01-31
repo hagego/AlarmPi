@@ -82,32 +82,38 @@ public class LightControlNRF24LO1 extends LightControl {
 			log.severe("Unable to initialize nRF24LO1 Control Object");
 			return;
 		}
-
-		// Defaults after init are 2.402 GHz (channel 2), 2Mbps, 0dBm
-		try {
-			nRF204Control.setChannel(1);
-
-			nRF204Control.setRF(NRF24LO1Control.DataRate.DataRate2Mbps,
-					NRF24LO1Control.TransmitPower.TransmitPower0dBm);
-
-			// send command for 10 seconds
-			long start = System.nanoTime();
-			while ((System.nanoTime() - start) < 10E9) {
-				nRF204Control.send(data);
-				nRF204Control.waitPacketSent();
-
+		
+		new Thread(new Runnable() {
+			
+			@Override
+			public void run() {
+				// Defaults after init are 2.402 GHz (channel 2), 2Mbps, 0dBm
 				try {
-					Thread.sleep(10);
-				} catch (InterruptedException e) {
+					nRF204Control.setChannel(1);
+
+					nRF204Control.setRF(NRF24LO1Control.DataRate.DataRate2Mbps,
+							NRF24LO1Control.TransmitPower.TransmitPower0dBm);
+
+					// send command for 10 seconds
+					long start = System.nanoTime();
+					while ((System.nanoTime() - start) < 10E9) {
+						nRF204Control.send(data);
+						nRF204Control.waitPacketSent();
+
+						try {
+							Thread.sleep(10);
+						} catch (InterruptedException e) {
+						}
+					}
+					
+					// back to idle again
+					nRF204Control.setModeIdle();
+
+				} catch (IOException e) {
+					log.severe("IO Exception while talking to nRF24LO1: " + e.getMessage());
 				}
 			}
-			
-			// back to idle again
-			nRF204Control.setModeIdle();
-
-		} catch (IOException e) {
-			log.severe("IO Exception while talking to nRF24LO1: " + e.getMessage());
-		}
+		}).start();
 	}
 
 	private static final Logger log = Logger.getLogger(MethodHandles.lookup().lookupClass().getName());

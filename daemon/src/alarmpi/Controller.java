@@ -607,24 +607,6 @@ class Controller implements Runnable {
 				eventVolume.paramInt1 = alarm.getVolumeFadeInStart()+(int)(step*fadeInVolumeInterval);
 				eventList.add(eventVolume);
 			}
-			
-			// generate main alarm and post alarm announcements
-			Event eventGreeting = new Event();
-			eventGreeting.type         = Event.EventType.PLAY_FILE;
-			eventGreeting.alarm        = alarm;
-			eventGreeting.time         = alarmDateTime.plusNanos(1);
-			eventGreeting.paramString  = new TextToSpeech().createPermanentFile(alarm.getGreeting());
-			eventGreeting.paramBool    = true;
-			eventList.add(eventGreeting);
-			
-			// time announcement
-			Event eventAnnouncement = new Event();
-			eventAnnouncement.type         = Event.EventType.PLAY_FILE;
-			eventAnnouncement.alarm        = alarm;
-			eventAnnouncement.time         = alarmDateTime.plusNanos(2);
-			eventAnnouncement.paramString  = prepareTimeAnnouncement(alarmDateTime.toLocalTime());
-			eventAnnouncement.paramBool    = true;
-			eventList.add(eventAnnouncement);
 		}
 		
 		// generate post fade-in events to increase volume and brightness
