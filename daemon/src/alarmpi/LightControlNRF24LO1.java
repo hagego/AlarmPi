@@ -105,12 +105,16 @@ public class LightControlNRF24LO1 extends LightControl {
 						} catch (InterruptedException e) {
 						}
 					}
-					
-					// back to idle again
-					nRF204Control.setModeIdle();
 
 				} catch (IOException e) {
 					log.severe("IO Exception while talking to nRF24LO1: " + e.getMessage());
+				}
+				finally {
+					// back to idle again
+					try {
+						nRF204Control.setModeIdle();
+					}
+					catch(IOException e1) {}
 				}
 			}
 		}).start();

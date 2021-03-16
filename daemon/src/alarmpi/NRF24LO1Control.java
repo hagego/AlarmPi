@@ -291,7 +291,7 @@ public class NRF24LO1Control {
         long start = System.nanoTime();
         while (((status = statusRead()) & (RH_NRF24_TX_DS | RH_NRF24_MAX_RT))==0)
         {
-	    	if ((System.nanoTime() - start) > 200000000) // 200ms
+	    	if ((System.nanoTime() - start) > 250000000) // 250ms
 	    	{
 	    		throw new IOException("timeout while waiting for data to be sent");
 	    	}
