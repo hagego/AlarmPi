@@ -1,0 +1,59 @@
+#!/bin/bash
+
+# AlarmPi daemon installation script
+
+# install additional packages
+
+# MPD and required packages
+sudo apt-get install mpd mpc alsa-utils -y -q
+
+# wiringpi for gpio debugging
+sudo apt-get install wiringpi -y -q
+
+# ic2tools for i2c debugging
+sudo apt-get install i2c-tools -y -q
+
+# Java 8 (pi4j 1.x does not run on Java 11)
+sudo apt-get install openjdk-8-jre -y -q
+
+# lighttpd
+sudo apt-get install lighttpd -y -q
+
+
+# create user alarmpi and add to groups
+sudo useradd -M alarmpi
+sudo usermod -p alarmpi alarmpi
+sudo usermod -a -G audio alarmpi
+sudo usermod -a -G gpio alarmpi
+sudo usermod -a -G i2c alarmpi
+sudo usermod -a -G spi alarmpi
+
+# create directories
+sudo mkdir -p /opt/alarmpi/bin
+sudo mkdir -p /opt/alarmpi/www
+sudo mkdir -p /etc/alarmpi
+sudo mkdir -p /etc/alarmpi/tmp
+sudo chown -R alarmpi:alarmpi /opt/alarmpi
+sudo chown -R alarmpi:alarmpi /etc/alarmpi
+sudo mkdir -p /var/lib/mpd/music/tmp
+sudo chown -R mpd:audio /var/lib/mpd/music
+sudo chmod -R g+w /var/lib/mpd/music
+sudo mkdir -p /usr/lib/systemd/system
+
+sudo usermod -d /etc/alarmpi alarmpi
+sudo chmod -R g+w /var/lib/mpd/music
+
+# copy files
+sudo cp alarmpi.service /usr/lib/systemd/system
+sudo -u alarmpi cp ../target/alarmpi.jar /opt/alarmpi/bin
+sudo -u alarmpi cp -R ../target/libs /opt/alarmpi/bin
+sudo -u alarmpi cp ../conf/alarmpi.cfg /etc/alarmpi
+sudo -u alarmpi cp ../conf/alarmpi.logging /etc/alarmpi
+sudo -u alarmpi cp ../res/alarm*.mp3 /var/lib/mpd/music
+sudo -u alarmpi cp ../www/index.html ../www/main.css ../www/*.js /opt/alarmpi/www
+
+# configure alarmp daemon as service
+sudo chmod +x /usr/lib/systemd/system/alarmpi.service
+sudo systemctl daemon-reload
+sudo systemctl start alarmpi.service
+sudo systemctl enable alarmpi.service

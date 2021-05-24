@@ -8,6 +8,7 @@ import java.io.ObjectOutputStream;
 import java.io.Serializable;
 import java.time.DayOfWeek;
 import java.time.LocalTime;
+import java.time.format.DateTimeFormatter;
 import java.util.EnumSet;
 import java.util.LinkedList;
 import java.util.List;
@@ -176,7 +177,7 @@ public class Alarm implements Serializable {
 		builder.add("enabled", enabled);
 		builder.add("oneTimeOnly", oneTimeOnly);
 		builder.add("skipOnce", skipOnce);
-		builder.add("time", time.toString());
+		builder.add("time", time.format(DateTimeFormatter.ofPattern("HH:mm")));
 		builder.add("weekDays",weekDays.toString());
 		builder.add("soundName", sound.getName());
 		

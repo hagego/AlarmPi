@@ -52,7 +52,7 @@
           	<addClasspath>true</addClasspath>
           	<classpathPrefix>libs/</classpathPrefix>
           	<mainClass>
-                    	picturepi.PicturePi
+            	alarmpi.AlarmPi
           	</mainClass>
           </manifest>
         </archive>

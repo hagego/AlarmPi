@@ -101,8 +101,39 @@ class Controller implements Runnable {
 			switch(button.type) {
 				case GPIO :
 					if(gpioController!=null) {
-						GpioPinDigitalInput input = gpioController.provisionDigitalInputPin(RaspiPin.getPinByAddress(button.wiringpigpio), PinPullResistance.PULL_UP);
-						input.addListener(new PushButtonListener(button,input,this));
+						try {
+							GpioPinDigitalInput input = null;
+							
+							// https://github.com/raspberrypi/linux/issues/553
+							// allow one retry
+							try {
+								input = gpioController.provisionDigitalInputPin(RaspiPin.getPinByAddress(button.wiringpigpio), PinPullResistance.PULL_UP);
+								input.addListener(new PushButtonListener(button,input,this));
+							}
+							catch(Throwable e) {
+								Thread.sleep(100);
+								try {
+									if(input==null) {
+										input = gpioController.provisionDigitalInputPin(RaspiPin.getPinByAddress(button.wiringpigpio), PinPullResistance.PULL_UP);
+									}
+									input.addListener(new PushButtonListener(button,input,this));
+								}
+								catch(Throwable e2) {
+									Thread.sleep(100);
+									if(input==null) {
+										input = gpioController.provisionDigitalInputPin(RaspiPin.getPinByAddress(button.wiringpigpio), PinPullResistance.PULL_UP);
+									}
+									input.addListener(new PushButtonListener(button,input,this));
+								}
+							}
+						}
+						catch(Throwable e) {
+							log.severe("Uncaught runtime exception during initialization of button control, final attempts: "+e.getMessage());
+							log.severe(e.getCause().toString());
+							for(StackTraceElement element:e.getStackTrace()) {
+				    			log.severe(element.toString());
+							}
+						}
 					}
 					break;
 				default:

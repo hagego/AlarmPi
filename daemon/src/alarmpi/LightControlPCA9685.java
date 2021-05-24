@@ -80,11 +80,31 @@ public class LightControlPCA9685 extends LightControl implements Runnable {
 					pca9685.write(0xFD,(byte) 0x10);
 					
 					GpioController gpioController = GpioFactory.getInstance();
-					GpioPinDigitalOutput output   = gpioController.provisionDigitalOutputPin (RaspiPin.GPIO_27); 
+					
+					GpioPinDigitalOutput output = null;;
+					
+					// there seems to be a known, intermittent issue with the timing inside this code...
+					// https://github.com/raspberrypi/linux/issues/553
+					// allow one retry
+					try {
+						output   = gpioController.provisionDigitalOutputPin (RaspiPin.GPIO_27);
+					}
+					catch(Throwable e) {
+						Thread.sleep(100);
+						output   = gpioController.provisionDigitalOutputPin (RaspiPin.GPIO_27);
+					}
+					
 					output.setState(PinState.LOW);
 				} catch (IOException | UnsupportedBusNumberException e) {
 					log.severe("PCA9685 light control: Unable to initialize: "+e.getMessage());
 					pca9685 = null;
+				}
+				catch(Throwable e) {
+					log.severe("Uncaught runtime exception during initialization of PCS9685 light control: "+e.getMessage());
+					log.severe(e.getCause().toString());
+					for(StackTraceElement element:e.getStackTrace()) {
+		    			log.severe(element.toString());
+		    		}
 				}
 			}
 		}

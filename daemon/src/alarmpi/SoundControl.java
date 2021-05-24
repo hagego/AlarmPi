@@ -42,11 +42,30 @@ public class SoundControl {
 		// create Pin object for GPIO to turn on/off audio power
 		// WiringPi Pin GPIO4 = BRCM GPIO 23
 		if(Configuration.getConfiguration().getRunningOnRaspberry()) {
-			log.info("initializing GPIO to control 5V supply");
-			GpioController gpioController = GpioFactory.getInstance();
-			log.fine("GpioController instance retrieved");
-			gpioPinAudioControl = gpioController.provisionDigitalOutputPin(RaspiPin.GPIO_04);
-			log.fine("GPIO_04 privisioned as output");
+			try {
+				log.info("initializing GPIO to control 5V supply");
+				GpioController gpioController = GpioFactory.getInstance();
+				log.fine("GpioController instance retrieved");
+				
+				// there seems to be a known, intermittent issue with the timing inside this code...
+				// https://github.com/raspberrypi/linux/issues/553
+				// allow one retry
+				try {
+					gpioPinAudioControl = gpioController.provisionDigitalOutputPin(RaspiPin.GPIO_04);
+				}
+				catch(Throwable e) {
+					Thread.sleep(100);
+					gpioPinAudioControl = gpioController.provisionDigitalOutputPin(RaspiPin.GPIO_04);
+				}
+				log.fine("GPIO_04 privisioned as output");
+			}
+			catch(Throwable e) {
+				log.severe("Uncaught runtime exception during initialization of Sound Control: "+e.getMessage());
+				log.severe(e.getCause().toString());
+				for(StackTraceElement element:e.getStackTrace()) {
+	    			log.severe(element.toString());
+	    		}
+			}
 		}
 		
 		stop();

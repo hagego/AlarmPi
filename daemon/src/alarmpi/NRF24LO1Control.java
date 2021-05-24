@@ -286,15 +286,21 @@ public class NRF24LO1Control {
     {
         // Wait for either the Data Sent or Max ReTries flag, signalling the 
         // end of transmission
-        // We dont actually use auto-ack, so prob dont expect to see RH_NRF24_MAX_RT
+        // We don't actually use auto-ack, so don't expect to see RH_NRF24_MAX_RT
     	short status;
         long start = System.nanoTime();
         while (((status = statusRead()) & (RH_NRF24_TX_DS | RH_NRF24_MAX_RT))==0)
         {
-	    	if ((System.nanoTime() - start) > 250000000) // 250ms
+	    	if ((System.nanoTime() - start) > 300000000) // 300ms
 	    	{
+	    		setModeIdle();
+	            spiWriteRegister(RH_NRF24_REG_07_STATUS, RH_NRF24_TX_DS | RH_NRF24_MAX_RT);
+	            
 	    		throw new IOException("timeout while waiting for data to be sent");
 	    	}
+	    	try {
+				Thread.sleep(100);
+			} catch (InterruptedException e) {}
         }
 
         // Must clear RH_NRF24_MAX_RT if it is set, else no further comm

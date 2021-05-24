@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html lang="de">
+
+    <head>
+        <meta charset="utf-8">
+        <meta http-equiv="X-UA-Compatible" content="IE=edge">
+        <title>AlarmPi</title>
+        <meta name="description" content="AlarmPi web interface">
+        <link rel="stylesheet" href="main.css">
+        <script src="alarms.js"></script>
+        <script src="jquery-3.2.1.min.js"></script>
+        
+        <script>
+            document.addEventListener('DOMContentLoaded', loadData);
+        </script>
+        
+        <script>
+            document.addEventListener('DOMContentLoaded', function () {
+                document.getElementById('alarmsRead').addEventListener('click', loadData);	  
+            });
+        </script>
+                
+        <script>
+            document.addEventListener('DOMContentLoaded', function () {
+                document.getElementById('alarmsSubmit').addEventListener('click', submitAlarms);	  
+            });
+        </script>
+        
+        <script>
+            document.addEventListener('DOMContentLoaded', function () {
+                document.getElementById('alarmsStopActive').addEventListener('click', stopActiveAlarm);	  
+            });
+        </script>
+        
+    </head>
+    <body>
+        <header>
+                
+            <h1><span AlarmPi id="name"></span></h1>
+            
+        </header>
+        <main>
+            <h2>Alarme</h2>
+        
+            <!-- table shows all alarms -->
+            <table id="alarmtable">
+                <colgroup id="alarm_enabled"></colgroup>
+                <colgroup id="alarm_time"></colgroup>
+                <thead>
+                    <tr>
+                        <th>Ein</th>
+                        <th id="alarmtime"> Zeit</th>
+                        <th>Einmalig</th>
+                        <th>Auslassen</th>
+                        <th>Montag</th>
+                        <th>Dienstag</th>
+                        <th>Mittwoch</th>
+                        <th>Donnerstag</th>
+                        <th>Freitag</th>
+                        <th>Samstag</th>
+                        <th>Sonntag</th>
+                        <th>Sound</th>
+                    </tr>
+                </thead>
+                <tbody id="alarmTableBody">
+                    <!--
+                        add a dummy line - will be dynamically replaced
+                    -->
+                    <tr id="alarm_1">
+                        <td><input type="checkbox" id="alarm_1_enabled"></td>
+                        <td><input type="time" contenteditable="true" value="13:00"></td>
+                        <td><input type="checkbox"></td>
+                        <td><input type="checkbox"></td>
+                        <td><input type="checkbox"></td>
+                        <td><input type="checkbox"></td>
+                        <td><input type="checkbox"></td>
+                        <td><input type="checkbox"></td>
+                        <td><input type="checkbox"></td>
+                        <td><input type="checkbox"></td>
+                        <td><input type="checkbox"></td>
+                        <td>soundname</td>
+                    </tr>
+                </tbody>
+            </table>
+
+            <p>
+                <button id="alarmsRead" type="button">Laden</button>
+                <button id="alarmsSubmit" type="button">Update</button>
+                <button id="alarmsStopActive" type="button">Aktiver Alarm stop</button>
+            </p>
+            
+            <h2>Lichter</h2>
+            
+            <!-- table shows all lights -->
+            <table id="lighttable">
+                <colgroup id="light_name"></colgroup>
+                <colgroup id="light_on"></colgroup>
+                <colgroup id="light_off"></colgroup>
+                <colgroup id="brightness"></colgroup>
+                <thead>
+                    <tr>
+                        <th>Name</th>
+                        <th>Aus</th>
+                        <th>An</th>
+                        <th>Helligkeit</th>
+                    </tr>
+                </thead>
+                <tbody id="lightTableBody">
+                    <!--
+                        add a dummy line - will be dynamically replaced
+                    -->
+                    <tr id="light_1">
+                        <td><type="text"></td>
+                        <td><input type="radio"></td>
+                        <td><input type="radio"></td>
+                        <td><input type="range" min="0" max="100" value="30"></td>
+                    </tr>
+                </tbody>
+            </table>
+
+        </main>        
+    </body>
+</html>
+
+
