@@ -258,8 +258,8 @@ public class TcpRequestHandler implements Runnable {
 		@Override
 		public ReturnCode get() throws CommandHandlerException{
 			String answer = new String();
-			List<Alarm> alarmList = Configuration.getConfiguration().getAlarmList();
-			for(Alarm alarm:alarmList) {
+			List<LegacyAlarm> alarmList = Configuration.getConfiguration().getAlarmList();
+			for(LegacyAlarm alarm:alarmList) {
 				String weekDays = alarm.getWeekDays().toString();
 				weekDays = weekDays.substring(1, weekDays.length()-1).replaceAll(" ", "");
 				if(weekDays.isEmpty()) {
@@ -338,7 +338,7 @@ public class TcpRequestHandler implements Runnable {
 				return new ReturnCodeError("unable to parse alarm id from "+parameters[1]);
 			}
 			
-			Alarm alarm = Configuration.getConfiguration().getAlarm(id);
+			LegacyAlarm alarm = Configuration.getConfiguration().getAlarm(id);
 			
 			// 2nd parameter: list of weekdays
 			final EnumSet<DayOfWeek> weekDays = EnumSet.noneOf(DayOfWeek.class);

@@ -1,185 +1,76 @@
 package alarmpi;
 
-import java.io.ByteArrayInputStream;
-import java.io.ByteArrayOutputStream;
+import java.io.FileReader;
+import java.io.FileWriter;
 import java.io.IOException;
-import java.io.ObjectInputStream;
-import java.io.ObjectOutputStream;
-import java.io.Serializable;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.time.DayOfWeek;
 import java.time.LocalTime;
 import java.time.format.DateTimeFormatter;
 import java.util.EnumSet;
+import java.util.HashMap;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.Map;
+import java.util.UUID;
+import java.util.function.UnaryOperator;
 import java.util.logging.Logger;
-import java.util.prefs.BackingStoreException;
-import java.util.prefs.Preferences;
+import java.util.stream.Collectors;
+
 import javax.json.Json;
 import javax.json.JsonArray;
+import javax.json.JsonArrayBuilder;
 import javax.json.JsonObject;
 import javax.json.JsonObjectBuilder;
-import javax.json.JsonValue;
+import javax.json.JsonString;
 
-import alarmpi.Configuration.Sound;
+import alarmpi.Alarm.Sound.Type;
+
+
+
 
 /**
- * Class representing alarm settings
+ * class representing alarm settings
  */
-public class Alarm implements Serializable {
+public class Alarm {
 	
-	/**
-	 * constructor
-	 */
-	Alarm() {
-		id = nextId++;
-	}
 	
-	Alarm(Alarm alarm) {
-		id             = nextId++;
-		enabled        = alarm.enabled;
-		oneTimeOnly    = alarm.oneTimeOnly;
-		skipOnce       = alarm.skipOnce;
-		time           = alarm.time;
-		weekDays       = alarm.weekDays;
-		soundId        = alarm.soundId;
+	// local class to model alarm sounds
+	static class Sound {
+		enum Type {
+			STREAM,  // internet stream
+			FILE     // local file
+		};
 		
-		greeting             = alarm.greeting;
-		alarmSoundName            = alarm.alarmSoundName;
-		fadeInDuration       = alarm.fadeInDuration;
-		volumeFadeInStart    = alarm.volumeFadeInStart;
-		volumeFadeInEnd      = alarm.volumeFadeInEnd;
-		volumeAlarmEnd       = alarm.volumeAlarmEnd;
-		lightDimUpDuration   = alarm.lightDimUpDuration;
-		lightDimUpBrightness = alarm.lightDimUpBrightness;
-		reminderInterval     = alarm.reminderInterval;
-		duration             = alarm.duration;
-	}
-	
-	/**
-	 * reads all stored alarms from preferences
-	 * @return list of all alarms
-	 */
-	static List<Alarm> readAll() {
-		List<Alarm> alarmList = new LinkedList<Alarm>();
-		
-		try {
-			int count=0;
-			Preferences prefs = Preferences.userNodeForPackage(Alarm.class);
-			for(String id:prefs.keys()) {
-				byte bytes[] = prefs.getByteArray(id, null);
-				if(bytes!=null) {
-					ObjectInputStream ois = new ObjectInputStream(new ByteArrayInputStream(bytes));
-					Alarm alarm = (Alarm)ois.readObject();
-					
-					// set meaningful start values
-					alarm.hasModifications   = false;
-					alarm.transactionStarted = false;
-					
-					alarmList.add(alarm);
-					
-					// adjust next alarm ID
-					if(alarm.id>=Alarm.nextId) {
-						Alarm.nextId = alarm.id+1;
-					}
-				}
-				count++;
-			}
-			log.info("Read "+count+" alarms");
-		} catch (IOException e) {
-			log.severe("Failed to serialize alarm");
-			log.severe(e.getMessage());
-		} catch (BackingStoreException e) {
-			log.severe("Failed to read alarm from preferences");
-			log.severe(e.getMessage());
-		} catch (ClassNotFoundException e) {
-			log.severe("Failed to find class during serialization of alarms");
-			log.severe(e.getMessage());
-		}
-		
-		return alarmList;
-	}
-	
-	/**
-	 * hack needed as long as I use sound index (ID) ins serialized object
-	 */
-	void setSoundObject() {
-		if(soundId!=null) {
-			sound = Configuration.getConfiguration().getSoundFromId(soundId);
-			if(sound==null) {
-				log.severe("unable to find sound object for ID "+soundId);
-			}
-		}
-		else {
-			sound = null;
-		}
-	}
-	
-	/**
-	 * serializes the alarm and stores it in preferences to make it persistent
-	 */
-	private void store() {
-		// serialize the alarm and store it in preferences (make it persistent)
-		// using alarm ID as key
-		try {
-			log.fine("Storing alarm ID="+id);
-			
-			ByteArrayOutputStream baos = new ByteArrayOutputStream();
-			ObjectOutputStream oos;
-			
-			oos = new ObjectOutputStream( baos );
-			oos.writeObject( this );
-			oos.close();
-			
-			byte[] bytes = baos.toByteArray();
-			Preferences prefs = Preferences.userNodeForPackage(Alarm.class);
-			prefs.putByteArray(String.valueOf(id), bytes);
-			prefs.flush();
-			
-			// publish modified alarm list on MQTT broker
-			MqttClient.getMqttClient().publishAlarmList();
-		} catch (IOException e) {
-			log.severe("Failed to serialize alarm: "+e.getMessage());
-		} catch (BackingStoreException e) {
-			log.severe("Failed to store alarm in preferences: "+e.getMessage());
-		}
-		
-		log.info("modified and stored alarm with ID="+id);
-	}
-	
-	/**
-	 * deletes this alarm from the list
-	 */
-	public void delete() {
-		// remove from alarm list
-		Configuration.getConfiguration().removeAlarmFromList(this);
-		
-		// remove from preferences
-		Preferences prefs = Preferences.userNodeForPackage(Alarm.class);
-		prefs.remove(String.valueOf(id));
-		try {
-			prefs.flush();
-		} catch (BackingStoreException e) {
-			log.severe("Failed to delete alarm from preferences");
-			log.severe(e.getMessage());
-		}
-		
-		Configuration.getConfiguration().addAlarmToProcess(this);
+		String      name;             // name (unique identifier)
+		Type        type;             // type of sound (stream, file)
+		String      source;           // source for this sound, either stream URL or filename
 	}
 
+	/**
+	 * default constructor, creates an "empty", disabled alarm
+	 */
+	Alarm() {
+		log.fine("new alarm created, UUID="+id);
+	}
+	
 	/**
 	 * Creates a JsonObject representation of the alarm
 	 * @return JsonObject representation of the alarm
 	 */
-	public JsonObject toJasonObject() {
+	public JsonObject toJsonObject() {
 		JsonObjectBuilder builder = Json.createBuilderFactory(null).createObjectBuilder();
-		builder.add("id", id);
+		builder.add("id", id.toString());
 		builder.add("enabled", enabled);
 		builder.add("oneTimeOnly", oneTimeOnly);
 		builder.add("skipOnce", skipOnce);
 		builder.add("time", time.format(DateTimeFormatter.ofPattern("HH:mm")));
 		builder.add("weekDays",weekDays.toString());
-		builder.add("soundName", sound.getName());
+		
+		if(alarmSound!=null) {
+			builder.add("alarmSound", alarmSound.name);
+		}
 		
 		JsonObject jsonObject = builder.build();
 		log.fine("Created JsonObject for alarm: "+jsonObject.toString());
@@ -187,330 +78,453 @@ public class Alarm implements Serializable {
 		return jsonObject;
 	}
 	
-	public static void parseAllFromJsonObject(JsonObject jsonObject) {
-		JsonArray jsonArray = jsonObject.getJsonArray("alarms");
-		if(jsonArray!=null) {
-			for(JsonValue jsonValue:jsonArray) {
-				JsonObject alarm = jsonValue.asJsonObject();
-				log.fine("parseAllFromJsonObject: Found alarm with id="+alarm.getInt("id"));
-				
-				Configuration.getConfiguration().getAlarm(alarm.getInt("id")).fromJsonObject(alarm);
-			}
-		}
-		else {
-			log.fine("parseAllFromJsonObject: JSON object has no array \"alarms\"");
-		}
-	}
-	
 	/**
-	 * Updates the alarm object with the content of the JSON object
+	 * parses this alarm object from a Json Object.
 	 * @param jsonObject
 	 */
-	private void fromJsonObject(JsonObject jsonObject) {
-		if(jsonObject.getInt("id")!=id) {
-			log.severe("parseFromJsonObject: JSON id "+jsonObject.getInt("id")+" does not match alarm id "+id);
-			return;
-		}
+	void fromJsonObject(JsonObject jsonObject) {
+		log.fine("parsing Alarm from JsonObject: "+jsonObject.toString());
 		
-		log.fine("parseFromJsonObject: parsing alarm with id "+id);
-		enabled     = jsonObject.getBoolean("enabled");
-		oneTimeOnly = jsonObject.getBoolean("oneTimeOnly");
-		skipOnce    = jsonObject.getBoolean("skipOnce");
-		time        = LocalTime.parse(jsonObject.getString("time"));
+		try {
+			JsonString jsonStringId =jsonObject.getJsonString("id");
+			if(jsonStringId!=null) {
+				id =UUID.fromString(jsonStringId.getString());
+				log.fine("parsing Alarm from Json Object, id="+id);
+			}
+			else {
+				log.severe("parsing Alarm from Json Object, but no ID present");
+			}
 		
-		// get Sound based on its name
-		boolean found = false;
-		int index     = 0;
-		for(Sound sound:Configuration.getConfiguration().getSoundList()) {
-			if(jsonObject.getString("soundName").equals(sound.getName())) {
-				this.soundId = index;
-				this.sound   = sound;
-				found        = true;
-				break;
+			try {
+				enabled     = jsonObject.getBoolean("enabled");
+			}
+			catch(NullPointerException e) {
+				log.warning("parsing Alarm from Json Object: property \"enabled\" not present");
+			}
+			
+			try {
+				oneTimeOnly = jsonObject.getBoolean("oneTimeOnly");
+			}
+			catch(NullPointerException e) {
+				log.warning("parsing Alarm from Json Object: property \"oneTimeOnly\" not present");
+			}
+			
+			try {
+				skipOnce    = jsonObject.getBoolean("skipOnce");
+			}
+			catch(NullPointerException e) {
+				log.warning("parsing Alarm from Json Object: property \"skipOnce\" not present");
+			}
+			
+			try {
+				time        = LocalTime.parse(jsonObject.getString("time"));
+			}
+			catch(NullPointerException e) {
+				log.warning("parsing Alarm from Json Object: property \"time\" not present");
+			}
+			
+			try {
+				weekDays.clear();
+				String weekDaysString = jsonObject.getString("weekDays");
+				for(DayOfWeek dayOfWeek:DayOfWeek.values()) {
+					if(weekDaysString.contains(dayOfWeek.toString())) {
+						weekDays.add(dayOfWeek);
+					}
+				}
+			}
+			catch(NullPointerException e) {
+				log.warning("parsing Alarm from Json Object: property \"weekDays\" not present");
+			}
+			
+			try {
+				String alarmSoundName = jsonObject.getString("alarmSound");
+				Sound sound = soundMap.get(alarmSoundName);
+				if(sound!=null) {
+					if(sound.type!=Sound.Type.STREAM) {
+						log.severe("parsing Alarm from Json Object: alarmSound \""+alarmSoundName+"\" has wrong type");
+						sound = null;
+					}
+				}
+				if(sound==null) {
+					log.severe("parsingAlarm from Json Object: sound "+alarmSoundName+" not found");
+				}
+				alarmSound = sound;
+			}
+			catch(NullPointerException e) {
+				log.warning("parsing Alarm from Json Object: property \"alarmSound\" not present");
 			}
 		}
-		if(!found) {
-			log.severe("Unable to find sound ");
-			this.sound   = null;
-			this.soundId = null;
+		catch(ClassCastException e) {
+			log.severe("parsing Alarm from Json Object: ClassCastException: "+e.getMessage());
 		}
-		
-		weekDays.clear();
-		String weekDaysString = jsonObject.getString("weekDays");
-		for(DayOfWeek dayOfWeek:DayOfWeek.values()) {
-			if(weekDaysString.contains(dayOfWeek.toString())) {
-				weekDays.add(dayOfWeek);
-			}
-		}
-		
-		// store
-		Configuration.getConfiguration().addAlarmToProcess(this);
-		store();
 	}
 	
 	/**
-	 * if multiple modifications are made to an alarm by using any of the setter methods
-	 * they should be grouped into a transaction to avoid unnecessary storage and event
-	 * processing of the alarm
+	 * @return alarm UUID
 	 */
-	public void startTransaction() {
-		transactionStarted = true;
-		hasModifications   = false;
-	}
-	
-	/**
-	 * ends a transaction started with startTransaction and triggers storage and event processing
-	 * of this alarm
-	 */
-	public void endTransaction() {
-		if(hasModifications) {
-			store();
-			Configuration.getConfiguration().addAlarmToProcess(this);
-		}
-		
-		hasModifications   = false;
-		transactionStarted = false;
-	}
-	
-	// getter/setter methods
-	
-	public int getId() {
+	UUID getId() {
 		return id;
 	}
 	
-	public boolean isEnabled() {
+	/**
+	 * @return boolean if the alarm is enabled
+	 */
+	boolean getEnabled() {
 		return enabled;
 	}
 	
-	public void setEnabled(boolean enabled) {
-		if(this.enabled != enabled) {
-			log.fine("setting alarm ID "+id+" to enabled="+enabled);
-			this.enabled = enabled;
-			
-			if(transactionStarted) {
-				hasModifications = true;
-			}
-			else {
-				store();
-				Configuration.getConfiguration().addAlarmToProcess(this);
-			}
-		}
-		else {
-			log.fine("ignoring setting alarm ID "+id+" to enabled="+enabled+" - already done");
-		}
+	/**
+	 * sets the enabled flag of the alarm
+	 * @param enabled
+	 */
+	void setEnabled(boolean enabled) {
+		this.enabled  = enabled;
+		this.modified = true;
+		
+		storeAlarmList();
 	}
-
-	public boolean isOneTimeOnly() {
+	
+	/**
+	 * @return boolean if the alarm gest implicitly disabled again after being triggered
+	 */
+	boolean getOneTimeOnly() {
 		return oneTimeOnly;
 	}
 	
-	public void setOneTimeOnly(boolean oneTimeOnly) {
-		if(this.oneTimeOnly != oneTimeOnly) {
-			this.oneTimeOnly = oneTimeOnly;
-			
-			if(transactionStarted) {
-				hasModifications = true;
-			}
-			else {
-				store();
-				Configuration.getConfiguration().addAlarmToProcess(this);
-			}
-		}
+	/**
+	 * sets the oneTimeOnly flag of ths alarm
+	 * @param oneTimeOnly
+	 */
+	void setOneTimeOnly(boolean oneTimeOnly) {
+		this.oneTimeOnly = oneTimeOnly;
+		this.modified    = true;
+		
+		storeAlarmList();
 	}
 	
-	public EnumSet<DayOfWeek> getWeekDays() {
-		return weekDays;
-	}
-	
-	public void setWeekDays(EnumSet<DayOfWeek> weekdays) {
-		if(this.weekDays==null || this.weekDays.equals(weekdays) == false) {
-			this.weekDays = weekdays;
-			
-			if(transactionStarted) {
-				hasModifications = true;
-			}
-			else {
-				store();
-				Configuration.getConfiguration().addAlarmToProcess(this);
-			}
-		}
-	}
-
-	public boolean isSkipOnce() {
+	/**
+	 * @return boolean if the alarm gets skipped on time
+	 */
+	boolean getSkipOnce() {
 		return skipOnce;
 	}
 	
-	public void setSkipOnce(boolean skipOnce) {
-		if(this.skipOnce != skipOnce) {
-			this.skipOnce = skipOnce;
-			
-			if(transactionStarted) {
-				hasModifications = true;
-			}
-			else {
-				store();
-				Configuration.getConfiguration().addAlarmToProcess(this);
-			}
-		}
+	/**
+	 * sets the skipOnce flag of the alarm
+	 * @param skipOnce
+	 */
+	void setSkipOnce(boolean skipOnce) {
+		this.skipOnce = skipOnce;
+		this.modified = true;
+		
+		storeAlarmList();
 	}
-
-	public LocalTime getTime() {
+	
+	/**
+	 * @return alarm time
+	 */
+	LocalTime getTime() {
 		return time;
 	}
 	
-	public void setTime(LocalTime time) {
-		if(this.time==null ||this.time.equals(time) == false) {
-			this.time = time;
-			
-			if(transactionStarted) {
-				hasModifications = true;
-			}
-			else {
-				store();
-				Configuration.getConfiguration().addAlarmToProcess(this);
-			}
+	/**
+	 * sets the alarm time
+	 * @param time
+	 */
+	void setTime(LocalTime time) {
+		this.time     = time;
+		this.modified = true;
+		
+		storeAlarmList();
+	}
+	
+	/**
+	 * @return weekdays at which this alarm is active
+	 */
+	EnumSet<DayOfWeek> getWeekDays() {
+		return weekDays;
+	}
+	
+	/**
+	 * sets the weekdays for ths alarm
+	 * @param weekdays
+	 */
+	void setWeekDays(EnumSet<DayOfWeek> weekdays) {
+		this.weekDays = weekdays;
+		this.modified = true;
+		
+		storeAlarmList();
+	}
+	
+	/**
+	 * 
+	 * @return the alarm sound of this alarm or null if none is set
+	 */
+	Alarm.Sound getAlarmSound() {
+		return alarmSound;
+	}
+	
+	void setAlarmSound(Alarm.Sound alarmSound) {
+		this.alarmSound = alarmSound;
+		if(alarmSound!=null && alarmSound.type!=Alarm.Sound.Type.STREAM) {
+			log.severe("Alarm.setAlarmSound: specified sound is not of type STREAM");
+			this.alarmSound = null;
 		}
 	}
-
-	public Integer getSoundId() {
-		return soundId;
-	}
 	
-	public Sound getSound() {
-		return sound;
-	}
-	
-	
-	public void setSoundId(Integer soundId) {
-		if(this.soundId==null || this.soundId.equals(soundId) == false) {
-			this.soundId = soundId;
-			if(soundId!=null) {
-				this.sound = Configuration.getConfiguration().getSoundFromId(soundId);
-				if(sound==null) {
-					log.severe("Unable to find sound for ID "+soundId);
-				}
-			}
-			else {
-				this.sound = null;
-			}
-			
-			if(transactionStarted) {
-				hasModifications = true;
-			}
-			else {
-				store();
-				Configuration.getConfiguration().addAlarmToProcess(this);
-			}
-		}
-	}
-
-	public String getGreeting() {
+	/**
+	 * @return the greeting text
+	 */
+	String getGreeting() {
 		return greeting;
 	}
-
-	public void setGreeting(String greeting) {
-		this.greeting = greeting;
-	}
-
-	public String getAlarmSoundName() {
-		return alarmSoundName;
-	}
-
-	public void setAlarmSoundName(String sound) {
-		this.alarmSoundName = sound;
-	}
-
-	public int getFadeInDuration() {
+	
+	/**
+	 * @return fade in duration in seconds
+	 */
+	int getFadeInDuration() {
 		return fadeInDuration;
 	}
-
-	public void setFadeInDuration(int fadeInDuration) {
-		this.fadeInDuration = fadeInDuration;
-	}
-
-	public int getVolumeFadeInStart() {
-		return volumeFadeInStart;
-	}
 	
-	public void setVolumeFadeInStart(int volumeFadeInStart) {
-		this.volumeFadeInStart = volumeFadeInStart;
-	}
-
-	public int getVolumeFadeInEnd() {
-		return volumeFadeInEnd;
-	}
-	
-	public void setVolumeFadeInEnd(int volumeFadeInEnd) {
-		this.volumeFadeInEnd = volumeFadeInEnd;
-	}
-
-	public int getVolumeAlarmEnd() {
-		return volumeAlarmEnd;
-	}
-	
-	public void setVolumeAlarmEnd(int volumeAlarmEnd) {
-		this.volumeAlarmEnd = volumeAlarmEnd;
-	}
-
-	public int getLightDimUpDuration() {
-		return lightDimUpDuration;
-	}
-	
-	public void setLightDimUpDuration(int lightDimUpDuration) {
-		this.lightDimUpDuration = lightDimUpDuration;
-	}
-
-	public int getLightDimUpBrightness() {
-		return lightDimUpBrightness;
-	}
-	
-	public void setLightDimUpBrightness(int lightDimUpBrightness) {
-		this.lightDimUpBrightness = lightDimUpBrightness;
-	}
-
-	public int getReminderInterval() {
-		return reminderInterval;
-	}
-	
-	public void setReminderInterval(int reminderInterval) {
-		this.reminderInterval = reminderInterval;
-	}
-
-	public int getDuration() {
+	/**
+	 * @return alarm duration in seconds
+	 */
+	int getDuration() {
 		return duration;
 	}
 	
-	public void setDuration(int duration) {
-		this.duration = duration;
+	/**
+	 * @return alarm signal (reminder) interval in seconds
+	 */
+	int getReminderInterval() {
+		return reminderInterval;
+	}
+	
+	/**
+	 * @return volume at the end of the fade in in percent
+	 */
+	int getVolumeFadeInEnd() {
+		return volumeFadeInEnd;
+	}
+	
+	/**
+	 * @return volume at the end of the alarm in percent
+	 */
+	int getVolumeAlarmEnd() {
+		return volumeAlarmEnd;
+	}
+	
+	/**
+	 * @return list of signal sounds
+	 */
+	List<Alarm.Sound> getSignalSoundList() {
+		return signalSoundList;
+	}
+	
+	
+	/**
+	 * applies the settings of the given alarm to the alamr in the list with the same ID
+	 * @param newAlarmSettings new alarm settings to apply
+	 */
+	static void modifyAlarm(final JsonObject newAlarmSettings) {
+		final Alarm newAlarm = new Alarm();
+		newAlarm.fromJsonObject(newAlarmSettings);
+		
+		UnaryOperator<Alarm> copySettings = alarm -> {
+			if(alarm.id.equals(newAlarm.id)) {
+				newAlarm.modified = true;
+				return newAlarm;
+			}
+			else {
+				return alarm;
+			}
+		};
+		
+		alarmList.replaceAll(copySettings);
+		
+		storeAlarmList();
+	}
+	
+	/**
+	 * @return the alarm list
+	 */
+	static List<Alarm> getAlarmList() {
+		return alarmList;
+	}
+	
+	/**
+	 * @return the alarm list
+	 */
+	static List<Alarm> getModifiedAlarmList() {
+		return alarmList.stream().filter(alarm -> alarm.modified==true).collect(Collectors.toList());
+	}
+	
+	
+	/**
+	 * @return the alarm list as Json array
+	 */
+	static JsonArray getAlarmListAsJsonArray() {
+		JsonArrayBuilder builder = Json.createBuilderFactory(null).createArrayBuilder();
+		alarmList.stream().forEach(alarm -> builder.add(alarm.toJsonObject()));
+		
+		JsonArray jsonArray = builder.build();
+		log.fine("create Json array from alarm list: "+jsonArray.toString());
+		
+		return jsonArray;
+	}
+	
+	/**
+	 * sets the alarm list from a Json array
+	 * @param jsonArray
+	 */
+	static void setAlarmListFromJsonArray(JsonArray jsonArray) {
+		alarmList.clear();
+		jsonArray.stream().forEach(jsonValue -> {
+			try {
+				Alarm alarm = new Alarm();
+				alarm.fromJsonObject(jsonValue.asJsonObject());
+				alarm.modified = true;
+				alarmList.add(alarm);
+			}
+			catch(ClassCastException e) {
+				log.severe("ClassCastException when parsing JsonArray in setAlarmListFromJsonArray");
+			}
+		});
+	}
+	
+	/**
+	 * Overwrites the default location to store the alarm list
+	 * @param storageDirectory
+	 */
+	static void setStorageDirectory(String storageDirectory) {
+		storagePath = Paths.get(storageDirectory, storageFile);
+	}
+	
+	/**
+	 * stores the alarm list as Json object to a file
+	 * @param path filename
+	 */
+	private static void storeAlarmList() {
+		log.fine("storing alarm list to file "+storagePath);
+		
+		JsonArray jsonArray = getAlarmListAsJsonArray();
+		log.fine("storing alarm list as Json array: "+jsonArray.toString());
+		
+		// TODO MQTT
+		log.severe("MISSING: push on MQTT");
+		
+		try {
+			FileWriter writer = new FileWriter(storagePath.toFile());
+			writer.write(jsonArray.toString());
+			writer.flush();
+		} catch (IOException e) {
+			log.severe("Unable to store alarm list as file: "+e.getMessage());
+		}
+	}
+	
+	/**
+	 * reads the alarm list in Json format from file
+	 */
+	static void restoreAlarmList() {
+		log.info("restoring alarm list from file "+storagePath);
+		alarmList.clear();
+		
+		// read sound list from configuration file
+		soundMap.clear();
+		Configuration.getConfiguration().getSoundListNew().stream().forEach(sound -> soundMap.put(sound.name, sound));
+		
+		
+		try {
+			FileReader reader = new FileReader(storagePath.toFile());
+			JsonArray jsonArray = Json.createReaderFactory(null).createReader(reader).readArray();
+			setAlarmListFromJsonArray(jsonArray);
+			
+			alarmList.stream().forEach(alarm -> alarm.modified=true);
+		} catch (IOException e) {
+			log.severe("Unable to restore alarm list from file: "+e.getMessage());
+			
+			// create default alarms
+			log.info("Creating default alarms");
+			for(int i=0 ; i<defaultAlarmCount ; i++) {
+				alarmList.add(new Alarm());
+			}
+		}
+
+		// apply settings from configuration file
+		alarmList.stream().forEach(alarm -> {
+			alarm.greeting         = Configuration.getConfiguration().getValue("alarm", "greeting", "Hallo");
+			alarm.fadeInDuration   = Configuration.getConfiguration().getValue("alarm", "fadeIn",   300);
+			alarm.duration         = Configuration.getConfiguration().getValue("alarm", "duration", 300);
+			alarm.reminderInterval = Configuration.getConfiguration().getValue("alarm", "reminderInterval", 300);
+			alarm.volumeFadeInEnd  = Configuration.getConfiguration().getValue("alarm", "volumeFadeInEnd", 100);
+			alarm.volumeAlarmEnd   = Configuration.getConfiguration().getValue("alarm", "volumeAlarmEnd", 100);
+			
+			// signal sounds
+			int signalSoundIndex = 1;
+			String signalSoundName;
+			signalSoundName = Configuration.getConfiguration().getValue("alarm", "signalSound"+signalSoundIndex, null);
+			while(signalSoundName!=null) {
+				if(signalSoundName!=null) {
+					Sound sound = soundMap.get(signalSoundName);
+					if(sound!=null) {
+						if(sound.type!=Type.FILE) {
+							log.severe("wrong type for signal sound "+signalSoundName);
+						}
+						else {
+							alarm.signalSoundList.add(sound);
+						}
+					}
+					else {
+						log.warning("alarm settings: signal sound "+signalSoundIndex+" refers to non existing sound "+signalSoundName);
+					}
+				}
+				// try next
+				signalSoundIndex++;
+				signalSoundName = Configuration.getConfiguration().getValue("alarm", "signalSound"+signalSoundIndex, null);
+			}
+		});
+		
+		
+		// TODO MQTT
+		log.severe("MISSING: push on MQTT");
 	}
 
-
-
+	
+	
 	// private members
-	private static final Logger log              = Logger.getLogger( Alarm.class.getName() );
-	private static final long   serialVersionUID = -2395516218365040408L;
-	private static       int    nextId           = 0;   // ID of next alarm that is generated
 	
-	private int                id;                           // unique ID for this alarm
-	private boolean            enabled          = false;     // o  n/off switch
-	private boolean            oneTimeOnly      = false;     // automatically disable alarm again after it got executed once
-	private boolean            skipOnce         = false;     // skip alarm one time
-	private LocalTime          time;                         // alarm time
-	private EnumSet<DayOfWeek> weekDays         = EnumSet.noneOf(DayOfWeek.class);  // weekdays when this alarm is active
-	private Integer            soundId;                      // ID of sound to play. Must be configured in configuration file
-	private transient Sound    sound;                        // sound to play. Currently maintained in addition to the above ID     
+	private static final int    defaultAlarmCount = 4;                   // default number of alarms
+	private static final String storageDirectory  = "/var/lib/alarmpi";  // default directory to store alarm list
+	private static final String storageFile       = "alarmlist.json";    // filename for alarm list
 	
-	private String             greeting;                     // greeting text
-	private String             alarmSoundName;               // filename of alarm sound (or null)
-	private int                fadeInDuration       = 0;     // fade in time in seconds
-	private int                volumeFadeInStart    = 0;     // alarm sound fade-in start volume
-	private int                volumeFadeInEnd      = 0;     // alarm sound fade-in end volume
-	private int                volumeAlarmEnd       = 0;     // alarm sound end volume
-	private int                lightDimUpDuration   = 0;     // duration of light dim up after alarm start in seconds
-	private int                lightDimUpBrightness = 0;     // brightness of light at end of dim up phase in percent
-	private int                reminderInterval     = 0;     // reminder interval (s)
-	private int                duration             = 0;     // time until alarm stops (s)
-
-	private boolean    transactionStarted   = false; // if true, a write transaction has been started
-	private boolean    hasModifications     = false; // if true, this alarm has unsaved and unprocessed modifications
+	private static       Path   storagePath       = Paths.get(storageDirectory, storageFile);
+	
+	private static final Logger log               = Logger.getLogger( Alarm.class.getName() );
+		
+	private UUID                id                = UUID.randomUUID();   // unique ID for this alarm
+	private boolean             enabled           = false;               // on/off switch for the alarm
+	private boolean             oneTimeOnly       = false;               // automatically disable alarm again after it got triggered once
+	private boolean             skipOnce          = false;               // skip alarm one time
+	private LocalTime           time              = LocalTime.MIDNIGHT;  // alarm time
+	private EnumSet<DayOfWeek>  weekDays          = EnumSet.noneOf(DayOfWeek.class); // weekdays when this alarm is active
+	private Sound               alarmSound        = null;                // the sound which is played continuously (must be of type STREAM)
+	private List<Sound>         signalSoundList   = new LinkedList<>();  // list of signal sounds
+	
+	// the following properties are for now defined by the configuration file and have no setters
+	private String              greeting          = "";                  // greeting text
+	private int                 fadeInDuration    = 300;                 // fade in duration in seconds
+	private int                 duration          = 1800;                // alarm duration in seconds
+	private int                 reminderInterval  = 300;                 // alarm signal interval in seconds
+	private int                 volumeFadeInEnd   = 100;                 // volume at end of fade in period in percent
+	private int                 volumeAlarmEnd    = 100;                 // volume at the end of the alarm in percent
+	
+	// list with all alarms
+	private static List<Alarm> alarmList          = new LinkedList<>();
+	
+	// list with all sounds (from configuration file)
+	private static Map<String,Sound> soundMap     = new HashMap<>();
+	
+	//
+	private boolean             modified         = false;               // flag to indicate if alarm got modified and changes need to be processed
 }
+

@@ -161,8 +161,8 @@ public class Configuration {
 
 		// instantiate member objects
 		soundList            = new ArrayList<Sound>();
-		alarmList            = new LinkedList<Alarm>();
-		alarmProcessQueue    = new ConcurrentLinkedQueue<Alarm>();
+		alarmList            = new LinkedList<LegacyAlarm>();
+		alarmProcessQueue    = new ConcurrentLinkedQueue<LegacyAlarm>();
 		lightControlSettingsList = new ArrayList<>();;
 		buttonSettingsList       = new ArrayList<>();
 
@@ -208,11 +208,11 @@ public class Configuration {
         
         // alarm settings
 		// read alarms from preferences
-		alarmList = Alarm.readAll();
+		alarmList = LegacyAlarm.readAll();
 		
         Ini.Section sectionAlarm = ini.get("alarm");
         
-        alarmSettings = new Alarm();
+        alarmSettings = new LegacyAlarm();
         alarmSettings.setGreeting(sectionAlarm.get("greeting", String.class, ""));
         alarmSettings.setFadeInDuration(sectionAlarm.get("fadeIn", Integer.class, 300));
         alarmSettings.setDuration(sectionAlarm.get("duration", Integer.class, 1800));
@@ -224,7 +224,7 @@ public class Configuration {
         alarmSettings.setLightDimUpBrightness(sectionAlarm.get("lightDimUpBrightness", Integer.class, 50));
         alarmSettings.setAlarmSoundName(sectionAlarm.get("sound", String.class, "alarm_5s.mp3"));
         
-        for(Alarm alarm:alarmList) {
+        for(LegacyAlarm alarm:alarmList) {
         	alarm.setGreeting(sectionAlarm.get("greeting", String.class, ""));
         	alarm.setFadeInDuration(sectionAlarm.get("fadeIn", Integer.class, 300));
         	alarm.setDuration(sectionAlarm.get("duration", Integer.class, 1800));
@@ -480,6 +480,49 @@ public class Configuration {
 			return defaultValue;
 		}
 	}
+	
+	/**
+	 * @return list with all sounds defined in configuration file
+	 */
+	List<Alarm.Sound> getSoundListNew() {
+        List<Alarm.Sound>soundList = new LinkedList<>(); 
+        Ini.Section sectionSound;
+        
+        int index=1;
+        while((sectionSound=iniFile.get("sound"+index)) != null) {
+        	log.finest("found sound "+index);
+        	
+        	String soundType=sectionSound.get("type");
+	    	boolean found = false;
+	    	for(Alarm.Sound.Type type:Alarm.Sound.Type.values()) {
+	    		if(soundType.equalsIgnoreCase(type.toString())) {
+			    	String name   = sectionSound.get("name");
+			    	String source = sectionSound.get("source");
+			    	if(name==null ) {
+			    		log.severe("Invalid sound with index "+index+" in config file: empty name");
+			    	}
+			    	if(source==null ) {
+			    		log.severe("Invalid sound with index "+index+" in config file: empty source");
+			    	}
+			    	if(name!=null && source!=null) {
+			    		Alarm.Sound sound = new Alarm.Sound();
+			    		sound.name   = name;
+			    		sound.source = source;
+			    		sound.type   = type;
+			    		soundList.add(sound);
+			    	}
+			    	found = true;
+	    		}
+	    	}
+	    	if(!found) {
+	    		log.severe("Unknown sound type: "+soundType);
+	    	}
+	    	
+	    	index++;
+        }
+	    	
+	    	return soundList;
+	}
 
 	/**
 	 * @return if running on raspberry
@@ -589,7 +632,7 @@ public class Configuration {
 	/**
 	 * @return the alarm list as read-only object
 	 */
-	final List<Alarm> getAlarmList() {
+	final List<LegacyAlarm> getAlarmList() {
 		return alarmList;
 	}
 	
@@ -599,7 +642,7 @@ public class Configuration {
 	final JsonArray getAlarmsAsJsonArray() {
 		// add list of all alarms
 		JsonArrayBuilder alarmArrayBuilder = Json.createBuilderFactory(null).createArrayBuilder();
-		for(Alarm alarm:alarmList) {
+		for(LegacyAlarm alarm:alarmList) {
 			alarmArrayBuilder.add(alarm.toJasonObject());
 		}
 		
@@ -706,7 +749,7 @@ public class Configuration {
 	 * @return alarm ID
 	 */
 	synchronized int createAlarm(EnumSet<DayOfWeek> days,LocalTime time,Integer soundId) {
-		Alarm alarm = new Alarm(alarmSettings);
+		LegacyAlarm alarm = new LegacyAlarm(alarmSettings);
 		
 		// add to alarm list
 		alarmList.add(alarm);
@@ -725,7 +768,7 @@ public class Configuration {
 	}
 	
 
-	void addAlarmToProcess(Alarm alarm) {
+	void addAlarmToProcess(LegacyAlarm alarm) {
 		alarmProcessQueue.add(alarm);
 	}
 	
@@ -734,10 +777,10 @@ public class Configuration {
 	 * @param  alarmId
 	 * @return Alarm object or null if not found
 	 */
-	synchronized Alarm getAlarm(int alarmId) {
-		Alarm alarm;
+	synchronized LegacyAlarm getAlarm(int alarmId) {
+		LegacyAlarm alarm;
 
-		Iterator<Alarm> it = alarmList.iterator();
+		Iterator<LegacyAlarm> it = alarmList.iterator();
 		while(it.hasNext()) {
 			alarm=it.next();
 			if(alarm.getId()==alarmId) {
@@ -748,7 +791,7 @@ public class Configuration {
 		return null;
 	}
 	
-	synchronized void removeAlarmFromList(Alarm alarm) {
+	synchronized void removeAlarmFromList(LegacyAlarm alarm) {
 		alarmList.remove(alarm);
 	}
 	
@@ -756,7 +799,7 @@ public class Configuration {
 	 * returns an alarm that changed and needs to be processed by the Controller thread
 	 * @return ID of an alarm to be processed or null if there is nothing to be done
 	 */
-	synchronized final Alarm getAlarmToProcess() {
+	synchronized final LegacyAlarm getAlarmToProcess() {
 		return alarmProcessQueue.poll();
 	}
 	
@@ -803,7 +846,7 @@ public class Configuration {
 		dump += "         lightDimUpDuration="+alarmSettings.getLightDimUpDuration()+" lightDimUpBrightness="+alarmSettings.getLightDimUpBrightness()+"\n";
 		dump += "         sound="+alarmSettings.getAlarmSoundName()+"\n";
 		dump += "  Stored alarms:\n";
-		for(Alarm alarm:alarmList) {
+		for(LegacyAlarm alarm:alarmList) {
 			dump += "    id="+alarm.getId()+" enabled="+alarm.isEnabled()+" oneTimeOnly="+alarm.isOneTimeOnly()+" skipOnce="+alarm.isSkipOnce()+" time="+alarm.getTime()+" days="+alarm.getWeekDays()+" sound ID="+alarm.getSoundId()+"\n";
 		}
 		
@@ -868,7 +911,7 @@ public class Configuration {
 	private Integer                          speechControlSound;
 	
 	// other data
-	private Alarm              alarmSettings; 
-	private List<Alarm>        alarmList;                         // alarm list
-	private Queue<Alarm>       alarmProcessQueue;                 // queue of alarm IDs that need to be processed by Controller thread
+	private LegacyAlarm              alarmSettings; 
+	private List<LegacyAlarm>        alarmList;                         // alarm list
+	private Queue<LegacyAlarm>       alarmProcessQueue;                 // queue of alarm IDs that need to be processed by Controller thread
 }

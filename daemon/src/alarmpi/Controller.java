@@ -179,7 +179,7 @@ class Controller implements Runnable {
 		
 		if(announceNextAlarm) {
 			// announce next alarms before switching off
-			Alarm alarm = getNextAlarmToday();
+			LegacyAlarm alarm = getNextAlarmToday();
 			if(alarm!=null) {
 				String text = "Der n�chste Alarm ist heute um "+alarm.getTime().getHour()+" Uhr";
 				if(alarm.getTime().getMinute()!=0) {
@@ -227,8 +227,11 @@ class Controller implements Runnable {
 		LocalTime time = LocalTime.now();
 		int watchDogCounter = watchDogCounterMax;
 		
+		// load alarm list
+		//Alarm.restoreAlarmList();
+		
 		// create all the events for the alarms of today which are still in the future
-		for(Alarm alarm:configuration.getAlarmList()) {
+		for(LegacyAlarm alarm:configuration.getAlarmList()) {
 			if(alarm.getTime().isAfter(LocalTime.now())) {
 				addAlarmEvents(alarm);
 			}
@@ -269,7 +272,7 @@ class Controller implements Runnable {
 					
 					// create all the events for the alarms of today
 					deleteAlarmEvents();
-					for(Alarm alarm:configuration.getAlarmList()) {
+					for(LegacyAlarm alarm:configuration.getAlarmList()) {
 						addAlarmEvents(alarm);
 					}
 					
@@ -278,7 +281,7 @@ class Controller implements Runnable {
 				}
 				
 				// check if an alarm was modified and the events need to be processed
-				Alarm alarm = null;
+				LegacyAlarm alarm = null;
 				if((alarm=configuration.getAlarmToProcess())!=null) {
 					// an alarm has changed. First delete all old events (if any)
 					log.fine("processing change in alarm ID="+alarm.getId());
@@ -371,7 +374,7 @@ class Controller implements Runnable {
 	 * deletes all events corresponding to this alarm
 	 * @param alarm  alarm 
 	 */
-	synchronized private void deleteAlarmEvents(Alarm alarm) {
+	synchronized private void deleteAlarmEvents(LegacyAlarm alarm) {
 		log.fine("deleting alarm events for alarm ID="+alarm.getId());
 		Iterator<Event> it = eventList.iterator();
 		while(it.hasNext()) {
@@ -393,11 +396,11 @@ class Controller implements Runnable {
 	 * Returns the next active alarm today
 	 * @return
 	 */
-	Alarm getNextAlarmToday() {
+	LegacyAlarm getNextAlarmToday() {
 		DayOfWeek today               = LocalDate.now().getDayOfWeek();
-		Alarm nextAlarm = null;
+		LegacyAlarm nextAlarm = null;
 		
-		for(Alarm alarm:configuration.getAlarmList()) {
+		for(LegacyAlarm alarm:configuration.getAlarmList()) {
 			if(alarm.isEnabled() && !alarm.isSkipOnce() && alarm.getWeekDays().contains(today)) {
 				if(alarm.getTime().isAfter(LocalTime.now()) && (nextAlarm==null || alarm.getTime().isBefore(nextAlarm.getTime()))) {
 					nextAlarm = alarm;
@@ -412,11 +415,11 @@ class Controller implements Runnable {
 	 * Returns the next active alarm tomorrow
 	 * @return
 	 */
-	Alarm getNextAlarmTomorrow() {
+	LegacyAlarm getNextAlarmTomorrow() {
 		DayOfWeek tomorrow            = LocalDate.now().getDayOfWeek().plus(1);
-		Alarm nextAlarm = null;
+		LegacyAlarm nextAlarm = null;
 		
-		for(Alarm alarm:configuration.getAlarmList()) {
+		for(LegacyAlarm alarm:configuration.getAlarmList()) {
 			if(alarm.isEnabled() && !alarm.isSkipOnce() && alarm.getWeekDays().contains(tomorrow)) {
 				if(nextAlarm==null || alarm.getTime().isBefore(nextAlarm.getTime())) {
 					nextAlarm = alarm;
@@ -431,7 +434,7 @@ class Controller implements Runnable {
 	 * creates alarm events in case the sound is a playlist
 	 * @param alarm Alarm for which events must be created
 	 */
-	private void generatePlaylistAlarmEvents(Alarm alarm) {
+	private void generatePlaylistAlarmEvents(LegacyAlarm alarm) {
 		log.fine("generating events for playlist alarm with ID="+alarm.getId()+" at time="+alarm.getTime());
 		
 		if(alarm.getSoundId()==null) {
@@ -599,7 +602,7 @@ class Controller implements Runnable {
 	 * creates alarm events in case alarm is not a playlist
 	 * @param alarm Alarm for which events must be created
 	 */
-	private void generateNonPlaylistAlarmEvents(Alarm alarm) {
+	private void generateNonPlaylistAlarmEvents(LegacyAlarm alarm) {
 		// alarm time as LocalDateTime
 		LocalDateTime alarmDateTime = LocalDate.now().atTime(alarm.getTime());
 		
@@ -730,7 +733,7 @@ class Controller implements Runnable {
 	 * generates the events needed to process an alarm
 	 * @param alarm new alarm to process
 	 */
-	synchronized private void addAlarmEvents(Alarm alarm) {
+	synchronized private void addAlarmEvents(LegacyAlarm alarm) {
 		log.fine("generating events for alarm ID="+alarm.getId()+" at time="+alarm.getTime()+" sound="+alarm.getSound().getName());
 		
 		if(!alarm.getWeekDays().contains(LocalDate.now().getDayOfWeek())) {
@@ -1051,7 +1054,7 @@ class Controller implements Runnable {
 		enum EventType {SET_VOLUME,PLAY_SOUND,PLAY_WEATHER,PLAY_CALENDAR,PLAY_FILE,STOP_SOUND,LED_OFF,LED_SET_PWM,ALARM_START,ALARM_END};
 
 		EventType            type;            // event type
-		Alarm                alarm;
+		LegacyAlarm                alarm;
 		LocalDateTime        time;            // event time
 		Sound                sound;           // sound to play for this event
 		Integer              paramInt1;       // integer parameter 1, depends on event type
@@ -1201,7 +1204,7 @@ class Controller implements Runnable {
 	Configuration        configuration;         // configuration data
 	SoundControl         soundControl;          // proxy for sound control
 	MqttClient           mqttClient;            // MQTT client (or null if no QMTT broker is configured)
-	Alarm                activeAlarm;           // active alarm (or null if no alarm is active)
+	LegacyAlarm                activeAlarm;           // active alarm (or null if no alarm is active)
 	Event                soundTimerEvent;       // event to switch off sound or null if no timer is active
 	
 	final List<LightControl>   lightControlList = new LinkedList<>();    // list of light control objects

@@ -4,9 +4,14 @@
   <artifactId>AlarmPiDaemon</artifactId>
   <version>0.0.1-SNAPSHOT</version>
   <name>AlarmPi Daemon</name>
+    <properties>
+    <project.build.sourceEncoding>Cp1252</project.build.sourceEncoding>
+    <project.reporting.outputEncoding>Cp1252</project.reporting.outputEncoding>
+  </properties>
   <build>
     <finalName>alarmpi</finalName>
     <sourceDirectory>src</sourceDirectory>
+    <testSourceDirectory>test</testSourceDirectory>
     <resources>
       <resource>
         <directory>lib/jsonp-jsonp-1.1.2/impl/src/main/resources</directory>
@@ -58,10 +63,37 @@
         </archive>
     	</configuration>
 	  </plugin>
+	  <plugin>
+            <groupId>org.apache.maven.plugins</groupId>
+            <artifactId>maven-surefire-plugin</artifactId>
+            <version>3.0.0-M4</version>
+            <dependencies>
+                <dependency>
+                    <groupId>org.junit.vintage</groupId>
+                    <artifactId>junit-vintage-engine</artifactId>
+                    <version>5.4.0</version>
+                </dependency>
+            </dependencies>
+        </plugin>
     </plugins>
   </build>
   <dependencies>
-    	<dependency>
+	<dependency>
+	    <groupId>org.hamcrest</groupId>
+	    <artifactId>hamcrest-all</artifactId>
+	    <version>1.3</version>
+	</dependency>
+  	<dependency>
+  		<groupId>org.junit.jupiter</groupId>
+  		<artifactId>junit-jupiter-engine</artifactId>
+  		<version>5.5.2</version>
+  	</dependency>
+  	        <dependency>
+            <groupId>org.junit.platform</groupId>
+            <artifactId>junit-platform-runner</artifactId>
+            <version>1.5.2</version>
+    </dependency>
+    <dependency>
   		<groupId>org.eclipse.paho</groupId>
   		<artifactId>org.eclipse.paho.client.mqttv3</artifactId>
   		<version>1.2.5</version>

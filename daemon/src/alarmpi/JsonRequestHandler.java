@@ -100,7 +100,7 @@ public class JsonRequestHandler implements Runnable {
 							
 							JsonArray jsonArray = jsonObject.getJsonArray("alarms");
 							if(jsonArray!=null) {
-								Alarm.parseAllFromJsonObject(jsonObject);
+								LegacyAlarm.parseAllFromJsonObject(jsonObject);
 							}
 							
 							jsonArray = jsonObject.getJsonArray("lights");
