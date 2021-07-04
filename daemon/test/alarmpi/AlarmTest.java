@@ -9,6 +9,7 @@ import java.io.StringReader;
 import java.nio.file.Path;
 import java.time.DayOfWeek;
 import java.time.LocalTime;
+import java.time.LocalDate;
 import java.util.EnumSet;
 import java.util.UUID;
 import java.util.logging.LogManager;
@@ -103,6 +104,24 @@ class AlarmTest {
 		JsonObject jsonObject = alarm.toJsonObject();
 		alarm.fromJsonObject(jsonObject);
 		assertThat(alarm.getId(),is(id));
+		assertDefaultProperties(alarm);
+	}
+	
+	@Test
+	void testJsonLoopbackWithInvalidSound() {
+		Alarm alarm = new Alarm();
+		Alarm.Sound sound = new Alarm.Sound();
+		sound.name   = "invalid alarm sound";
+		sound.source = "source";
+		sound.type   = Type.STREAM;
+		alarm.setAlarmSound(sound);
+		
+		JsonObject jsonObject = alarm.toJsonObject();
+		
+		// needed to initialize sound list
+				Alarm.restoreAlarmList();
+		alarm.fromJsonObject(jsonObject);
+		assertNull(alarm.getAlarmSound());
 	}
 	
 	@Test
@@ -162,7 +181,7 @@ class AlarmTest {
 		assertThat(alarm3.getId(),is(alarm2.getId()));
 		
 		alarm3.setSkipOnce(false);
-		Alarm.modifyAlarm(alarm3.toJsonObject());
+		Alarm.updateAlarmFromJsonObject(alarm3.toJsonObject());
 		assertThat(Alarm.getAlarmList().stream().filter(alarm -> alarm.getId().equals(idAlarm2)).findFirst().get().getSkipOnce(),is(false));
 	}
 	
@@ -190,5 +209,35 @@ class AlarmTest {
 		alarm.setAlarmSound(sound);
 		
 		assertNull(alarm.getAlarmSound());
+	}
+	
+	@Test
+	void testGetNextAlarmTodayNoAlarm() {
+		assertNull(Alarm.getNextAlarmToday());
+	}
+	
+	@Test
+	void testGetNextAlarmToday() {
+		Alarm.restoreAlarmList();
+		Alarm alarm = Alarm.getAlarmList().get(0);
+		alarm.setEnabled(true);
+		alarm.getWeekDays().add(LocalDate.now().getDayOfWeek());
+		alarm.setTime(LocalTime.now().plusMinutes(1));
+		assertThat(Alarm.getNextAlarmToday(),is(alarm));
+	}
+	
+	@Test
+	void testGetNextTomorrowTodayNoAlarm() {
+		assertNull(Alarm.getNextAlarmTomorrow());
+	}
+	
+	@Test
+	void testGetNextAlarmTomorrow() {
+		Alarm.restoreAlarmList();
+		Alarm alarm = Alarm.getAlarmList().get(0);
+		alarm.setEnabled(true);
+		alarm.getWeekDays().add(LocalDate.now().getDayOfWeek().plus(1));
+		alarm.setTime(LocalTime.now());
+		assertThat(Alarm.getNextAlarmTomorrow(),is(alarm));
 	}
 }

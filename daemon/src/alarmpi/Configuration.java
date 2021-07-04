@@ -1,30 +1,18 @@
 package alarmpi;
 
-import alarmpi.Configuration.Sound.Type;
-
 import java.io.FileNotFoundException;
 import java.io.FileReader;
 import java.io.IOException;
 import java.lang.invoke.MethodHandles;
-import java.time.DayOfWeek;
-import java.time.LocalTime;
 import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.EnumSet;
-import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Locale;
-import java.util.Queue;
-import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.logging.Logger;
-import java.util.stream.Collectors;
 
 import javax.json.Json;
 import javax.json.JsonArray;
 import javax.json.JsonArrayBuilder;
-import javax.json.JsonObject;
-import javax.json.JsonObjectBuilder;
 
 import org.ini4j.Ini;
 import org.ini4j.InvalidFileFormatException;
@@ -41,48 +29,7 @@ public class Configuration {
 	public String getName() {
 		return name;
 	}
-	/**
-	 * local class used as structure to store data about sounds
-	 */
-	static class Sound {
-		enum Type {RADIO,FILE,EXTERNAL,PLAYLIST};
-		
-		String      name;             // name (unique identifier)
-		Type        type;             // type of sound (radio station, file, external)
-		String      source;           // source for this sound, either radio stream URL or filename
-		Integer     duration = null;  // duration of a song or null (only valid for files)
-		List<Sound> playlist = null;  // list of sounds in case type is PLAYLIST
-		
-		/**
-		 * Constructor
-		 * @param name   sound name (as defined in configuration)
-		 * @param type   sound type
-		 * @param source sound source location (internet stream URL or filename)
-		 */
-		Sound(String name,Type type,String source) {
-			this.name     = name;
-			this.type     = type;
-			this.source   = source;
-		}
-		
-		String getName() {
-			return name;
-		}
-		
-		/**
-		 * Creates a JsonObject representation of the sound
-		 * @return JsonObject representation of the sound
-		 */
-		final JsonObject toJasonObject() {
-			JsonObjectBuilder builder = Json.createBuilderFactory(null).createObjectBuilder();
-			builder.add("type", type.toString());
-			builder.add("name", name);
-			
-			JsonObject jsonObject = builder.build();
-			
-			return jsonObject;
-		}
-	}
+
 	
 	/**
 	 * local class used as structure to store light (LED) settings
@@ -155,14 +102,12 @@ public class Configuration {
 		}
 		else {
 			runningOnRaspberry = false;
+			Alarm.setStorageDirectory("data");
 		}
 		
 		log.info("parsing configuration file");
 
 		// instantiate member objects
-		soundList            = new ArrayList<Sound>();
-		alarmList            = new LinkedList<LegacyAlarm>();
-		alarmProcessQueue    = new ConcurrentLinkedQueue<LegacyAlarm>();
 		lightControlSettingsList = new ArrayList<>();;
 		buttonSettingsList       = new ArrayList<>();
 
@@ -184,61 +129,9 @@ public class Configuration {
         port = ini.get("network", "port", Integer.class);
         jsonServerPort = ini.get("network", "jsonServerPort", Integer.class);
         
-        // sounds (radio stations)
-        Ini.Section sectionSound;
-        int index=1;
-        while((sectionSound=ini.get("sound"+index)) != null) {
-        	log.finest("found sound "+index);
-        	
-        	String soundType=sectionSound.get("type");
-	    	boolean found = false;
-	    	for(Type type:Sound.Type.values()) {
-	    		if(soundType.equalsIgnoreCase(type.toString())) {
-			    	Sound sound = new Sound(sectionSound.get("name"),type,sectionSound.get("source"));
-			    	soundList.add(sound);
-			    	found = true;
-	    		}
-	    	}
-	    	if(!found) {
-	    		log.severe("Unknown sound type: "+soundType);
-	    	}
-	    	
-	    	index++;
-        }
-        
-        // alarm settings
-		// read alarms from preferences
-		alarmList = LegacyAlarm.readAll();
-		
-        Ini.Section sectionAlarm = ini.get("alarm");
-        
-        alarmSettings = new LegacyAlarm();
-        alarmSettings.setGreeting(sectionAlarm.get("greeting", String.class, ""));
-        alarmSettings.setFadeInDuration(sectionAlarm.get("fadeIn", Integer.class, 300));
-        alarmSettings.setDuration(sectionAlarm.get("duration", Integer.class, 1800));
-        alarmSettings.setReminderInterval(sectionAlarm.get("reminderInterval", Integer.class, 300));
-        alarmSettings.setVolumeFadeInStart(sectionAlarm.get("volumeFadeInStart", Integer.class, 10));
-        alarmSettings.setVolumeFadeInEnd(sectionAlarm.get("volumeFadeInEnd", Integer.class, 60));
-        alarmSettings.setVolumeAlarmEnd(sectionAlarm.get("volumeAlarmEnd", Integer.class, 70));
-        alarmSettings.setLightDimUpDuration(sectionAlarm.get("lightDimUpDuration", Integer.class, 600));
-        alarmSettings.setLightDimUpBrightness(sectionAlarm.get("lightDimUpBrightness", Integer.class, 50));
-        alarmSettings.setAlarmSoundName(sectionAlarm.get("sound", String.class, "alarm_5s.mp3"));
-        
-        for(LegacyAlarm alarm:alarmList) {
-        	alarm.setGreeting(sectionAlarm.get("greeting", String.class, ""));
-        	alarm.setFadeInDuration(sectionAlarm.get("fadeIn", Integer.class, 300));
-        	alarm.setDuration(sectionAlarm.get("duration", Integer.class, 1800));
-        	alarm.setReminderInterval(sectionAlarm.get("reminderInterval", Integer.class, 300));
-        	alarm.setVolumeFadeInStart(sectionAlarm.get("volumeFadeInStart", Integer.class, 10));
-        	alarm.setVolumeFadeInEnd(sectionAlarm.get("volumeFadeInEnd", Integer.class, 60));
-        	alarm.setVolumeAlarmEnd(sectionAlarm.get("volumeAlarmEnd", Integer.class, 70));
-        	alarm.setLightDimUpDuration(sectionAlarm.get("lightDimUpDuration", Integer.class, 600));
-        	alarm.setLightDimUpBrightness(sectionAlarm.get("lightDimUpBrightness", Integer.class, 50));
-        	alarm.setAlarmSoundName(sectionAlarm.get("sound", String.class, "alarm_5s.mp3"));
-        }
-        
+       
         // light control. Search for sections [light1], [light2], ...
-        index = 1;
+        int index = 1;
         Ini.Section sectionLightControl;
         while((sectionLightControl=ini.get("light"+index))!=null) {
         	log.fine("found section light"+index);
@@ -381,8 +274,6 @@ public class Configuration {
 			
 			if(object==null) {
 				object = new Configuration(iniFile);
-				
-				object.alarmList.stream().forEach(alarm -> alarm.setSoundObject());
 			}
 			else {
 				log.severe("Configuration.read() can only be called once");
@@ -484,7 +375,7 @@ public class Configuration {
 	/**
 	 * @return list with all sounds defined in configuration file
 	 */
-	List<Alarm.Sound> getSoundListNew() {
+	List<Alarm.Sound> getSoundList() {
         List<Alarm.Sound>soundList = new LinkedList<>(); 
         Ini.Section sectionSound;
         
@@ -521,8 +412,22 @@ public class Configuration {
 	    	index++;
         }
 	    	
-	    	return soundList;
+	    return soundList;
 	}
+	
+	/**
+	 * @return the sound list as Json array
+	 */
+	JsonArray getSoundListAsJsonArray() {
+		JsonArrayBuilder builder = Json.createBuilderFactory(null).createArrayBuilder();
+		getSoundList().stream().forEach(sound -> builder.add(sound.toJsonObject()));
+		
+		JsonArray jsonArray = builder.build();
+		log.fine("create Json array from sound list: "+jsonArray.toString());
+		
+		return jsonArray;
+	}
+	
 
 	/**
 	 * @return if running on raspberry
@@ -585,81 +490,6 @@ public class Configuration {
 	 */
 	String getWeatherLocation() {
 		return weatherLocation;
-	}
-	
-	/**
-	 * processes the sound list:
-	 *  - adds the duration for each file (song)
-	 *  - for playlists, build up the list of Sound objects in the playlist
-	 */
-	void processSoundList() {
-		// get duration of files
-		soundList.stream().filter(s -> s.type==Type.FILE).forEach(s -> s.duration=SoundControl.getSoundControl().getSongDuration(s.source));
-		
-		// build playlists
-		soundList.stream().filter(p -> p.type==Type.PLAYLIST).forEach(p ->
-			{
-				p.playlist = new LinkedList<Sound>();
-				log.fine("processing playlist "+p.name);
-				Arrays.asList(p.source.split(",")).stream().forEach(r -> 
-					p.playlist.addAll(soundList.stream().filter(s -> s.name.equals(r)).collect(Collectors.toList()))
-				);
-			});
-	}
-	
-	/**
-	 * @return the sound list
-	 */
-	final List<Sound> getSoundList() {
-		return soundList;
-	}
-	
-	/**
-	 * returns the sound object for a given sound ID
-	 * @param soundId
-	 * @return sound object for the given ID
-	 */
-	final Sound getSoundFromId(int soundId) {
-		if(soundId>=0 && soundId < soundList.size()) {
-			return soundList.get(soundId);
-		}
-		else {
-			log.severe("getSoundFromId called for invalid sound id: "+soundId);
-			return null;
-		}
-	}
-	
-	/**
-	 * @return the alarm list as read-only object
-	 */
-	final List<LegacyAlarm> getAlarmList() {
-		return alarmList;
-	}
-	
-	/**
-	 * @return the alarm list as JsonArray
-	 */
-	final JsonArray getAlarmsAsJsonArray() {
-		// add list of all alarms
-		JsonArrayBuilder alarmArrayBuilder = Json.createBuilderFactory(null).createArrayBuilder();
-		for(LegacyAlarm alarm:alarmList) {
-			alarmArrayBuilder.add(alarm.toJasonObject());
-		}
-		
-		return alarmArrayBuilder.build();
-	}
-	
-	/**
-	 * @return the alarm list as JsonArray
-	 */
-	final JsonArray getSoundsAsJsonArray() {
-		// add list of all sounds
-		JsonArrayBuilder alarmArrayBuilder = Json.createBuilderFactory(null).createArrayBuilder();
-		for(Sound sound:soundList) {
-			alarmArrayBuilder.add(sound.toJasonObject());
-		}
-		
-		return alarmArrayBuilder.build();
 	}
 	
 	/**
@@ -741,68 +571,7 @@ public class Configuration {
 		return googleCalendarSummary;
 	}
 	
-	/**
-	 * creates a new   alarm
-	 * @param  days    week days when alarm shall be active
-	 * @param  time    alarm time
-	 * @param  soundId sound ID
-	 * @return alarm ID
-	 */
-	synchronized int createAlarm(EnumSet<DayOfWeek> days,LocalTime time,Integer soundId) {
-		LegacyAlarm alarm = new LegacyAlarm(alarmSettings);
-		
-		// add to alarm list
-		alarmList.add(alarm);
-		
-		// set remaining properties
-		alarm.startTransaction();
-		
-		alarm.setWeekDays(days);
-		alarm.setTime(time);
-		alarm.setSoundId(soundId);
-		
-		alarm.endTransaction();
-		
-		log.info("created and stored alarm with ID="+alarm.getId());
-		return alarm.getId();
-	}
-	
 
-	void addAlarmToProcess(LegacyAlarm alarm) {
-		alarmProcessQueue.add(alarm);
-	}
-	
-	/**
-	 * returns the alarm object with the specified ID
-	 * @param  alarmId
-	 * @return Alarm object or null if not found
-	 */
-	synchronized LegacyAlarm getAlarm(int alarmId) {
-		LegacyAlarm alarm;
-
-		Iterator<LegacyAlarm> it = alarmList.iterator();
-		while(it.hasNext()) {
-			alarm=it.next();
-			if(alarm.getId()==alarmId) {
-				return alarm;
-			}
-		}
-		
-		return null;
-	}
-	
-	synchronized void removeAlarmFromList(LegacyAlarm alarm) {
-		alarmList.remove(alarm);
-	}
-	
-	/**
-	 * returns an alarm that changed and needs to be processed by the Controller thread
-	 * @return ID of an alarm to be processed or null if there is nothing to be done
-	 */
-	synchronized final LegacyAlarm getAlarmToProcess() {
-		return alarmProcessQueue.poll();
-	}
-	
 	
 	//
 	// private methods
@@ -833,21 +602,6 @@ public class Configuration {
 			dump += "    id="+pushButtonSettings.id+" speechControl="+pushButtonSettings.triggerSpeechControl+"\n";
 			dump += "    sound: internal ID="+pushButtonSettings.soundId+" volume="+pushButtonSettings.soundVolume+" timer="+pushButtonSettings.soundTimer;
 			dump += "    brightnessIncrement="+pushButtonSettings.brightnessIncrement+" light IDs: "+pushButtonSettings.lightIds+"\n";
-		}
-		
-		dump += "  Sounds:\n";
-		for(Sound sound:soundList) {
-			dump += "    name="+sound.name+"  type="+sound.type+"  source="+sound.source+"\n";
-		}
-		
-		dump += "  Alarm: greeting="+alarmSettings.getGreeting()+"\n";
-		dump += "         fadeInDuration="+alarmSettings.getFadeInDuration()+" duration="+alarmSettings.getDuration()+" reminderInterval="+alarmSettings.getReminderInterval()+"\n";
-		dump += "         volumeFadeInStart="+alarmSettings.getVolumeFadeInStart()+" volumeFadeInEnd="+alarmSettings.getVolumeFadeInEnd()+" volumeAlarmEnd="+alarmSettings.getVolumeAlarmEnd()+"\n";
-		dump += "         lightDimUpDuration="+alarmSettings.getLightDimUpDuration()+" lightDimUpBrightness="+alarmSettings.getLightDimUpBrightness()+"\n";
-		dump += "         sound="+alarmSettings.getAlarmSoundName()+"\n";
-		dump += "  Stored alarms:\n";
-		for(LegacyAlarm alarm:alarmList) {
-			dump += "    id="+alarm.getId()+" enabled="+alarm.isEnabled()+" oneTimeOnly="+alarm.isOneTimeOnly()+" skipOnce="+alarm.isSkipOnce()+" time="+alarm.getTime()+" days="+alarm.getWeekDays()+" sound ID="+alarm.getSoundId()+"\n";
 		}
 		
 		if(mqttAddress==null || mqttPort==null) {
@@ -896,7 +650,6 @@ public class Configuration {
 	private String                           mpdFiles;                  // directory for MPD sound files
 	private String                           mpdTmpSubDir;              // subdirectory for MPD temporary sound files
 	private String                           weatherLocation;           // Open Weather Map location for weather forecast
-	private ArrayList<Sound>                 soundList;                 // list with available sounds (as defined in configuration)
 	private List<LightControlSettings>       lightControlSettingsList;  // list of light control settings
 	private List<ButtonSettings>             buttonSettingsList;        // list of button settings
 	private String                           googleCalendarSummary;     // summary name of google calendar (or null)
@@ -909,9 +662,4 @@ public class Configuration {
 	private String                           mqttSubscribeTopicTemperature; // MQTT topic subscribed to get locally measured temperature
 	private String                           speechControlDevice;
 	private Integer                          speechControlSound;
-	
-	// other data
-	private LegacyAlarm              alarmSettings; 
-	private List<LegacyAlarm>        alarmList;                         // alarm list
-	private Queue<LegacyAlarm>       alarmProcessQueue;                 // queue of alarm IDs that need to be processed by Controller thread
 }

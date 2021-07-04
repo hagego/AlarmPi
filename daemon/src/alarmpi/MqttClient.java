@@ -137,7 +137,7 @@ public class MqttClient implements MqttCallbackExtended{
 				
 				// build final object
 				builder.add("name", Configuration.getConfiguration().getName());
-				builder.add("alarms", Configuration.getConfiguration().getAlarmsAsJsonArray());
+				builder.add("alarms", Alarm.getAlarmListAsJsonArray());
 				JsonObject jsonObject = builder.build();
 				log.fine("created JSON object:\n"+jsonObject.toString());
 				

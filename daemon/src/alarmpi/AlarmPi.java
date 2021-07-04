@@ -4,10 +4,8 @@ import java.io.File;
 import java.io.FileWriter;
 import java.io.IOException;
 import java.net.ServerSocket;
-import java.time.DayOfWeek;
 import java.time.LocalDate;
 import java.time.LocalTime;
-import java.util.EnumSet;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.logging.LogManager;
@@ -87,17 +85,8 @@ public class AlarmPi {
 			    }
 			};
 			
-			if(Configuration.getConfiguration().getAlarmList().size()==0) {
-				// first time ??? Create initial default alarms
-				for(int i=0 ; i<4 ; i++) {
-					log.info("Creating new default alarm");;
-					Configuration.getConfiguration().createAlarm(EnumSet.noneOf(DayOfWeek.class),LocalTime.now(),0);
-				}
-			}
-			
-			// explicitly instantiate sound control and add sound duration and build playlists
+			// explicitly instantiate sound control
 			SoundControl.getSoundControl();
-			Configuration.getConfiguration().processSoundList();
 			
 			// create the user thread to manage alarms and HW buttons
 			final Controller controller = new Controller();

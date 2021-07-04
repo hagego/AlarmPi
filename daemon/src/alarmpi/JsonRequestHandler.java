@@ -100,7 +100,7 @@ public class JsonRequestHandler implements Runnable {
 							
 							JsonArray jsonArray = jsonObject.getJsonArray("alarms");
 							if(jsonArray!=null) {
-								LegacyAlarm.parseAllFromJsonObject(jsonObject);
+								Alarm.updateAlarmListFromJsonArray(jsonArray);
 							}
 							
 							jsonArray = jsonObject.getJsonArray("lights");
@@ -152,8 +152,8 @@ public class JsonRequestHandler implements Runnable {
 		
 		// build final object
 		builder.add("name", Configuration.getConfiguration().getName());
-		builder.add("alarms", Configuration.getConfiguration().getAlarmsAsJsonArray());
-		builder.add("sounds", Configuration.getConfiguration().getSoundsAsJsonArray());
+		builder.add("alarms", Alarm.getAlarmListAsJsonArray());
+		builder.add("sounds", Configuration.getConfiguration().getSoundListAsJsonArray());
 		builder.add("soundStatus", controller.getSoundStatusAsJsonObject());
 		builder.add("lights", controller.getLightStatusAsJsonArray());
 		JsonObject jsonObject = builder.build();

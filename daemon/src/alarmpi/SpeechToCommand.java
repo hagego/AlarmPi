@@ -13,7 +13,6 @@ import com.amazonaws.services.lexruntime.AmazonLexRuntimeClientBuilder;
 import com.amazonaws.services.lexruntime.model.PostContentRequest;
 import com.amazonaws.services.lexruntime.model.PostContentResult;
 
-import alarmpi.Configuration.Sound;
 
 /**
  * Uses Amazon AWS Lex service to capture a voice command
@@ -123,7 +122,7 @@ public class SpeechToCommand {
 			log.fine("turning on radio");
 			SoundControl soundControl = SoundControl.getSoundControl();
 			soundControl.on();
-			Sound sound = Configuration.getConfiguration().getSoundFromId(1);
+			Alarm.Sound sound = Configuration.getConfiguration().getSoundList().get(0);
 			soundControl.playSound(sound, 50, false);
 		}
 		
