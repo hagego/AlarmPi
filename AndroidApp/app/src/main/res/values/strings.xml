@@ -12,6 +12,7 @@
     <string name="labelAddHostname">Hostname</string>
     <string name="labelConnected">verbunden mit:</string>
     <string name="labelDisconnected">Nicht Verbunden</string>
+    <string name="labelConnecting">Verbinde mit:</string>
     <string name="labelSound">Sound</string>
     <string name="stringWeekdayMonday">Montag</string>
     <string name="stringWeekdayTuesday">Dienstag</string>

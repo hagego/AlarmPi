@@ -76,6 +76,34 @@ public class MainActivity extends AppCompatActivity
             @Override
             public void handleMessage(Message msg) {
                 Log.d(Constants.LOG, "message handler called with what="+msg.what);
+
+                if(msg.what==Constants.MESSAGE_PROXY_SYNC_STARTED) {
+                    // display status
+                    SharedPreferences prefs = getSharedPreferences(Constants.PREFS_KEY, MODE_PRIVATE);
+                    int active = prefs.getInt("active", -1);
+                    if (active == -1) {
+                        Log.e(Constants.LOG, "No active AlarmPi set in SharedPreferences");
+                        // error during synchronization
+                        Toast.makeText(getApplicationContext(), R.string.stringConnectionError, Toast.LENGTH_SHORT).show();
+                        return;
+                    }
+
+                    textViewConnectionState.setTextColor(Color.YELLOW);
+                    textViewConnectionState.setText(R.string.labelConnecting);
+                    textViewAlarmPiName.setText(prefs.getString("name" + active, ""));
+                    textViewAlarmPiName.setTextColor(Color.YELLOW);
+
+                    listViewAlarms.setEnabled(false);
+                }
+
+                if(msg.what==Constants.MESSAGE_PROXY_SYNC_FAILED) {
+                    textViewConnectionState.setTextColor(Color.RED);
+                    textViewConnectionState.setText(R.string.labelDisconnected);
+                    textViewAlarmPiName.setText("");
+
+                    listViewAlarms.setEnabled(false);
+                }
+
                 if(msg.what==Constants.MESSAGE_PROXY_SYNCHRONIZED) {
                     Log.d(Constants.LOG, "checking proxy status");
                     if (proxyStatusSynchronized.isDone()) {

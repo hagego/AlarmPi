@@ -47,7 +47,7 @@ class Proxy {
     private Proxy(Context context) {
         this.context = context;
 
-        // get/construct connetion details
+        // get/construct connection details
         url = null;
 
         SharedPreferences prefs = context.getSharedPreferences(Constants.PREFS_KEY, MODE_PRIVATE);
@@ -78,7 +78,7 @@ class Proxy {
      * @return singleton object
      */
     static Proxy getProxy(Context context) {
-        if(object==null) {
+        if(object==null || object.url==null) {
             object = new Proxy(context);
         }
 
@@ -91,7 +91,7 @@ class Proxy {
      * @return                  true on success, false on error
      */
     boolean executeHttpPostJsonQuery(JSONObject jsonObject) {
-        log.info("executing HTTP Post query");
+        log.info("executing HTTP Post query, url="+url);
 
         if(url!=null) {
             try {
@@ -406,6 +406,9 @@ class Proxy {
                 return false;
             }
 
+            Log.d(Constants.LOG, "Proxy: sending sync started message");
+            handler.obtainMessage(Constants.MESSAGE_PROXY_SYNC_STARTED).sendToTarget();
+
             String urlString = "http://" + addr + ":" + Constants.JSON_PORT;
             Log.d(Constants.LOG, "executing HTTP GET query for URL " + urlString);
 
@@ -465,6 +468,7 @@ class Proxy {
 
                 // process alarm list
                 alarmList.clear();
+                int index = 0;
 
                 jsonArray = jsonObject.getJSONArray("alarms");
                 for (int i = 0; i < jsonArray.length(); i++) {
@@ -472,6 +476,8 @@ class Proxy {
                     Alarm alarm = Alarm.parseFromJsonObject(jsonAlarm,soundName2ListIndexMap);
                     if(alarm!=null) {
                         alarmList.add(alarm);
+                        Log.v(Constants.LOG,"added alarm with index "+index);
+                        alarm.setIndex(index++);
                     }
                 }
                 Log.d(Constants.LOG, "processed alarm list. Found " +jsonArray.length()+" alarms" );
@@ -487,7 +493,7 @@ class Proxy {
                 Log.d(Constants.LOG, "processed light list. Found " +lightCount+" lights" );
 
             } catch (MalformedURLException e) {
-                Log.e(Constants.LOG, "malformed URL Exception in synchronze: " + e.getMessage());
+                Log.e(Constants.LOG, "malformed URL Exception in synchronize: " + e.getMessage());
 
                 return false;
             } catch (IOException e) {
@@ -499,13 +505,21 @@ class Proxy {
                         e1.printStackTrace();
                     }
                 }
+
+                soundList.clear();
+                alarmList.clear();
+
+                Log.d(Constants.LOG, "Proxy: sending sync failed message");
+                handler.obtainMessage(Constants.MESSAGE_PROXY_SYNC_FAILED).sendToTarget();
+
+
                 return false;
             } catch (JSONException e) {
                 Log.e(Constants.LOG, "JSON exception in synchronize: " + e.getMessage());
             }
 
 
-            Log.d(Constants.LOG, "sending synchonized complete message");
+            Log.d(Constants.LOG, "Proxy: sending synchronized complete message");
             handler.obtainMessage(Constants.MESSAGE_PROXY_SYNCHRONIZED).sendToTarget();
 
             //handler.sendEmptyMessage(Constants.MESSAGE_PROXY_SYNCHRONIZED);

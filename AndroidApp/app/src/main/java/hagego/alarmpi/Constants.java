@@ -15,4 +15,6 @@ interface Constants {
     static final int    MESSAGE_PROXY_SYNCHRONIZED  = 1;
     static final int    MESSAGE_ENABLE_LISTENERS    = 2;
     static final int    MESSAGE_PROXY_ALARM_UPDATED = 3;
+    static final int    MESSAGE_PROXY_SYNC_STARTED  = 4;
+    static final int    MESSAGE_PROXY_SYNC_FAILED   = 5;
 }

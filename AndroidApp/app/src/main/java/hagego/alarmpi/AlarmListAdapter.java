@@ -41,7 +41,7 @@ public class AlarmListAdapter extends BaseExpandableListAdapter {
     public View getChildView(int groupPosition, final int childPosition,
                              boolean isLastChild, View convertView, ViewGroup parent) {
 
-        Log.d(Constants.LOG, "AlarmListAdapter.getChildView called for alarm ID="+groupPosition+", view="+convertView );
+        Log.d(Constants.LOG, "AlarmListAdapter.getChildView called for alarm ID="+groupPosition );
         final Alarm alarm = (Alarm) getChild(groupPosition, childPosition);
 
         if (convertView == null || alarm.getView()==null || alarm.getView()!=convertView ) {
@@ -99,12 +99,12 @@ public class AlarmListAdapter extends BaseExpandableListAdapter {
     @Override
     public long getGroupId(int groupPosition) {
         Alarm alarm = (Alarm)getGroup(groupPosition);
-        return alarm.getId();
+        return alarm.getIndex();
     }
 
     @Override
     public View getGroupView(int groupPosition, boolean isExpanded, View convertView, ViewGroup parent) {
-        Log.d(Constants.LOG, "AlarmListAdapter.getGroupView called for group postion "+groupPosition+", view="+convertView );
+        Log.d(Constants.LOG, "AlarmListAdapter.getGroupView called for group postion "+groupPosition );
         Alarm alarm = (Alarm) getGroup(groupPosition);
         if (convertView == null) {
             LayoutInflater inflater = (LayoutInflater) this.context
