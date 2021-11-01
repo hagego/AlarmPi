@@ -328,10 +328,7 @@ class Controller implements Runnable {
 				log.fine("oneTimeOnly=false. Leaving alarm enabled.");
 			}
 			
-			lightControlList.stream().forEach(control -> control.setOff());
-			soundControl.off();
 			deleteAlarmEvents(activeAlarm);
-			
 			activeAlarm = null;
 		}
 		else {
@@ -356,6 +353,8 @@ class Controller implements Runnable {
 	 * @param alarm Alarm for which all events shall be updated
 	 */
 	synchronized private void updateAlarmEvents(Alarm alarm) {
+		log.fine("updateALarmEvents called for alarm ID="+alarm.getId());
+		
 		deleteAlarmEvents(alarm);
 		addAlarmEvents(alarm);
 	}
@@ -397,7 +396,9 @@ class Controller implements Runnable {
 		final double fadeInTimeInterval   = (double)alarm.getFadeInDuration()/(double)stepCountFadeIn;                 // in seconds
 		final double fadeInVolumeInterval = (double)(alarm.getVolumeFadeInEnd()-alarm.getVolumeFadeInStart())/(double)stepCountFadeIn;
 		
+		log.fine("generating alarm events for alarm ID="+alarm.getId()+" time="+alarm.getTime());
 		log.fine("fade in start at: "+fadeInStart+" alarm at "+alarmTime+" stop at "+alarmTime.plusSeconds(alarm.getDuration()));
+		log.fine("signal sound list size: "+alarm.getSignalSoundList().size());
 		
 		// create events only if alarm is still to come today
 		if(fadeInStart.isAfter(LocalTime.now())) {
@@ -443,19 +444,6 @@ class Controller implements Runnable {
 			eventList.add(eventVolume);
 		}
 		
-		// generate main alarm and post alarm announcements
-		Event eventGreeting = new Event();
-		Alarm.Sound sound   = new Alarm.Sound();
-		sound.name                 = "greeting";
-		sound.type                 = Type.FILE;
-		sound.source               = new TextToSpeech().createPermanentFile(alarm.getGreeting());
-		eventGreeting.type         = Event.EventType.PLAY_SOUND;
-		eventGreeting.alarm        = alarm;
-		eventGreeting.sound        = sound;
-		eventGreeting.time         = alarmTime.plusNanos(1);
-		eventGreeting.interrupt    = true;
-		eventList.add(eventGreeting);
-		
 		if(alarmTime.isAfter(LocalTime.now())) {
 			int count = 0;
 			int ANNOUNCEMENT_INTERVAL = 3;
@@ -467,7 +455,12 @@ class Controller implements Runnable {
 				
 				if(it.hasNext()) {
 					signalSound = it.next();
+					log.fine("found next signal sound: "+signalSound.name);
 				}
+				else {
+					log.fine("keeping signal sound: "+signalSound.name);
+				}
+				
 				if(signalSound!=null) {
 					Event eventAlarm = new Event();
 					eventAlarm.type         = Event.EventType.PLAY_SOUND;
@@ -480,8 +473,25 @@ class Controller implements Runnable {
 					interrupt = false;
 				}
 				
+				if(count==0) {
+					// generate main alarm and post alarm announcements
+					Event eventGreeting = new Event();
+					Alarm.Sound sound   = new Alarm.Sound();
+					sound.name                 = "greeting";
+					sound.type                 = Type.FILE;
+					sound.source               = new TextToSpeech().createPermanentFile(alarm.getGreeting());
+					eventGreeting.type         = Event.EventType.PLAY_SOUND;
+					eventGreeting.alarm        = alarm;
+					eventGreeting.sound        = sound;
+					eventGreeting.time         = alarmTime.plusNanos(1);
+					eventGreeting.interrupt    = interrupt;
+					eventList.add(eventGreeting);
+					
+					interrupt = false;
+				}
+				
 				Event eventAnnouncement = new Event();
-				sound                   = new Alarm.Sound();
+				Alarm.Sound sound          = new Alarm.Sound();
 				sound.name                 = "time announcement";
 				sound.type                 = Type.FILE;
 				sound.source               = prepareTimeAnnouncement(time);
@@ -491,6 +501,8 @@ class Controller implements Runnable {
 				eventAnnouncement.sound        = sound;
 				eventAnnouncement.interrupt    = interrupt;
 				eventList.add(eventAnnouncement);
+				
+				interrupt = false;
 				
 				if(count%ANNOUNCEMENT_INTERVAL == 0) {
 					// play additional announcements
@@ -535,7 +547,7 @@ class Controller implements Runnable {
 	 * @param alarm new alarm to process
 	 */
 	synchronized private void addAlarmEvents(Alarm alarm) {
-		log.fine("generating events for alarm ID="+alarm.getId()+" at time="+alarm.getTime());
+		log.fine("addAlarmEvents called for alarm ID="+alarm.getId()+" at time="+alarm.getTime());
 		
 		if(!alarm.getWeekDays().contains(LocalDate.now().getDayOfWeek())) {
 			log.fine("alarm not scheduled for today");

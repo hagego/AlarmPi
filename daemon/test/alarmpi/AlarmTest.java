@@ -53,7 +53,7 @@ class AlarmTest {
 		assertThat(alarm.getSkipOnce(),is(false));
 		assertThat(alarm.getTime(),is(LocalTime.MIDNIGHT));
 		assertThat(alarm.getWeekDays(),is(EnumSet.noneOf(DayOfWeek.class)));
-		assertThat(alarm.getSignalSoundList(),hasSize(0));
+		assertThat(alarm.getSignalSoundList(),hasSize(2));
 	}
 
 	@Test

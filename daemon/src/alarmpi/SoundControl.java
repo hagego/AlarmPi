@@ -182,7 +182,7 @@ public class SoundControl {
 	 *                 and the new sound will start after it finished
 	 */
 	synchronized void playSound(Alarm.Sound sound,Integer volume,boolean append) {
-		log.fine("playSound: type="+sound.type+" volume="+volume+" append="+append);
+		log.fine("playSound: name="+sound.name+" type="+sound.type+" volume="+volume+" append="+append);
 		switch(sound.type) {
 		case STREAM:
 			playRadioStream(sound.source,volume,append);
@@ -290,7 +290,7 @@ public class SoundControl {
 	 *               and the new sound will start after it finished
 	 */
 	synchronized private void playRadioStream(String uri,Integer volume,boolean append) {
-		log.fine("playRadeio: uri="+uri+" volume="+volume+" append="+append);
+		log.fine("playRadio: uri="+uri+" volume="+volume+" append="+append);
 		
 		try {
 			connect();

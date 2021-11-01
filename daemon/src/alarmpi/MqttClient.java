@@ -129,6 +129,21 @@ public class MqttClient implements MqttCallbackExtended{
 		}
 	}
 	
+	/**
+	 * publishes the MQTT topic containing the (LED) brightness
+	 * @param brightness current brightness in percent
+	 */
+	public void publishBrightness(double brightness) {
+		if(Configuration.getConfiguration().getMqttPublishTopicBrightness()!=null) {
+			log.fine("publishing brightness topic: "+Configuration.getConfiguration().getMqttPublishTopicBrightness());
+			try {
+				mqttClient.publish(Configuration.getConfiguration().getMqttPublishTopicBrightness(), String.format("%.0f",brightness).getBytes(), 0, false);
+			} catch (MqttException e) {
+				log.severe("Exception during MQTT publish: "+e.getMessage());
+			}
+		}
+	}
+	
 	public void publishAlarmList() {
 		if(Configuration.getConfiguration().getMqttPublishTopicAlarmList()!=null) {
 			log.fine("publishing alarm list topic: "+Configuration.getConfiguration().getMqttPublishTopicAlarmList());
@@ -139,7 +154,7 @@ public class MqttClient implements MqttCallbackExtended{
 				builder.add("name", Configuration.getConfiguration().getName());
 				builder.add("alarms", Alarm.getAlarmListAsJsonArray());
 				JsonObject jsonObject = builder.build();
-				log.fine("created JSON object:\n"+jsonObject.toString());
+				log.finest("created JSON object:\n"+jsonObject.toString());
 				
 				mqttClient.publish(Configuration.getConfiguration().getMqttPublishTopicAlarmList(), jsonObject.toString().getBytes(), 0, true);
 			} catch (MqttException e) {

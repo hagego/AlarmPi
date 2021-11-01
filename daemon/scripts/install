@@ -33,8 +33,10 @@ sudo mkdir -p /opt/alarmpi/bin
 sudo mkdir -p /opt/alarmpi/www
 sudo mkdir -p /etc/alarmpi
 sudo mkdir -p /etc/alarmpi/tmp
+sudo mkdir -p /var/lib/alarmpi
 sudo chown -R alarmpi:alarmpi /opt/alarmpi
 sudo chown -R alarmpi:alarmpi /etc/alarmpi
+sudo chown -R alarmpi:alarmpi /var/lib/alarmpi
 sudo mkdir -p /var/lib/mpd/music/tmp
 sudo chown -R mpd:audio /var/lib/mpd/music
 sudo chmod -R g+w /var/lib/mpd/music

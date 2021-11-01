@@ -238,6 +238,7 @@ public class Configuration {
 		    mqttKeepAlive  = sectionMqtt.get("keepalive", Integer.class, 60);
 		    mqttPublishTopicShortClick    = sectionMqtt.get("publishTopicShortClick", String.class, null);
 		    mqttPublishTopicLongClick     = sectionMqtt.get("publishTopicLongClick", String.class, null);
+		    mqttPublishTopicBrightness    = sectionMqtt.get("publishTopicBrightness", String.class, null);
 		    mqttSubscribeTopicTemperature = sectionMqtt.get("subscribeTopicTemperature", String.class, null);
 		    mqttPublishTopicAlarmList     = sectionMqtt.get("publishTopicAlarmList", String.class, null);
 		}
@@ -392,7 +393,7 @@ public class Configuration {
 			    	if(name==null ) {
 			    		log.severe("Invalid sound with index "+index+" in config file: empty name");
 			    	}
-			    	if(source==null ) {
+			    	if(source==null && type!=Alarm.Sound.Type.EXTERNAL) {
 			    		log.severe("Invalid sound with index "+index+" in config file: empty source");
 			    	}
 			    	if(name!=null && source!=null) {
@@ -400,6 +401,8 @@ public class Configuration {
 			    		sound.name   = name;
 			    		sound.source = source;
 			    		sound.type   = type;
+			    		log.fine("Found sound in config file: name="+name+" type="+type+" source="+source);
+			    		
 			    		soundList.add(sound);
 			    	}
 			    	found = true;
@@ -555,6 +558,13 @@ public class Configuration {
 		return mqttPublishTopicAlarmList;
 	}
 	
+	/**
+	 * @return the MQTT topic to publish the LED brightness
+	 */
+	final String getMqttPublishTopicBrightness() {
+		return mqttPublishTopicBrightness;
+	}
+	
 	final String getSpeechControlDevice() {
 		return speechControlDevice;
 	}
@@ -621,7 +631,7 @@ public class Configuration {
 		}
 		
 		if(speechControlSound==null) {
-			dump += "  no spechcontrol configured";
+			dump += "  no spechcontrol configured\n";
 		}
 		else {
 			dump += "  speech control: device="+speechControlDevice+" sound="+speechControlSound+"\n";
@@ -659,6 +669,7 @@ public class Configuration {
 	private String                           mqttPublishTopicShortClick;    // MQTT topic published on a short click of a connected button
 	private String                           mqttPublishTopicLongClick;     // MQTT topic published on a long click of a connected button
 	private String                           mqttPublishTopicAlarmList;     // MQTT topic for publishing alarm list as JSON object
+	private String                           mqttPublishTopicBrightness;    // MQTT topic for publishing (LED) brightness
 	private String                           mqttSubscribeTopicTemperature; // MQTT topic subscribed to get locally measured temperature
 	private String                           speechControlDevice;
 	private Integer                          speechControlSound;
