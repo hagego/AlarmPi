@@ -165,6 +165,9 @@ class Controller implements Runnable {
 			log.config("No MQTT alive messages configured");
 		}
 		
+		// register light control list to MQTT client to enable light control
+		mqttClient.setLightControList(lightControlList);
+		
 		log.info("initialization done");
 	}
 	
@@ -180,7 +183,7 @@ class Controller implements Runnable {
 			// announce next alarms before switching off
 			Alarm alarm = Alarm.getNextAlarmToday();
 			if(alarm!=null) {
-				String text = "Der nächste Alarm ist heute um "+alarm.getTime().getHour()+" Uhr";
+				String text = "Der nächste Alarm ist heute um "+alarm.getTime().getHour()+" Uhr ";
 				if(alarm.getTime().getMinute()!=0) {
 					text += alarm.getTime().getMinute();
 				}
@@ -192,7 +195,7 @@ class Controller implements Runnable {
 			else {
 				alarm = Alarm.getNextAlarmTomorrow();
 				if(alarm!=null) {
-					String text = "Der n�chste Alarm ist morgen um "+alarm.getTime().getHour()+" Uhr";
+					String text = "Der nächste Alarm ist morgen um "+alarm.getTime().getHour()+" Uhr ";
 					if(alarm.getTime().getMinute()!=0) {
 						text += alarm.getTime().getMinute();
 					}

@@ -240,6 +240,7 @@ public class Configuration {
 		    mqttPublishTopicLongClick     = sectionMqtt.get("publishTopicLongClick", String.class, null);
 		    mqttPublishTopicBrightness    = sectionMqtt.get("publishTopicBrightness", String.class, null);
 		    mqttSubscribeTopicTemperature = sectionMqtt.get("subscribeTopicTemperature", String.class, null);
+		    mqttSubscribeTopicLight       = sectionMqtt.get("subscribeTopicLight", String.class, null);
 		    mqttPublishTopicAlarmList     = sectionMqtt.get("publishTopicAlarmList", String.class, null);
 		}
         
@@ -538,6 +539,13 @@ public class Configuration {
 	}
 	
 	/**
+	 * @return the MQTT topic to subscribe to allow light control
+	 */
+	final String getMqttSubscribeTopicLight() {
+		return mqttSubscribeTopicLight;
+	}
+	
+	/**
 	 * @return the MQTT topic to publish on a short button click
 	 */
 	final String getMqttPublishTopicShortClick() {
@@ -628,6 +636,9 @@ public class Configuration {
 			if(mqttSubscribeTopicTemperature!=null) {
 				dump += "    MQTT subscribeTopicTemperature="+mqttSubscribeTopicTemperature+"\n";
 			}
+			if(mqttSubscribeTopicLight!=null) {
+				dump += "    MQTT subscribeTopicLight="+mqttSubscribeTopicLight+"\n";
+			}
 		}
 		
 		if(speechControlSound==null) {
@@ -671,6 +682,7 @@ public class Configuration {
 	private String                           mqttPublishTopicAlarmList;     // MQTT topic for publishing alarm list as JSON object
 	private String                           mqttPublishTopicBrightness;    // MQTT topic for publishing (LED) brightness
 	private String                           mqttSubscribeTopicTemperature; // MQTT topic subscribed to get locally measured temperature
+	private String                           mqttSubscribeTopicLight;       // MQTT topic subscribed to allow light control
 	private String                           speechControlDevice;
 	private Integer                          speechControlSound;
 }
