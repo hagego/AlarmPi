@@ -3,6 +3,7 @@ package hagego.alarmpi;
 import java.time.LocalTime;
 import java.util.EnumSet;
 import java.util.Map;
+import java.util.UUID;
 import java.util.concurrent.Future;
 import android.content.Context;
 import android.util.Log;
@@ -45,7 +46,7 @@ public class Alarm implements TimePicker.OnTimeChangedListener,CheckBox.OnChecke
         Alarm alarm = new Alarm();
 
         try {
-            alarm.id          = jsonAlarm.getInt("id");
+            alarm.id          = UUID.fromString(jsonAlarm.getString("id"));
             alarm.enabled     = jsonAlarm.getBoolean("enabled");
             alarm.oneTimeOnly = jsonAlarm.getBoolean("oneTimeOnly");
             alarm.skipOnce    = jsonAlarm.getBoolean("skipOnce");
@@ -60,18 +61,22 @@ public class Alarm implements TimePicker.OnTimeChangedListener,CheckBox.OnChecke
                 }
             }
 
-            alarm.soundName = jsonAlarm.getString("soundName");
+            alarm.soundName = jsonAlarm.getString("alarmSound");
             Integer soundId = soundNameToIndexMap.get(alarm.soundName);
-            if(soundId!=null) {
-                alarm.sound = soundId;
-            }
-            else {
-                Log.e(Constants.LOG, "parseFromJsonObject: no ID available for sound "+ jsonAlarm.getString("soundName"));
+            if (soundId != null) {
+                alarm.soundId = soundId;
+            } else {
+                Log.e(Constants.LOG, "parseFromJsonObject: no ID available for sound " + jsonAlarm.getString("alarmSound"));
                 return null;
             }
 
+
         } catch (JSONException e) {
             Log.e(Constants.LOG, "parseFromJsonObject: JSON exception: "+e.getMessage());
+
+            return null;
+        } catch (IllegalArgumentException e) {
+            Log.e(Constants.LOG, "parseFromJsonObject: Illegal argument exception: "+e.getMessage());
 
             return null;
         }
@@ -92,7 +97,7 @@ public class Alarm implements TimePicker.OnTimeChangedListener,CheckBox.OnChecke
             jsonObject.put("skipOnce",skipOnce);
             jsonObject.put("time",String.format("%02d:%02d",hourOfDay,minuteOfDay));
             jsonObject.put("weekDays",weekDays.toString());
-            jsonObject.put("soundName",soundName);
+            jsonObject.put("alarmSound",soundName);
         } catch (JSONException e) {
             Log.e(Constants.LOG,"Exception during creation of Alarm JSON Object: "+e.getMessage());
             return null;
@@ -107,69 +112,19 @@ public class Alarm implements TimePicker.OnTimeChangedListener,CheckBox.OnChecke
     }
 
     /**
-     * constructor
-     * @param id          alarm ID
-     * @param enabled     enabled flag
-     * @param days        days on which the alarm is active as coma separated strings of DayOfWeek objects
-     * @param time        alarm time in format HH:MM
-     * @param sound       sound to play for the alarm (index into sound list)
-     * @param oneTimeOnly oneTimeOnly flag (Alarm is only enabled one time, then gets disabled again automatically)
-     * @param skipOnce    skipOnce flag (Alarm is skipped one time)
+     * returns the ID of this alarm
+     * @return ID of this alarm
      */
-    Alarm(int id,boolean enabled,String days,String time,Integer sound,boolean oneTimeOnly,boolean skipOnce) {
-        this.id          = id;
-        this.enabled     = enabled;
-        this.oneTimeOnly = oneTimeOnly;
-        this.skipOnce    = skipOnce;
-
-        // parse string with active days
-        for(String day:days.split(",")) {
-            boolean found = false;
-            for( DayOfWeek dayOfWeek:DayOfWeek.values()) {
-                if(day.equalsIgnoreCase(dayOfWeek.toString())) {
-                    weekDays.add(dayOfWeek);
-                    found = true;
-                    break;
-                }
-            }
-            if(!found) {
-                Log.e(Constants.LOG, "Error while parsing days string at "+day);
-            }
-        }
-
-        // parse time string
-        String timeParts[] = time.split(":");
-        if(timeParts.length!=2) {
-            Log.e(Constants.LOG, "Error while parsing time string at "+time);
-            hourOfDay   = 0;
-            minuteOfDay = 0;
-            this.enabled     = false;
-        }
-        else {
-            try {
-                hourOfDay = Integer.parseInt(timeParts[0]);
-                minuteOfDay = Integer.parseInt(timeParts[1]);
-            }
-            catch(NumberFormatException e) {
-                Log.e(Constants.LOG, "Error while parsing time string at "+time);
-                hourOfDay   = 0;
-                minuteOfDay = 0;
-                this.enabled     = false;
-            }
-        }
-
-        this.sound = sound;
-
-        // mark the alarm as in sync with the data on AlarmPi
-        hasChanged = false;
+    public UUID getId() {
+        return id;
     }
 
     /**
      * returns the sound for this alarm
      * @return sound for this alarm
      */
-    Integer getSound() {
-        return sound;
+    Integer getSoundId() {
+        return soundId;
     }
 
     @Override
@@ -198,14 +153,6 @@ public class Alarm implements TimePicker.OnTimeChangedListener,CheckBox.OnChecke
     }
 
     /**
-     * returns the alarm ID
-     * @return alarm ID
-     */
-    public int getId() {
-        return id;
-    }
-
-    /**
      * returns the enabled status of the alarm
      * @return enabled status of the alarm
      */
@@ -231,6 +178,22 @@ public class Alarm implements TimePicker.OnTimeChangedListener,CheckBox.OnChecke
      */
     public String getTime() {
         return String.format("%02d:%02d",hourOfDay,minuteOfDay);
+    }
+
+    /**
+     * sets the index of this alarm in the alarm list of the proxy
+     * @param index
+     */
+    public void setIndex(int index) {
+        this.index = index;
+    }
+
+    /**
+     * returns the index of this alarm in the alarm list of the proxy
+     * @return index of this alarm in the alarm list of the proxy
+     */
+    public int getIndex() {
+        return index;
     }
 
     /**
@@ -317,8 +280,8 @@ public class Alarm implements TimePicker.OnTimeChangedListener,CheckBox.OnChecke
      * @param timePicker TimePicker GUI widget
      */
     void setTimePicker(TimePicker timePicker) {
-        timePicker.setHour(6);
-        timePicker.setMinute(0);
+        timePicker.setHour(hourOfDay);
+        timePicker.setMinute(minuteOfDay);
         timePicker.setOnTimeChangedListener(this);
     }
 
@@ -334,7 +297,7 @@ public class Alarm implements TimePicker.OnTimeChangedListener,CheckBox.OnChecke
     }
 
     void setSoundListSpinner(Spinner spinner) {
-        spinner.setSelection(sound);
+        spinner.setSelection(soundId);
         spinner.setOnItemSelectedListener(this);
     }
 
@@ -343,16 +306,17 @@ public class Alarm implements TimePicker.OnTimeChangedListener,CheckBox.OnChecke
     //
 
     // alarm attributes
-    private int                         id;                                          // alarm ID
+    private UUID                        id;                                          // alarm ID
     private boolean                     enabled;                                     // alarm enabled ?
     private boolean                     oneTimeOnly;                                 // one time only alarm ?
     private boolean                     skipOnce;                                    // skip one alarm event ?
     private EnumSet<DayOfWeek>          weekDays = EnumSet.noneOf(DayOfWeek.class);  // weekdays when this alarm is active
     private int                         hourOfDay;                                   // alarm hour
     private int                         minuteOfDay;                                 // alarm minute
-    private int                         sound;                                       // sound to play (index into sound list)
+    private int soundId;                                       // sound to play (index into sound list)
     private String                      soundName;                                   // sound to play (unique name)
 
+    private int                         index;                                       // index of this alarm in the alarm list of the proxy
     private boolean                     hasChanged;                                  // stores if alarm got changed locally and needs an update on AlarmPi server
 
     // GUI View
@@ -421,9 +385,9 @@ public class Alarm implements TimePicker.OnTimeChangedListener,CheckBox.OnChecke
 
     @Override
     public void onItemSelected(AdapterView<?> parent, View view, int position, long id) {
-        if(position!=sound) {
+        if(position!= soundId) {
             Log.d(Constants.LOG, "alarm sound item changed: pos=" + position + " id=" + id);
-            sound = position;
+            soundId = position;
 
             hasChanged = true;
         }

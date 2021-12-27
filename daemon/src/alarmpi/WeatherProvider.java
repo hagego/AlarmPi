@@ -48,7 +48,7 @@ public class WeatherProvider implements Callable<String> {
 		log.fine("local temperature retrieved from MQTT broker: "+temperature);
 		
 		// retrieve hourly forecast from openweathermap.org and check for min/max temperatures
-		log.info("retrieving forecast data");
+		log.fine("retrieving forecast data");
 		
 		final String BASE_URL_HOURLY    = "https://api.openweathermap.org/data/2.5/forecast?zip=";
 		final String URL_OPTIONS_HOURLY = "&mode=xml&APPID=f593e17912b28437a5f95565670f8e2b";
@@ -180,7 +180,7 @@ public class WeatherProvider implements Callable<String> {
 			text += String.format("Die Vorhersage liegt fuer heute zwischen %d und %d Grad.",minTemperature,maxTemperature);
 		}
 		
-		log.info("Weather Announcement text="+text);
+		log.fine("Weather Announcement text="+text);
 		if(!text.isEmpty()) {
 			return new TextToSpeech().createTempFile(text,"weather.mp3");
 		}

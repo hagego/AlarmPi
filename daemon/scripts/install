@@ -7,18 +7,17 @@
 # MPD and required packages
 sudo apt-get install mpd mpc alsa-utils -y -q
 
-# wiringpi for gpio debugging
-sudo apt-get install wiringpi -y -q
-
 # ic2tools for i2c debugging
 sudo apt-get install i2c-tools -y -q
 
-# Java 8 (pi4j 1.x does not run on Java 11)
-sudo apt-get install openjdk-8-jre -y -q
+# Java 11
+sudo apt-get install openjdk-11-jre -y -q
 
 # lighttpd
 sudo apt-get install lighttpd -y -q
 
+# git
+sudo apt-get install git-core -y -q
 
 # create user alarmpi and add to groups
 sudo useradd -M alarmpi
@@ -33,8 +32,10 @@ sudo mkdir -p /opt/alarmpi/bin
 sudo mkdir -p /opt/alarmpi/www
 sudo mkdir -p /etc/alarmpi
 sudo mkdir -p /etc/alarmpi/tmp
+sudo mkdir -p /var/lib/alarmpi
 sudo chown -R alarmpi:alarmpi /opt/alarmpi
 sudo chown -R alarmpi:alarmpi /etc/alarmpi
+sudo chown -R alarmpi:alarmpi /var/lib/alarmpi
 sudo mkdir -p /var/lib/mpd/music/tmp
 sudo chown -R mpd:audio /var/lib/mpd/music
 sudo chmod -R g+w /var/lib/mpd/music

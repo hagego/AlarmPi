@@ -15,8 +15,6 @@ import com.pi4j.io.gpio.GpioFactory;
 import com.pi4j.io.gpio.GpioPinDigitalOutput;
 import com.pi4j.io.gpio.RaspiPin;
 
-import alarmpi.Configuration.Sound;
-
 
 /**
  * Controls the sound output of AlarmPi using mpd
@@ -183,10 +181,10 @@ public class SoundControl {
 	 * @param append   if true, the currently playing sounds gets not interrupted
 	 *                 and the new sound will start after it finished
 	 */
-	synchronized void playSound(Sound sound,Integer volume,boolean append) {
-		log.fine("playSound: type="+sound.type+" volume="+volume+" append="+append);
+	synchronized void playSound(Alarm.Sound sound,Integer volume,boolean append) {
+		log.fine("playSound: name="+sound.name+" type="+sound.type+" volume="+volume+" append="+append);
 		switch(sound.type) {
-		case RADIO:
+		case STREAM:
 			playRadioStream(sound.source,volume,append);
 			break;
 		case FILE:
@@ -198,9 +196,6 @@ public class SoundControl {
 			}
 			stop();
 			setVolume(volume);
-			break;
-		case PLAYLIST:
-			log.warning("SoundControl.playSound called for a playlist");
 			break;
 		}
 		
@@ -280,7 +275,7 @@ public class SoundControl {
 	/**
 	 * @return the active sound or null if no sound is played
 	 */
-	synchronized Sound getActiveSound() {
+	synchronized Alarm.Sound getActiveSound() {
 		return activeSound;
 	}
 	
@@ -295,7 +290,7 @@ public class SoundControl {
 	 *               and the new sound will start after it finished
 	 */
 	synchronized private void playRadioStream(String uri,Integer volume,boolean append) {
-		log.fine("playRadeio: uri="+uri+" volume="+volume+" append="+append);
+		log.fine("playRadio: uri="+uri+" volume="+volume+" append="+append);
 		
 		try {
 			connect();
@@ -405,7 +400,7 @@ public class SoundControl {
 	private BufferedReader       reader;
 	private PrintWriter          writer;
 
-	private Sound                activeSound;           // stores the currently active sound, or null
+	private Alarm.Sound          activeSound;           // stores the currently active sound, or null
 	private int                  activeVolume;          // caches the active volume, 0=off
 }
 

@@ -87,7 +87,7 @@ function updateAlarms() {
         alarmRow.append('<td><input type="checkbox" class="alarm_friday" value="FRIDAY">');
         alarmRow.append('<td><input type="checkbox" class="alarm_saturday" value="SATURDAY">');
         alarmRow.append('<td><input type="checkbox" class="alarm_sunday" value="SUNDAY">');
-        alarmRow.append('<td>'+alarm.soundName+'</td>');
+        alarmRow.append('<td>'+alarm.alarmSound+'</td>');
         
         alarmRow.children().children('.alarm_enabled').attr('checked',alarm.enabled).click(handleAlarmModification);
         alarmRow.children().children('.alarm_time').attr('value',alarm.time).change(handleAlarmModification);

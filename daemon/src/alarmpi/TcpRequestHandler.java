@@ -5,10 +5,6 @@ import java.io.IOException;
 import java.io.InputStreamReader;
 import java.io.PrintWriter;
 import java.net.Socket;
-import java.time.DayOfWeek;
-import java.time.LocalTime;
-import java.time.format.DateTimeParseException;
-import java.util.EnumSet;
 import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.List;
@@ -30,7 +26,6 @@ public class TcpRequestHandler implements Runnable {
 		// create list with all command handlers
 		commandHandlerList = new LinkedList<CommandHandler>();
 		commandHandlerList.add(new CommandLoglevel());
-		commandHandlerList.add(new CommandAlarm());
 		commandHandlerList.add(new CommandSound());
 		commandHandlerList.add(new CommandLightControlOld());
 		commandHandlerList.add(new CommandLightControl());
@@ -223,238 +218,6 @@ public class TcpRequestHandler implements Runnable {
 	};
 	
 
-	/**
-	 * alarm - adds or modifies alarms
-	 */
-	private class CommandAlarm extends CommandHandler {
-		
-		@Override
-		protected String getCommandName() {
-			return "alarm";
-		}
-		
-		@Override
-		public ReturnCode set() throws CommandHandlerException{
-			if(parameters[0].equals("add")) {
-				return add();
-			}
-			else if(parameters[0].equals("modify")) {
-				return modify();
-			}
-			else if(parameters[0].equals("delete")) {
-				return delete();
-			}
-			else if(parameters[0].equals("enable")) {
-				return enable();
-			}
-			else if(parameters[0].equals("stop")) {
-				return stop();
-			}
-			else {
-				return new ReturnCodeError("unknown alarm command: "+parameters[0]);
-			}
-		}
-		
-		@Override
-		public ReturnCode get() throws CommandHandlerException{
-			String answer = new String();
-			List<LegacyAlarm> alarmList = Configuration.getConfiguration().getAlarmList();
-			for(LegacyAlarm alarm:alarmList) {
-				String weekDays = alarm.getWeekDays().toString();
-				weekDays = weekDays.substring(1, weekDays.length()-1).replaceAll(" ", "");
-				if(weekDays.isEmpty()) {
-					weekDays = "-";
-				}
-				answer += String.format("%4d %b %s %s %d %b %b\n",alarm.getId(),alarm.isEnabled(),weekDays,alarm.getTime(),alarm.getSoundId(),alarm.isOneTimeOnly(),alarm.isSkipOnce());
-			}
-			return new ReturnCodeSuccess(answer);
-		}
-		
-		// individual set commands
-		// add - parameters are: <days>,<time>,<sound URL>
-		private ReturnCode add() {
-			// check parameter count
-			if(parameters.length != 4) {
-				return new ReturnCodeError("alarm add: invalid parameter count (expected: <weekdays> <time> <soundID>): "+parameters.length);
-			}
-			// process parameters
-			// 1st parameter: list of weekdays
-			final EnumSet<DayOfWeek> weekDays = EnumSet.noneOf(DayOfWeek.class);
-			if(!parameters[1].equals("-")) {
-				for(String day:parameters[1].split(",")) {
-					try {
-						DayOfWeek dayOfWeek = DayOfWeek.valueOf(day.toUpperCase());
-						weekDays.add(dayOfWeek);
-					}
-					catch(IllegalArgumentException e) {
-						return new ReturnCodeError("invalid weekday: "+day);
-					}
-				}
-			}
-			
-			// 2nd parameter: time
-			final LocalTime time;
-			try {
-				time = LocalTime.parse(parameters[2]);
-			}
-			catch(DateTimeParseException e) {
-				return new ReturnCodeError("invalid time string: "+parameters[2]);
-			}
-			
-			// 3rd parameter: sound ID
-			final Integer sound;
-			try {
-				sound = Integer.parseInt(parameters[3]);
-				log.info("received alarm add, days="+weekDays+" time="+time+" sound ID="+sound);
-				
-				// execute in separate thread as alarm creation can take several seconds
-				threadPool.execute(new Runnable() {
-					@Override
-					public void run() {
-						Configuration.getConfiguration().createAlarm(weekDays,time,sound);
-					}
-				});
-			}
-			catch( NumberFormatException e) {
-				return new ReturnCodeError("invalid sound ID: "+parameters[3]);
-			}
-			
-			return new ReturnCodeSuccess();
-		}
-		
-		// modify - parameters are: <id> <days> <time> <sound ID> <enabled> <oneTimeOnly>
-		private ReturnCode modify() {
-			// check parameter count
-			if(parameters.length != 8) {
-				return new ReturnCodeError("alarm modify: invalid parameter count (expected <id> <days> <time> <sound ID> <enabled> <oneTimeOnly> <skip>): "+parameters.length);
-			}
-			// process parameters
-			// 1st parameter: alarm ID
-			final int id;
-			try {
-				id = Integer.parseInt(parameters[1]);
-			}
-			catch(NumberFormatException e) {
-				return new ReturnCodeError("unable to parse alarm id from "+parameters[1]);
-			}
-			
-			LegacyAlarm alarm = Configuration.getConfiguration().getAlarm(id);
-			
-			// 2nd parameter: list of weekdays
-			final EnumSet<DayOfWeek> weekDays = EnumSet.noneOf(DayOfWeek.class);
-			if(!parameters[2].equals("-")) {
-				for(String day:parameters[2].split(",")) {
-					try {
-						DayOfWeek dayOfWeek = DayOfWeek.valueOf(day.toUpperCase());
-						weekDays.add(dayOfWeek);
-					}
-					catch(IllegalArgumentException e) {
-						return new ReturnCodeError("invalid weekday: "+day);
-					}
-				}
-			}
-			
-			// 3rd parameter: time
-			final LocalTime time;
-			try {
-				time = LocalTime.parse(parameters[3]);
-			}
-			catch(DateTimeParseException e) {
-				return new ReturnCodeError("invalid time string: "+parameters[3]);
-			}
-			
-			// 4th parameter: sound ID
-			final int sound  = Integer.parseInt(parameters[4]);
-			
-			// 5th parameter: enabled flag
-			final boolean enabled = Boolean.parseBoolean(parameters[5]);
-			
-			// 6th parameter: oneTimeOnly flag
-			final boolean oneTimeOnly= Boolean.parseBoolean(parameters[6]);
-			
-			// 7th parameter: oneTimeOnly flag
-			final boolean skipOnce= Boolean.parseBoolean(parameters[7]);
-			
-			log.info("received alarm modify, days="+weekDays+" time="+time+" sound ID="+sound+" enabled="+enabled+" oneTimeOnly="+oneTimeOnly+" skipOnce="+skipOnce);
-			
-			// execute in separate thread as alarm creation can take quite long
-			threadPool.execute(new Runnable() {
-				@Override
-				public void run() {
-					alarm.startTransaction();
-					
-					alarm.setEnabled(enabled);
-					alarm.setOneTimeOnly(oneTimeOnly);
-					alarm.setSkipOnce(skipOnce);
-					alarm.setWeekDays(weekDays);
-					alarm.setTime(time);
-					alarm.setSoundId(sound);
-					
-					alarm.endTransaction();
-				}
-			});
-			
-			return new ReturnCodeSuccess();
-		}
-		
-		// enable - parameters are: <id> <enabled>
-		private ReturnCode enable() {
-			// check parameter count
-			if(parameters.length != 3) {
-				return new ReturnCodeError("alarm enable: invalid parameter count (expected <id> <enabled>): "+parameters.length);
-			}
-			
-			try {
-				// execute in separate thread as alarm creation can take several seconds
-				final int     id      = Integer.parseInt(parameters[1]);
-				final boolean enabled = Boolean.parseBoolean(parameters[2]);
-				
-				threadPool.execute(new Runnable() {
-					@Override
-					public void run() {
-						Configuration.getConfiguration().getAlarm(id).setEnabled(enabled);
-					}
-				});
-			}
-			catch(NumberFormatException e) {
-				return new ReturnCodeError("unable to parse alarm id from "+parameters[1]);
-			}
-			
-			return new ReturnCodeSuccess();
-		}
-		
-		// delete - parameters are: <id>
-		private ReturnCode delete() {
-			// check parameter count
-			if(parameters.length != 2) {
-				return new ReturnCodeError("alarm delete: invalid parameter count (expected <id>): "+parameters.length);
-			}
-			
-			try {
-				// execute in separate thread as alarm creation can take several seconds
-				final int id = Integer.parseInt(parameters[1]);
-				threadPool.execute(new Runnable() {
-					@Override
-					public void run() {
-						Configuration.getConfiguration().getAlarm(id).delete();
-					}
-				});
-			}
-			catch(NumberFormatException e) {
-				return new ReturnCodeError("unable to parse alarm id from "+parameters[1]);
-			}
-			
-			return new ReturnCodeSuccess();
-		}
-
-		
-		// stop - no parameters
-		private ReturnCode stop() {
-			controller.stopActiveAlarm();
-			
-			return new ReturnCodeSuccess();
-		}
-	}
 	
 	/**
 	 * sound - controls sound
@@ -499,7 +262,7 @@ public class TcpRequestHandler implements Runnable {
 			
 			SoundControl soundControl = SoundControl.getSoundControl();
 			answer = String.format("%d %d %d\n", -1,soundControl.getVolume(),controller.getSoundTimer());
-			for(Configuration.Sound sound:Configuration.getConfiguration().getSoundList()) {
+			for(Alarm.Sound sound:Configuration.getConfiguration().getSoundList()) {
 				answer += String.format("%s %s\n", sound.name,sound.type);
 			}
 			return new ReturnCodeSuccess(answer);

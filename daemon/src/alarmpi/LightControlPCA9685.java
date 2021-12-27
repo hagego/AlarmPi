@@ -130,6 +130,10 @@ public class LightControlPCA9685 extends LightControl implements Runnable {
 				log.severe("Error during I2C write: "+e.getMessage());
 			}
 		}
+		
+		lastPubishedBrightness = 0.0;
+		MqttClient.getMqttClient().publishBrightness(lastPubishedBrightness);
+		
 		log.fine("pca9685: setting off done");
 	}
 	
@@ -151,8 +155,13 @@ public class LightControlPCA9685 extends LightControl implements Runnable {
 				pwm = lightControlSettings.pwmOffset+(int)(Math.pow((percentage+16.0)/116.0, 3.0)*(double)USABLE_SCALE);
 			}
 			
-			log.fine("PCA9685: setBrightness to "+percentage+"% pwm="+pwm);;
+			log.finest("PCA9685: setBrightness to "+percentage+"% pwm="+pwm);;
 			setPwm(pwm);
+			
+			if(percentage >= lastPubishedBrightness+10.0) {
+				lastPubishedBrightness = percentage;
+				MqttClient.getMqttClient().publishBrightness(lastPubishedBrightness);
+			}
 		}
 	}
 
@@ -171,7 +180,7 @@ public class LightControlPCA9685 extends LightControl implements Runnable {
 			brightness = 0.0;
 		}
 		
-		log.fine("get Brightness returns "+brightness);
+		log.finest("get Brightness returns "+brightness);
 		
 		return brightness;
 	}
@@ -263,4 +272,5 @@ public class LightControlPCA9685 extends LightControl implements Runnable {
 	private Thread                 dimThread        = null; // thread used for dimming
 	private int                    dimDuration      = 0;    // duration for dim up
 	private double                 dimTargetPercent = 0;    // target brightness in % for dim up
+	private double       lastPubishedBrightness     = 0.0;  // last brightness value (percent) that was published on MQTT
 }

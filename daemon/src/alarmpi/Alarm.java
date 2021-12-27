@@ -6,6 +6,7 @@ import java.io.IOException;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.time.DayOfWeek;
+import java.time.LocalDate;
 import java.time.LocalTime;
 import java.time.format.DateTimeFormatter;
 import java.util.EnumSet;
@@ -40,12 +41,24 @@ public class Alarm {
 	static class Sound {
 		enum Type {
 			STREAM,  // internet stream
-			FILE     // local file
+			FILE,    // local file
+			EXTERNAL // mdp is playing an external sound
 		};
 		
 		String      name;             // name (unique identifier)
 		Type        type;             // type of sound (stream, file)
 		String      source;           // source for this sound, either stream URL or filename
+		
+		public JsonObject toJsonObject() {
+			JsonObjectBuilder builder = Json.createBuilderFactory(null).createObjectBuilder();
+			builder.add("name", name);
+			builder.add("type", type.toString());
+			
+			JsonObject jsonObject = builder.build();
+			log.fine("Created JsonObject for sound: "+jsonObject.toString());
+			
+			return jsonObject;
+		}
 	}
 
 	/**
@@ -53,6 +66,42 @@ public class Alarm {
 	 */
 	Alarm() {
 		log.fine("new alarm created, UUID="+id);
+		
+		log.fine("applying default settings from configuration file");
+		greeting             = Configuration.getConfiguration().getValue("alarm", "greeting", "Hallo");
+		fadeInDuration       = Configuration.getConfiguration().getValue("alarm", "fadeIn",   300);
+		duration             = Configuration.getConfiguration().getValue("alarm", "duration", 300);
+		reminderInterval     = Configuration.getConfiguration().getValue("alarm", "reminderInterval", 300);
+		volumeFadeInEnd      = Configuration.getConfiguration().getValue("alarm", "volumeFadeInEnd", 100);
+		volumeAlarmEnd       = Configuration.getConfiguration().getValue("alarm", "volumeAlarmEnd", 100);
+		lightDimUpDuration   = Configuration.getConfiguration().getValue("alarm", "lightDimUpDuration", 300);
+		lightDimUpBrightness = Configuration.getConfiguration().getValue("alarm", "lightDimUpBrightness", 100);
+		signalSoundList.clear();
+		
+		// signal sounds (each alarm has a list of signal sounds)
+		int signalSoundIndex = 1;
+		String signalSoundName;
+		signalSoundName = Configuration.getConfiguration().getValue("alarm", "signalSound"+signalSoundIndex, null);
+		while(signalSoundName!=null) {
+			if(signalSoundName!=null) {
+				Sound sound = soundMap.get(signalSoundName);
+				if(sound!=null) {
+					if(sound.type!=Type.FILE) {
+						log.severe("wrong type for signal sound "+signalSoundName);
+					}
+					else {
+						log.fine("adding signal sound "+signalSoundIndex+" to alarm: "+signalSoundName);
+						signalSoundList.add(sound);
+					}
+				}
+				else {
+					log.warning("alarm settings: signal sound "+signalSoundIndex+" refers to non existing sound "+signalSoundName);
+				}
+			}
+			// try next
+			signalSoundIndex++;
+			signalSoundName = Configuration.getConfiguration().getValue("alarm", "signalSound"+signalSoundIndex, null);
+		}
 	}
 	
 	/**
@@ -73,7 +122,7 @@ public class Alarm {
 		}
 		
 		JsonObject jsonObject = builder.build();
-		log.fine("Created JsonObject for alarm: "+jsonObject.toString());
+		log.finest("Created JsonObject for alarm: "+jsonObject.toString());
 		
 		return jsonObject;
 	}
@@ -83,7 +132,7 @@ public class Alarm {
 	 * @param jsonObject
 	 */
 	void fromJsonObject(JsonObject jsonObject) {
-		log.fine("parsing Alarm from JsonObject: "+jsonObject.toString());
+		log.finest("parsing Alarm from JsonObject: "+jsonObject.toString());
 		
 		try {
 			JsonString jsonStringId =jsonObject.getJsonString("id");
@@ -146,7 +195,7 @@ public class Alarm {
 					}
 				}
 				if(sound==null) {
-					log.severe("parsingAlarm from Json Object: sound "+alarmSoundName+" not found");
+					log.severe("parsing Alarm from Json Object: sound "+alarmSoundName+" not found");
 				}
 				alarmSound = sound;
 			}
@@ -301,7 +350,13 @@ public class Alarm {
 	}
 	
 	/**
-	 * @return volume at the end of the fade in in percent
+	 * @return volume at the start of the fade in period in percent
+	 */
+	int getVolumeFadeInStart() {
+		return volumeFadeInStart;
+	}
+	/**
+	 * @return volume at the end of the fade period in percent
 	 */
 	int getVolumeFadeInEnd() {
 		return volumeFadeInEnd;
@@ -315,6 +370,20 @@ public class Alarm {
 	}
 	
 	/**
+	 * @return light dim up duration in seconds
+	 */
+	int getLightDimUpDuration() {
+		return lightDimUpDuration;
+	}
+	
+	/**
+	 * @return light dim up brightness in percent
+	 */
+	int getLightDimUpBrightness() {
+		return lightDimUpBrightness;
+	}
+	
+	/**
 	 * @return list of signal sounds
 	 */
 	List<Alarm.Sound> getSignalSoundList() {
@@ -323,10 +392,10 @@ public class Alarm {
 	
 	
 	/**
-	 * applies the settings of the given alarm to the alamr in the list with the same ID
+	 * applies the settings of the given alarm to the alarm in the list with the same ID
 	 * @param newAlarmSettings new alarm settings to apply
 	 */
-	static void modifyAlarm(final JsonObject newAlarmSettings) {
+	static void updateAlarmFromJsonObject(final JsonObject newAlarmSettings) {
 		final Alarm newAlarm = new Alarm();
 		newAlarm.fromJsonObject(newAlarmSettings);
 		
@@ -353,10 +422,16 @@ public class Alarm {
 	}
 	
 	/**
-	 * @return the alarm list
+	 * return a list of all modified alarms and resets the modified flag for those alarms again
+	 * @return the list of modified alarms
 	 */
 	static List<Alarm> getModifiedAlarmList() {
-		return alarmList.stream().filter(alarm -> alarm.modified==true).collect(Collectors.toList());
+		return alarmList.stream()
+				.filter(alarm -> alarm.modified==true)
+				.peek(alarm -> alarm.modified=false)
+				.collect(Collectors.toList());
+		
+		
 	}
 	
 	
@@ -368,13 +443,13 @@ public class Alarm {
 		alarmList.stream().forEach(alarm -> builder.add(alarm.toJsonObject()));
 		
 		JsonArray jsonArray = builder.build();
-		log.fine("create Json array from alarm list: "+jsonArray.toString());
+		log.finest("create Json array from alarm list: "+jsonArray.toString());
 		
 		return jsonArray;
 	}
 	
 	/**
-	 * sets the alarm list from a Json array
+	 * sets the alarm list from a Json array. All old content in the alarm list will be deleted and overwritten
 	 * @param jsonArray
 	 */
 	static void setAlarmListFromJsonArray(JsonArray jsonArray) {
@@ -385,6 +460,21 @@ public class Alarm {
 				alarm.fromJsonObject(jsonValue.asJsonObject());
 				alarm.modified = true;
 				alarmList.add(alarm);
+			}
+			catch(ClassCastException e) {
+				log.severe("ClassCastException when parsing JsonArray in setAlarmListFromJsonArray");
+			}
+		});
+	}
+	
+	/**
+	 * updates the alarm list with the content of the Json array
+	 * @param jsonArray
+	 */
+	static void updateAlarmListFromJsonArray(JsonArray jsonArray) {
+		jsonArray.stream().forEach(jsonValue -> {
+			try {
+				updateAlarmFromJsonObject(jsonValue.asJsonObject());
 			}
 			catch(ClassCastException e) {
 				log.severe("ClassCastException when parsing JsonArray in setAlarmListFromJsonArray");
@@ -410,8 +500,10 @@ public class Alarm {
 		JsonArray jsonArray = getAlarmListAsJsonArray();
 		log.fine("storing alarm list as Json array: "+jsonArray.toString());
 		
-		// TODO MQTT
-		log.severe("MISSING: push on MQTT");
+		// publish changes on MQTT
+		if(MqttClient.getMqttClient()!=null) {
+			MqttClient.getMqttClient().publishAlarmList();
+		}
 		
 		try {
 			FileWriter writer = new FileWriter(storagePath.toFile());
@@ -431,7 +523,7 @@ public class Alarm {
 		
 		// read sound list from configuration file
 		soundMap.clear();
-		Configuration.getConfiguration().getSoundListNew().stream().forEach(sound -> soundMap.put(sound.name, sound));
+		Configuration.getConfiguration().getSoundList().stream().forEach(sound -> soundMap.put(sound.name, sound));
 		
 		
 		try {
@@ -446,49 +538,40 @@ public class Alarm {
 			// create default alarms
 			log.info("Creating default alarms");
 			for(int i=0 ; i<defaultAlarmCount ; i++) {
-				alarmList.add(new Alarm());
+				Alarm alarm = new Alarm();
+				alarm.setAlarmSound(Configuration.getConfiguration().getSoundList().get(0));
+				alarmList.add(alarm);
 			}
 		}
-
-		// apply settings from configuration file
-		alarmList.stream().forEach(alarm -> {
-			alarm.greeting         = Configuration.getConfiguration().getValue("alarm", "greeting", "Hallo");
-			alarm.fadeInDuration   = Configuration.getConfiguration().getValue("alarm", "fadeIn",   300);
-			alarm.duration         = Configuration.getConfiguration().getValue("alarm", "duration", 300);
-			alarm.reminderInterval = Configuration.getConfiguration().getValue("alarm", "reminderInterval", 300);
-			alarm.volumeFadeInEnd  = Configuration.getConfiguration().getValue("alarm", "volumeFadeInEnd", 100);
-			alarm.volumeAlarmEnd   = Configuration.getConfiguration().getValue("alarm", "volumeAlarmEnd", 100);
-			
-			// signal sounds
-			int signalSoundIndex = 1;
-			String signalSoundName;
-			signalSoundName = Configuration.getConfiguration().getValue("alarm", "signalSound"+signalSoundIndex, null);
-			while(signalSoundName!=null) {
-				if(signalSoundName!=null) {
-					Sound sound = soundMap.get(signalSoundName);
-					if(sound!=null) {
-						if(sound.type!=Type.FILE) {
-							log.severe("wrong type for signal sound "+signalSoundName);
-						}
-						else {
-							alarm.signalSoundList.add(sound);
-						}
-					}
-					else {
-						log.warning("alarm settings: signal sound "+signalSoundIndex+" refers to non existing sound "+signalSoundName);
-					}
-				}
-				// try next
-				signalSoundIndex++;
-				signalSoundName = Configuration.getConfiguration().getValue("alarm", "signalSound"+signalSoundIndex, null);
-			}
-		});
 		
-		
-		// TODO MQTT
-		log.severe("MISSING: push on MQTT");
+		// publish changes on MQTT
+		if(MqttClient.getMqttClient()!=null) {
+			MqttClient.getMqttClient().publishAlarmList();
+		}
 	}
-
+	
+	/**
+	 * @return the next active alarm for today or null
+	 */
+	static Alarm getNextAlarmToday() {
+		return alarmList.stream()
+			.filter(alarm -> alarm.getEnabled()==true && alarm.getSkipOnce()==false && alarm.getWeekDays().contains(LocalDate.now().getDayOfWeek()))
+			.filter(alarm -> alarm.getTime().isAfter(LocalTime.now()))
+			.min( (alarm1,alarm2) -> alarm1.time.compareTo(alarm2.time))
+			.orElse(null);
+	}
+	
+	/**
+	 * @return the next active alarm for tomorrow or null
+	 */
+	static Alarm getNextAlarmTomorrow() {
+		return alarmList.stream()
+			.filter(alarm -> alarm.getEnabled()==true && alarm.getSkipOnce()==false && alarm.getWeekDays().contains(LocalDate.now().getDayOfWeek().plus(1)))
+			.min( (alarm1,alarm2) -> alarm1.time.compareTo(alarm2.time))
+			.orElse(null);
+	}
+	
+	
 	
 	
 	// private members
@@ -511,17 +594,21 @@ public class Alarm {
 	private List<Sound>         signalSoundList   = new LinkedList<>();  // list of signal sounds
 	
 	// the following properties are for now defined by the configuration file and have no setters
-	private String              greeting          = "";                  // greeting text
-	private int                 fadeInDuration    = 300;                 // fade in duration in seconds
-	private int                 duration          = 1800;                // alarm duration in seconds
-	private int                 reminderInterval  = 300;                 // alarm signal interval in seconds
-	private int                 volumeFadeInEnd   = 100;                 // volume at end of fade in period in percent
-	private int                 volumeAlarmEnd    = 100;                 // volume at the end of the alarm in percent
+	private String              greeting             = "";               // greeting text
+	private int                 fadeInDuration       = 300;              // fade in duration in seconds
+	private int                 duration             = 1800;             // alarm duration in seconds
+	private int                 reminderInterval     = 300;              // alarm signal interval in seconds
+	private int                 volumeFadeInStart    = 0;                // volume at start of fade in period in percent
+	private int                 volumeFadeInEnd      = 100;              // volume at end of fade in period in percent
+	private int                 volumeAlarmEnd       = 100;              // volume at the end of the alarm in percent
+	private int                 lightDimUpDuration   = 300;              // duration of light dim up after alarm start in seconds
+	private int                 lightDimUpBrightness = 100;              // brightness of light at end of dim up phase in percent
+	
 	
 	// list with all alarms
 	private static List<Alarm> alarmList          = new LinkedList<>();
 	
-	// list with all sounds (from configuration file)
+	// map with all sounds (from configuration file)
 	private static Map<String,Sound> soundMap     = new HashMap<>();
 	
 	//

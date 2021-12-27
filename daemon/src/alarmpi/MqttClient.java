@@ -1,6 +1,7 @@
 package alarmpi;
 
 import java.time.LocalDateTime;
+import java.util.List;
 import java.util.logging.Logger;
 
 import javax.json.Json;
@@ -86,15 +87,36 @@ public class MqttClient implements MqttCallbackExtended{
 				temperatureLastUpdate = null;
 			}
 		}
+		
+		if(Configuration.getConfiguration().getMqttSubscribeTopicLight()!=null
+				&& topic.equals(Configuration.getConfiguration().getMqttSubscribeTopicLight())) {
+			log.fine("MQTT light control message arrived. content="+message);
+			try {
+				int brightness = Integer.parseInt(message.toString());
+				if(lightControlList!=null) {
+					lightControlList.stream().forEach(light -> light.setBrightness(brightness));
+				}
+			}
+			catch (Throwable t) {
+				log.warning("Unable to parse MQTT brightness: "+t.getMessage());
+			}
+		}
 	}
 
 	@Override
 	public void connectComplete(boolean reconnect, String serverURI) {
 		log.info("connection to MQTT broker completed. reconnect="+reconnect);
 		
-		log.fine("subscribing to MQTT topic "+Configuration.getConfiguration().getMqttSubscribeTopicTemperature());
 		try {
-			mqttClient.subscribe(Configuration.getConfiguration().getMqttSubscribeTopicTemperature(),0);
+			if(Configuration.getConfiguration().getMqttSubscribeTopicTemperature()!=null) {
+				log.fine("subscribing to MQTT topic "+Configuration.getConfiguration().getMqttSubscribeTopicTemperature());
+				mqttClient.subscribe(Configuration.getConfiguration().getMqttSubscribeTopicTemperature(),0);
+			}
+			
+			if(Configuration.getConfiguration().getMqttSubscribeTopicLight()!=null) {
+				log.fine("subscribing to MQTT topic "+Configuration.getConfiguration().getMqttSubscribeTopicLight());
+				mqttClient.subscribe(Configuration.getConfiguration().getMqttSubscribeTopicLight(),0);
+			}
 		} catch (MqttException e) {
 			log.severe("Excepion during MQTT connect: "+e.getMessage());
 		}
@@ -129,6 +151,21 @@ public class MqttClient implements MqttCallbackExtended{
 		}
 	}
 	
+	/**
+	 * publishes the MQTT topic containing the (LED) brightness
+	 * @param brightness current brightness in percent
+	 */
+	public void publishBrightness(double brightness) {
+		if(Configuration.getConfiguration().getMqttPublishTopicBrightness()!=null) {
+			log.fine("publishing brightness topic: "+Configuration.getConfiguration().getMqttPublishTopicBrightness());
+			try {
+				mqttClient.publish(Configuration.getConfiguration().getMqttPublishTopicBrightness(), String.format("%.0f",brightness).getBytes(), 0, false);
+			} catch (MqttException e) {
+				log.severe("Exception during MQTT publish: "+e.getMessage());
+			}
+		}
+	}
+	
 	public void publishAlarmList() {
 		if(Configuration.getConfiguration().getMqttPublishTopicAlarmList()!=null) {
 			log.fine("publishing alarm list topic: "+Configuration.getConfiguration().getMqttPublishTopicAlarmList());
@@ -137,9 +174,9 @@ public class MqttClient implements MqttCallbackExtended{
 				
 				// build final object
 				builder.add("name", Configuration.getConfiguration().getName());
-				builder.add("alarms", Configuration.getConfiguration().getAlarmsAsJsonArray());
+				builder.add("alarms", Alarm.getAlarmListAsJsonArray());
 				JsonObject jsonObject = builder.build();
-				log.fine("created JSON object:\n"+jsonObject.toString());
+				log.finest("created JSON object:\n"+jsonObject.toString());
 				
 				mqttClient.publish(Configuration.getConfiguration().getMqttPublishTopicAlarmList(), jsonObject.toString().getBytes(), 0, true);
 			} catch (MqttException e) {
@@ -170,6 +207,10 @@ public class MqttClient implements MqttCallbackExtended{
 		return temperature;
 	}
 	
+	public void setLightControList( List<LightControl> lightControlList ) {
+		this.lightControlList = lightControlList;
+	}
+	
 	//
 	// private data members
 	//
@@ -180,5 +221,6 @@ public class MqttClient implements MqttCallbackExtended{
 	org.eclipse.paho.client.mqttv3.MqttAsyncClient mqttClient;
 	private Double        temperature;
 	private LocalDateTime temperatureLastUpdate;
+	private List<LightControl> lightControlList = null;
 }
 
