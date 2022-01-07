@@ -132,7 +132,11 @@ public class LightControlPCA9685 extends LightControl implements Runnable {
 		}
 		
 		lastPubishedBrightness = 0.0;
-		MqttClient.getMqttClient().publishBrightness(lastPubishedBrightness);
+		
+		String topic = Configuration.getConfiguration().getValue("mqtt", "publishTopicBrightness", null);
+		if(topic != null) {
+			MqttClient.getMqttClient().publish(topic, String.format("%.0f",lastPubishedBrightness));
+		}
 		
 		log.fine("pca9685: setting off done");
 	}
@@ -160,7 +164,10 @@ public class LightControlPCA9685 extends LightControl implements Runnable {
 			
 			if(percentage >= lastPubishedBrightness+10.0) {
 				lastPubishedBrightness = percentage;
-				MqttClient.getMqttClient().publishBrightness(lastPubishedBrightness);
+				String topic = Configuration.getConfiguration().getValue("mqtt", "publishTopicBrightness", null);
+				if(topic != null) {
+					MqttClient.getMqttClient().publish(topic, String.format("%.0f",lastPubishedBrightness));
+				}
 			}
 		}
 	}
@@ -248,7 +255,7 @@ public class LightControlPCA9685 extends LightControl implements Runnable {
 			try {
 				Thread.sleep(sleepInterval);
 			} catch (InterruptedException e) {
-				log.fine("PCA9685: dimming thread interrupted");
+				log.info("PCA9685: dimming thread interrupted");
 
 				return;
 			}

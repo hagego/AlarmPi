@@ -19,7 +19,7 @@ import org.xml.sax.helpers.DefaultHandler;
 
 
 /**
- * Class implementing the Callable INtercae to return the weather forecast for today
+ * Class implementing the Callable interface to return the weather forecast for today
  * using openweathermap.org
  */
 public class WeatherProvider implements Callable<String> {
@@ -27,25 +27,18 @@ public class WeatherProvider implements Callable<String> {
 	/**
 	 * constructor
 	 */
-	public WeatherProvider() {
-		
+	public WeatherProvider(Integer temperature) {
+		this.temperature = temperature;
 	}
 	
 	@Override
 	public String call() throws Exception {
 		log.fine("WeatherProvider called");
+
+		minTemperature = null;
+		maxTemperature = null;
 		
-		minTemperature   = null;
-		maxTemperature   = null;
-	
-		
-		// get local temperature
-		Double temperature = null;
-		MqttClient mqttClient = MqttClient.getMqttClient();
-		if(mqttClient!=null) {
-			temperature = mqttClient.getTemperature();
-		}
-		log.fine("local temperature retrieved from MQTT broker: "+temperature);
+		log.fine("local temperature: "+temperature);
 		
 		// retrieve hourly forecast from openweathermap.org and check for min/max temperatures
 		log.fine("retrieving forecast data");
@@ -173,7 +166,7 @@ public class WeatherProvider implements Callable<String> {
 		
 		String text = new String();
 		if(temperature!=null) {
-			text = String.format("Die gemessene Temperatur betraegt %d Grad.",(int)Math.round(temperature));
+			text = String.format("Die gemessene Temperatur betraegt %d Grad.",temperature);
 		}
 		
 		if(minTemperature!=null && maxTemperature!=null) {
@@ -191,8 +184,10 @@ public class WeatherProvider implements Callable<String> {
 	//
 	// private data members
 	//
-	Integer minTemperature;
-	Integer maxTemperature;
+	Integer temperature    = null;  // measured temperature
+	Integer minTemperature = null;
+	Integer maxTemperature = null;
+
 	
 	private static final Logger log = Logger.getLogger( WeatherProvider.class.getName() );
 }

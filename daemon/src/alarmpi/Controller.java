@@ -24,6 +24,9 @@ import javax.json.JsonArrayBuilder;
 import javax.json.JsonObject;
 import javax.json.JsonObjectBuilder;
 
+import org.eclipse.paho.client.mqttv3.IMqttMessageListener;
+import org.eclipse.paho.client.mqttv3.MqttMessage;
+
 import com.pi4j.io.gpio.GpioController;
 import com.pi4j.io.gpio.GpioFactory;
 import com.pi4j.io.gpio.GpioPinDigitalInput;
@@ -39,7 +42,7 @@ import alarmpi.Alarm.Sound.Type;
  * This class implements the main endless control loop that gets started
  * out of main in its own thread
  */
-class Controller implements Runnable {
+class Controller implements Runnable, IMqttMessageListener{
 
 	/**
 	 * Constructor
@@ -156,17 +159,20 @@ class Controller implements Runnable {
 		new TextToSpeech().createTempFile("dummy", "nextAlarmTomorrow.mp3");
 		soundControl.update();
 		
-		mqttSendAliveTopic    = Configuration.getConfiguration().getValue("mqtt", "sendAliveTopic", null);
 		mqttSendAliveInterval = Configuration.getConfiguration().getValue("mqtt", "sendAliveInterval", 30);
-		if(mqttSendAliveTopic!=null) {
-			log.config(String.format("Publishing MQTT alive messages to topic %s, interval=%d minutes",mqttSendAliveTopic,mqttSendAliveInterval));
-		}
-		else {
-			log.config("No MQTT alive messages configured");
-		}
 		
-		// register light control list to MQTT client to enable light control
-		mqttClient.setLightControList(lightControlList);
+		MqttClient.getMqttClient().subscribe(MQTT_TOPIC_LIGHT, this);
+		MqttClient.getMqttClient().subscribe(MQTT_TOPIC_TEMPERATURE, this);
+		MqttClient.getMqttClient().subscribe(MQTT_TOPIC_OFF, this);
+		
+		// create LED Strip trial object
+//		LedStripTrial ledStripTrial = new LedStripTrial();
+//		Thread thread = new Thread(ledStripTrial);
+//		thread.setDaemon(true);
+//		thread.run();
+		
+		LightControl lightControl = new LightControlWS2801(1, "name");
+		lightControl.dimUp(100, 100);
 		
 		log.info("initialization done");
 	}
@@ -251,10 +257,10 @@ class Controller implements Runnable {
 					}
 					
 					// send sign of life to MQTT broker
-					if(mqttSendAliveTopic!=null && LocalTime.now().minusMinutes(mqttSendAliveInterval).isAfter(time)) {
+					if(LocalTime.now().minusMinutes(mqttSendAliveInterval).isAfter(time)) {
 						log.fine("publishing sign of life to MQTT");;
 						
-						MqttClient.getMqttClient().publish(mqttSendAliveTopic, LocalDateTime.now().toString());
+						MqttClient.getMqttClient().publish(MQTT_TOPIC_ALIVE, LocalDateTime.now().toString());
 						time = LocalTime.now();
 					}
 				}
@@ -269,7 +275,15 @@ class Controller implements Runnable {
 					Alarm.getAlarmList().stream().forEach(alarm -> addAlarmEvents(alarm));
 					
 					// publish modified alarm status on MQTT broker
-					MqttClient.getMqttClient().publishAlarmList();
+					JsonObjectBuilder builder = Json.createBuilderFactory(null).createObjectBuilder();
+					
+					// build final object
+					builder.add("name", Configuration.getConfiguration().getName());
+					builder.add("alarms", Alarm.getAlarmListAsJsonArray());
+					JsonObject jsonObject = builder.build();
+					log.finest("created JSON object:\n"+jsonObject.toString());
+					
+					MqttClient.getMqttClient().publish(MQTT_TOPIC_ALARMLIST, jsonObject.toString());
 				}
 				
 				// check if an alarm was modified and the events need to be processed
@@ -762,13 +776,26 @@ class Controller implements Runnable {
 			lightControlList.stream().forEach(control -> control.dimUp(e.alarm.getLightDimUpBrightness(), e.alarm.getLightDimUpDuration()));
 			
 			// trigger weather data and calendar retrieval in an extra thread
-			weatherAnnouncementFile  = dataExecutorService.submit(new WeatherProvider());
+			if( temperatureLastUpdate==null || LocalDateTime.now().minusHours(2).isAfter(temperatureLastUpdate) ) {
+				log.warning("last temperature update is null or older than 2h");
+				temperature = null;
+			}
+			
+			weatherAnnouncementFile  = dataExecutorService.submit(new WeatherProvider(temperature));
 			if(Configuration.getConfiguration().getCalendarSummary()!=null) {
 				calendarAnnouncementFile = dataExecutorService.submit(new CalendarProvider());
 			}
 			
 			// publish modified alarm status on MQTT broker
-			MqttClient.getMqttClient().publishAlarmList();
+			JsonObjectBuilder builder = Json.createBuilderFactory(null).createObjectBuilder();
+			
+			// build final object
+			builder.add("name", Configuration.getConfiguration().getName());
+			builder.add("alarms", Alarm.getAlarmListAsJsonArray());
+			JsonObject jsonObject = builder.build();
+			log.finest("created JSON object:\n"+jsonObject.toString());
+			
+			MqttClient.getMqttClient().publish(MQTT_TOPIC_ALARMLIST,jsonObject.toString());
 			
 			break;
 		case ALARM_END:
@@ -831,7 +858,7 @@ class Controller implements Runnable {
 			log.fine("parseLightStatusFromJsonObject: JSON object has no array \"lights\"");
 		}
 	}
-
+	
 		
 	//
 	// private members
@@ -900,8 +927,8 @@ class Controller implements Runnable {
 		            			
 		            			// publish to MQTT broker (if configured)
 		            			if(mqttClient!=null) {
-		            				log.fine("publishing MQTT long click topic");
-		            				mqttClient.publishLongClick();
+	            					log.fine("publishing long click topic: "+MQTT_TOPIC_LONGCLICK);
+            						mqttClient.publish(MQTT_TOPIC_LONGCLICK, null);
 		            			}
 		            			
 		            			allOff(activeAlarm==null);
@@ -923,28 +950,11 @@ class Controller implements Runnable {
 	    						speechToCommand.captureCommand();
 	    					}
 	    					else {
-								if(Configuration.getConfiguration().getMqttPublishTopicShortClick()!=null) {
-			            			// publish to MQTT broker (if configured)
-			            			if(mqttClient!=null) {
-			            				log.fine("publishing MQTT short click topic");
-			            				mqttClient.publishShortClick();
-			            			}
-								}
-								else {
-		    						// no speech control - increase LED brightness
-		    						// lightControl.setBrightness(pushButtonSetting.lightId,lightControl.getBrightness(pushButtonSetting.lightId)+pushButtonSetting.brightnessIncrement);
-		    						Alarm.Sound sound = Configuration.getConfiguration().getSoundList().get(pushButtonSetting.soundId);
-		    						soundControl.playSound(sound, pushButtonSetting.soundVolume, false);
-		    						try {
-										Thread.sleep(100);
-									} catch (InterruptedException e) {
-										log.severe(e.getMessage());
-									}
-		    						soundControl.on();
-		    						if(pushButtonSetting.soundTimer>0) {
-		    							setSoundTimer(pushButtonSetting.soundTimer*60);
-		    						}
-								}
+		            			// publish to MQTT broker (if configured)
+		            			if(mqttClient!=null) {
+	            					log.fine("publishing short click topic: "+MQTT_TOPIC_SHORTCLICK);
+            						mqttClient.publish(MQTT_TOPIC_SHORTCLICK, null);
+		            			}
 	    					}
 	        			}
 	        			else {
@@ -984,9 +994,51 @@ class Controller implements Runnable {
         private SpeechToCommand                  speechToCommand; 
 	}
 	
+	@Override
+	public void messageArrived(String topic, MqttMessage message) throws Exception {
+		log.fine("MQTT message arrived: topic="+topic+" content="+message);
+
+		if(topic.endsWith(MQTT_TOPIC_LIGHT)) {
+			log.fine("MQTT light control message arrived. content="+message);
+			try {
+				int brightness = Integer.parseInt(message.toString());
+				if(lightControlList!=null) {
+					lightControlList.stream().forEach(light -> light.setBrightness(brightness));
+				}
+			}
+			catch (Throwable t) {
+				log.warning("Unable to parse MQTT brightness: "+t.getMessage());
+			}
+		}
+		
+		if(topic.endsWith(MQTT_TOPIC_TEMPERATURE)) {
+			log.fine("MQTT temperature update message arrived. content="+message);
+			
+			if(message.getPayload().length>0) {
+				try {
+					temperature = (int)Double.parseDouble(message.toString());
+				}
+				catch(Throwable t) {
+					log.warning("Unable to parse MQTT temperature: "+t.getMessage());
+					temperatureLastUpdate = null;
+					temperature           = null;
+				}
+				temperatureLastUpdate = LocalDateTime.now();
+			}
+			else {
+				temperature           = null;
+				temperatureLastUpdate = null;
+			}
+		}
+		
+		if(topic.endsWith(MQTT_TOPIC_OFF)) {
+			log.fine("MQTT OFF message arrived");
+			allOff(false);
+		}
+	}
+	
 	final static String watchDogFile       = "/var/log/alarmpi/watchdog";
 	
-	String               mqttSendAliveTopic;    // MQTT topic name used to publish alive messages
 	int                  mqttSendAliveInterval; // interval for sending alive messages in minutes
 	
 	LinkedList<Event>    eventList;             // list of events to process, sorted by fire time
@@ -1005,4 +1057,18 @@ class Controller implements Runnable {
 	ExecutorService      dataExecutorService;      // thread executor service to retrieve data like weather or calendar
 	Future<String>       weatherAnnouncementFile;  // future with filename of mp3 weather announcement
 	Future<String>       calendarAnnouncementFile; // future with filename of mp3 calendar announcement
+	
+	// locally measured temperature (retrieved thru MQTT)
+	private Integer temperature                 = null;
+	private LocalDateTime temperatureLastUpdate = null;
+	
+	// MQTT topics
+	final static String MQTT_TOPIC_ALARMLIST   = "alarmlist";   // published topic, contains alarm list in JSON format 
+	final static String MQTT_TOPIC_SHORTCLICK  = "shortclick";  // published topic, published after a button short click
+	final static String MQTT_TOPIC_LONGCLICK   = "longclick";   // published topic, published after a button long click
+	final static String MQTT_TOPIC_LIGHT       = "light";       // command topic, turns on/off the lights
+	final static String MQTT_TOPIC_TEMPERATURE = "temperature"; // command topic, sets the actual, measured temperature
+	final static String MQTT_TOPIC_OFF         = "off";         // command topic, turns all off
+	final static String MQTT_TOPIC_ALIVE       = "alive";       // command topic, send alive signal
+	
 }

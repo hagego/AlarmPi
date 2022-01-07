@@ -1,20 +1,22 @@
 package alarmpi;
 
-import java.time.LocalDateTime;
+import java.util.LinkedList;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.logging.Logger;
 
-import javax.json.Json;
-import javax.json.JsonObject;
-import javax.json.JsonObjectBuilder;
-
 import org.eclipse.paho.client.mqttv3.IMqttDeliveryToken;
+import org.eclipse.paho.client.mqttv3.IMqttMessageListener;
 import org.eclipse.paho.client.mqttv3.MqttCallbackExtended;
 import org.eclipse.paho.client.mqttv3.MqttConnectOptions;
 import org.eclipse.paho.client.mqttv3.MqttException;
 import org.eclipse.paho.client.mqttv3.MqttMessage;
 import org.eclipse.paho.client.mqttv3.persist.MemoryPersistence;
 
+
+/**
+ * MQTT Client
+ */
 public class MqttClient implements MqttCallbackExtended{
 	
 	/**
@@ -22,19 +24,28 @@ public class MqttClient implements MqttCallbackExtended{
 	 * @param brokerAddress MQTT broker address
 	 * @param brokerPort    MQTT broker port
 	 */
-	private MqttClient(String brokerAddress, int brokerPort) {
+	private MqttClient(String brokerAddress, int brokerPort, int keepalive, String clientId) {
 			try {
 				MqttConnectOptions connectOptions = new MqttConnectOptions();
 				connectOptions.setAutomaticReconnect(true);
-				connectOptions.setKeepAliveInterval(Configuration.getConfiguration().getMqttKeepalive());
+				connectOptions.setKeepAliveInterval(keepalive);
 				
-				mqttClient = new org.eclipse.paho.client.mqttv3.MqttAsyncClient("tcp://"+brokerAddress+":"+brokerPort,Configuration.getConfiguration().getName(),new MemoryPersistence());
+				isConnected = new AtomicBoolean(false);
+
+				String broker = "tcp://"+brokerAddress+":"+brokerPort;
+				log.info("Creating MQTT client for broker "+broker+", client ID="+clientId);
+				mqttClient = new org.eclipse.paho.client.mqttv3.MqttAsyncClient(broker, clientId,new MemoryPersistence());
+				log.info("client created");
 				mqttClient.setCallback(this);
+				
+				// maintain list of topics to subscribe for automatic reconnect
+				topicList = new LinkedList<Topic>();
 				
 				log.fine("Connecting to MQTT broker "+brokerAddress);
 				mqttClient.connect(connectOptions);
 			} catch (MqttException e) {
 				log.severe("Excepion during MQTT connect: "+e.getMessage());
+				log.severe("Excepion during MQTT connect reason="+e.getReasonCode());
 			}
 	}
 	
@@ -42,21 +53,109 @@ public class MqttClient implements MqttCallbackExtended{
 	 * @return the singleton MQTT client object if a MQTT broker is specified in the configuration
 	 *         or null otherwise 
 	 */
-	public static MqttClient getMqttClient() {
+	public synchronized static MqttClient getMqttClient() {
 		if(theObject==null) {
 			log.fine("Creating new MqttClient");
 			
-			if(Configuration.getConfiguration().getMqttAddress()!=null && Configuration.getConfiguration().getMqttPort()!=null) {
-				theObject = new MqttClient(Configuration.getConfiguration().getMqttAddress(), Configuration.getConfiguration().getMqttPort());
+			if(Configuration.getConfiguration().getValue("mqtt", "address",null)!=null) {
+				theObject = new MqttClient(Configuration.getConfiguration().getMqttAddress(),
+						                   Configuration.getConfiguration().getMqttPort(),
+						                   Configuration.getConfiguration().getMqttKeepalive(),
+						                   Configuration.getConfiguration().getName());
 			}
 		}
 		
 		return theObject;
 	}
+	
+	/**
+	 * subscribes for an MQTT topic
+	 * @param topicName  topic to subscribe
+	 * @param listener   listener objects for the callbacl
+	 */
+	public synchronized void subscribe(String topicName,IMqttMessageListener listener) {
+		String fqt = getFullyQualifiedTopic(topicName);
+		
+		if(mqttClient==null) {
+			log.severe("Unable to subscribe for topic "+fqt+": MQTT client not created");
+			
+			return;
+		}
+		log.fine("subscribing for MQTT topic: "+fqt);
+		
+		// add to list of topics in case we have to reconnect
+		Topic topic = new Topic();
+		topic.topic    = fqt;
+		topic.listener = listener;
+
+		if(topicList.contains(topic)) {
+			log.warning("MQTT subscription of topic "+fqt+": topic already subscribed");
+		}
+		else {
+			topicList.add(topic);
+		}
+		
+		// subscribe if we are currently connected
+		if(isConnected.get()) {
+			try {
+				mqttClient.subscribe(fqt,0,listener);
+			} catch (MqttException e) {
+				log.severe("MQTT subscribe for topic "+fqt+" failed: "+e.getMessage());
+			}
+		}
+	}
+	
+	/**
+	 * publishes an MQTT topic
+	 * @param topic  topic to publish to
+	 * @param data   data to publish
+	 */
+	public void publish(String topic,String data) {
+		if(topic==null || topic.length()==0) {
+			log.severe("Invalid topic name to publish: "+topic);
+			
+			return;
+		}
+				
+		if(data==null) {
+			data = new String();
+		}
+		
+		try {
+			mqttClient.publish(getFullyQualifiedTopic(topic), data.getBytes(), 0, false);
+		} catch (MqttException e) {
+			log.severe("Unable to publish MQTT topic "+topic+", data="+data);
+			log.severe(e.getMessage());
+		}
+	}
+	
+	private String getFullyQualifiedTopic(String topic) {
+		String fullTopic;
+		String prefix = Configuration.getConfiguration().getMqttTopicPrefix();
+		
+		if(prefix==null || prefix.length()==0) {
+			fullTopic = topic;
+		}
+		else {
+			if(prefix.endsWith("/")) {
+				fullTopic = prefix+topic;
+			}
+			else {
+				fullTopic = prefix+"/"+topic;
+			}
+		}
+		
+		return fullTopic;
+	}
 
 	@Override
 	public void connectionLost(Throwable t) {
+		isConnected.set(false);
+		
 		log.severe("connection to MQTT broker lost: "+t.getMessage());
+		if(t.getCause()!=null) {
+			log.severe("connection to MQTT broker lost cause: "+t.getCause().getMessage());
+		}
 	}
 
 	@Override
@@ -65,150 +164,26 @@ public class MqttClient implements MqttCallbackExtended{
 
 	@Override
 	public void messageArrived(String topic, MqttMessage message) throws Exception {
-		temperature           = null;
-		
-		log.fine("MQTT message arrived: topic="+topic+" content="+message);
-		
-		if(Configuration.getConfiguration().getMqttSubscribeTopicTemperature()!=null
-				&& topic.equals(Configuration.getConfiguration().getMqttSubscribeTopicTemperature())) {
-			log.fine("MQTT temperature update message arrived. content="+message);
-			
-			if(message.getPayload().length>0) {
-				try {
-					temperature = Double.parseDouble(message.toString());
-				}
-				catch(Throwable t) {
-					log.warning("Unable to parse MQTT temperature: "+t.getMessage());
-					temperatureLastUpdate = null;
-				}
-				temperatureLastUpdate = LocalDateTime.now();
-			}
-			else {
-				temperatureLastUpdate = null;
-			}
-		}
-		
-		if(Configuration.getConfiguration().getMqttSubscribeTopicLight()!=null
-				&& topic.equals(Configuration.getConfiguration().getMqttSubscribeTopicLight())) {
-			log.fine("MQTT light control message arrived. content="+message);
-			try {
-				int brightness = Integer.parseInt(message.toString());
-				if(lightControlList!=null) {
-					lightControlList.stream().forEach(light -> light.setBrightness(brightness));
-				}
-			}
-			catch (Throwable t) {
-				log.warning("Unable to parse MQTT brightness: "+t.getMessage());
-			}
-		}
+		log.fine("MQTT message arrived: topic="+topic);
+		log.finest("MQTT message arrived: topic="+topic+" content="+message);
 	}
 
 	@Override
-	public void connectComplete(boolean reconnect, String serverURI) {
+	public synchronized void connectComplete(boolean reconnect, String serverURI) {
+		isConnected.set(true);
 		log.info("connection to MQTT broker completed. reconnect="+reconnect);
-		
-		try {
-			if(Configuration.getConfiguration().getMqttSubscribeTopicTemperature()!=null) {
-				log.fine("subscribing to MQTT topic "+Configuration.getConfiguration().getMqttSubscribeTopicTemperature());
-				mqttClient.subscribe(Configuration.getConfiguration().getMqttSubscribeTopicTemperature(),0);
-			}
+
+		// in case of reconnect loop over all topics and subscribe again
+		for(Topic topic:topicList) {
+			log.info("(re-)subscribing to MQTT topic "+topic.topic);
 			
-			if(Configuration.getConfiguration().getMqttSubscribeTopicLight()!=null) {
-				log.fine("subscribing to MQTT topic "+Configuration.getConfiguration().getMqttSubscribeTopicLight());
-				mqttClient.subscribe(Configuration.getConfiguration().getMqttSubscribeTopicLight(),0);
-			}
-		} catch (MqttException e) {
-			log.severe("Excepion during MQTT connect: "+e.getMessage());
-		}
-	}
-	
-	
-	/**
-	 * publishes the MQTT topic in case of a long button click
-	 */
-	public void publishShortClick() {
-		if(Configuration.getConfiguration().getMqttPublishTopicShortClick()!=null) {
-			log.fine("publishing short click topic: "+Configuration.getConfiguration().getMqttPublishTopicShortClick());
+			// subscribe
 			try {
-				mqttClient.publish(Configuration.getConfiguration().getMqttPublishTopicShortClick(), new byte[0], 0, false);
+				mqttClient.subscribe(topic.topic,0,topic.listener);
 			} catch (MqttException e) {
-				log.severe("Exception during MQTT publish: "+e.getMessage());
+				log.severe("MQTT subscribe for topic "+topic.topic+" failed: "+e.getMessage());
 			}
 		}
-	}
-	
-	/**
-	 * publishes the MQTT topic in case of a long button click
-	 */
-	public void publishLongClick() {
-		if(Configuration.getConfiguration().getMqttPublishTopicLongClick()!=null) {
-			log.fine("publishing long click topic: "+Configuration.getConfiguration().getMqttPublishTopicLongClick());
-			try {
-				mqttClient.publish(Configuration.getConfiguration().getMqttPublishTopicLongClick(), new byte[0], 0, false);
-			} catch (MqttException e) {
-				log.severe("Exception during MQTT publish: "+e.getMessage());
-			}
-		}
-	}
-	
-	/**
-	 * publishes the MQTT topic containing the (LED) brightness
-	 * @param brightness current brightness in percent
-	 */
-	public void publishBrightness(double brightness) {
-		if(Configuration.getConfiguration().getMqttPublishTopicBrightness()!=null) {
-			log.fine("publishing brightness topic: "+Configuration.getConfiguration().getMqttPublishTopicBrightness());
-			try {
-				mqttClient.publish(Configuration.getConfiguration().getMqttPublishTopicBrightness(), String.format("%.0f",brightness).getBytes(), 0, false);
-			} catch (MqttException e) {
-				log.severe("Exception during MQTT publish: "+e.getMessage());
-			}
-		}
-	}
-	
-	public void publishAlarmList() {
-		if(Configuration.getConfiguration().getMqttPublishTopicAlarmList()!=null) {
-			log.fine("publishing alarm list topic: "+Configuration.getConfiguration().getMqttPublishTopicAlarmList());
-			try {
-				JsonObjectBuilder builder = Json.createBuilderFactory(null).createObjectBuilder();
-				
-				// build final object
-				builder.add("name", Configuration.getConfiguration().getName());
-				builder.add("alarms", Alarm.getAlarmListAsJsonArray());
-				JsonObject jsonObject = builder.build();
-				log.finest("created JSON object:\n"+jsonObject.toString());
-				
-				mqttClient.publish(Configuration.getConfiguration().getMqttPublishTopicAlarmList(), jsonObject.toString().getBytes(), 0, true);
-			} catch (MqttException e) {
-				log.severe("Exception during MQTT publish: "+e.getMessage());
-			}
-		}
-	}
-	
-	public void publish(String topic, String value) {
-		log.fine("publishing topic: "+topic+", value="+value);
-		try {
-			mqttClient.publish(topic, value.getBytes(), 0, false);
-		} catch (MqttException e) {
-			log.severe("Exception during MQTT publish: "+e.getMessage());
-		}
-	}
-	
-	/**
-	 * @return The actual temperature as retrieved from the MQTT broker, or null if the MQTT broker
-	 *         did not publish a new temperature since more than 2h
-	 */
-	public Double getTemperature() {
-		if( temperatureLastUpdate==null || LocalDateTime.now().minusHours(2).isAfter(temperatureLastUpdate) ) {
-			log.warning("last temperature update is null or older than 2h");
-			return null;
-		}
-		
-		return temperature;
-	}
-	
-	public void setLightControList( List<LightControl> lightControlList ) {
-		this.lightControlList = lightControlList;
 	}
 	
 	//
@@ -216,11 +191,25 @@ public class MqttClient implements MqttCallbackExtended{
 	//
 	private static final Logger log = Logger.getLogger( MqttClient.class.getName() );
 	
-	private static       MqttClient    theObject = null;
-
-	org.eclipse.paho.client.mqttv3.MqttAsyncClient mqttClient;
-	private Double        temperature;
-	private LocalDateTime temperatureLastUpdate;
-	private List<LightControl> lightControlList = null;
+	private static  MqttClient                                     theObject = null;
+	private         org.eclipse.paho.client.mqttv3.MqttAsyncClient mqttClient;
+	
+	// private class to hold topics to subscribe together with their listeners
+	private class Topic {
+		String               topic;
+		IMqttMessageListener listener;
+		
+		@Override
+		public boolean equals(Object obj) {
+			if(obj==null) {
+				return false;
+			}
+			Topic t = (Topic)obj;
+			return topic.equals(t.topic) && listener.equals(t.listener);
+		}
+	};
+	
+	private List<Topic>   topicList;              // list of subscribed topics
+	private AtomicBoolean isConnected;            // maintains if client is currently connected or not
 }
 

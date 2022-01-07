@@ -233,15 +233,10 @@ public class Configuration {
         // mqtt
 		Ini.Section sectionMqtt = ini.get("mqtt");
 		if(sectionMqtt!=null) {
-			mqttAddress    = sectionMqtt.get("address", String.class, null);
-		    mqttPort       = sectionMqtt.get("port", Integer.class, null);
-		    mqttKeepAlive  = sectionMqtt.get("keepalive", Integer.class, 60);
-		    mqttPublishTopicShortClick    = sectionMqtt.get("publishTopicShortClick", String.class, null);
-		    mqttPublishTopicLongClick     = sectionMqtt.get("publishTopicLongClick", String.class, null);
-		    mqttPublishTopicBrightness    = sectionMqtt.get("publishTopicBrightness", String.class, null);
-		    mqttSubscribeTopicTemperature = sectionMqtt.get("subscribeTopicTemperature", String.class, null);
-		    mqttSubscribeTopicLight       = sectionMqtt.get("subscribeTopicLight", String.class, null);
-		    mqttPublishTopicAlarmList     = sectionMqtt.get("publishTopicAlarmList", String.class, null);
+			mqttAddress     = sectionMqtt.get("address", String.class, null);
+		    mqttPort        = sectionMqtt.get("port", Integer.class, 1883);
+		    mqttKeepAlive   = sectionMqtt.get("keepalive", Integer.class, 60);
+		    mqttTopicPrefix = sectionMqtt.get("topicPrefix", String.class, "alarmpi");
 		}
         
 		Ini.Section sectionSpeechControl = ini.get("speechcontrol");
@@ -532,45 +527,10 @@ public class Configuration {
 	}
 	
 	/**
-	 * @return the MQTT topic to subsrice for locally measured temperature
+	 * @return the MQTT topic prefix
 	 */
-	final String getMqttSubscribeTopicTemperature() {
-		return mqttSubscribeTopicTemperature;
-	}
-	
-	/**
-	 * @return the MQTT topic to subscribe to allow light control
-	 */
-	final String getMqttSubscribeTopicLight() {
-		return mqttSubscribeTopicLight;
-	}
-	
-	/**
-	 * @return the MQTT topic to publish on a short button click
-	 */
-	final String getMqttPublishTopicShortClick() {
-		return mqttPublishTopicShortClick;
-	}
-	
-	/**
-	 * @return the MQTT topic to publish on a long button click
-	 */
-	final String getMqttPublishTopicLongClick() {
-		return mqttPublishTopicLongClick;
-	}
-	
-	/**
-	 * @return the MQTT topic to publish the alarm list
-	 */
-	final String getMqttPublishTopicAlarmList() {
-		return mqttPublishTopicAlarmList;
-	}
-	
-	/**
-	 * @return the MQTT topic to publish the LED brightness
-	 */
-	final String getMqttPublishTopicBrightness() {
-		return mqttPublishTopicBrightness;
+	final String getMqttTopicPrefix() {
+		return mqttTopicPrefix;
 	}
 	
 	final String getSpeechControlDevice() {
@@ -627,18 +587,7 @@ public class Configuration {
 		}
 		else {
 			dump += "  MQTT broker: address="+mqttAddress+" port="+mqttPort+"\n";
-			if(mqttPublishTopicLongClick!=null) {
-				dump += "    MQTT publishTopicLongCick="+mqttPublishTopicLongClick+"\n";
-			}
-			if(mqttPublishTopicAlarmList!=null) {
-				dump += "    MQTT publishTopicAlarmList="+mqttPublishTopicAlarmList+"\n";
-			}
-			if(mqttSubscribeTopicTemperature!=null) {
-				dump += "    MQTT subscribeTopicTemperature="+mqttSubscribeTopicTemperature+"\n";
-			}
-			if(mqttSubscribeTopicLight!=null) {
-				dump += "    MQTT subscribeTopicLight="+mqttSubscribeTopicLight+"\n";
-			}
+			dump += "  MQTT topic prefix="+mqttTopicPrefix+"\n";
 		}
 		
 		if(speechControlSound==null) {
@@ -677,12 +626,7 @@ public class Configuration {
 	private String                           mqttAddress;               // MQTT Broker address
 	private Integer                          mqttPort;                  // MQTT broker port
 	private Integer                          mqttKeepAlive;             // MQTT keepalive interval in seconds
-	private String                           mqttPublishTopicShortClick;    // MQTT topic published on a short click of a connected button
-	private String                           mqttPublishTopicLongClick;     // MQTT topic published on a long click of a connected button
-	private String                           mqttPublishTopicAlarmList;     // MQTT topic for publishing alarm list as JSON object
-	private String                           mqttPublishTopicBrightness;    // MQTT topic for publishing (LED) brightness
-	private String                           mqttSubscribeTopicTemperature; // MQTT topic subscribed to get locally measured temperature
-	private String                           mqttSubscribeTopicLight;       // MQTT topic subscribed to allow light control
+	private String                           mqttTopicPrefix;           // MQTT topic prefix
 	private String                           speechControlDevice;
 	private Integer                          speechControlSound;
 }

@@ -500,9 +500,13 @@ public class Alarm {
 		JsonArray jsonArray = getAlarmListAsJsonArray();
 		log.fine("storing alarm list as Json array: "+jsonArray.toString());
 		
-		// publish changes on MQTT
-		if(MqttClient.getMqttClient()!=null) {
-			MqttClient.getMqttClient().publishAlarmList();
+		// publish modified alarm status on MQTT broker
+		JsonObjectBuilder builder = Json.createBuilderFactory(null).createObjectBuilder();
+		builder.add("name", Configuration.getConfiguration().getName())
+		       .add("alarms", Alarm.getAlarmListAsJsonArray());
+		MqttClient mqttClient = MqttClient.getMqttClient();
+		if(mqttClient!=null) {
+			mqttClient.publish(MQTT_TOPIC_ALARMLIST, builder.build().toString());
 		}
 		
 		try {
@@ -544,9 +548,13 @@ public class Alarm {
 			}
 		}
 		
-		// publish changes on MQTT
-		if(MqttClient.getMqttClient()!=null) {
-			MqttClient.getMqttClient().publishAlarmList();
+		// publish modified alarm status on MQTT broker
+		JsonObjectBuilder builder = Json.createBuilderFactory(null).createObjectBuilder();
+		builder.add("name", Configuration.getConfiguration().getName())
+		       .add("alarms", Alarm.getAlarmListAsJsonArray());
+		MqttClient mqttClient = MqttClient.getMqttClient();
+		if(mqttClient!=null) {
+			mqttClient.publish(MQTT_TOPIC_ALARMLIST, builder.build().toString());
 		}
 	}
 	
@@ -613,5 +621,7 @@ public class Alarm {
 	
 	//
 	private boolean             modified         = false;               // flag to indicate if alarm got modified and changes need to be processed
+	
+	final static String MQTT_TOPIC_ALARMLIST   = "alarmlist";   // published topic, contains alarm list in JSON format
 }
 
