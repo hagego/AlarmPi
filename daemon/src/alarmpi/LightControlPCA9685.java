@@ -132,11 +132,7 @@ public class LightControlPCA9685 extends LightControl implements Runnable {
 		}
 		
 		lastPubishedBrightness = 0.0;
-		
-		String topic = Configuration.getConfiguration().getValue("mqtt", "publishTopicBrightness", null);
-		if(topic != null) {
-			MqttClient.getMqttClient().publish(topic, String.format("%.0f",lastPubishedBrightness));
-		}
+		MqttClient.getMqttClient().publish(MQTT_TOPIC_BRIGHTNESS, String.format("%.0f",lastPubishedBrightness));
 		
 		log.fine("pca9685: setting off done");
 	}
@@ -164,10 +160,7 @@ public class LightControlPCA9685 extends LightControl implements Runnable {
 			
 			if(percentage >= lastPubishedBrightness+10.0) {
 				lastPubishedBrightness = percentage;
-				String topic = Configuration.getConfiguration().getValue("mqtt", "publishTopicBrightness", null);
-				if(topic != null) {
-					MqttClient.getMqttClient().publish(topic, String.format("%.0f",lastPubishedBrightness));
-				}
+				MqttClient.getMqttClient().publish(MQTT_TOPIC_BRIGHTNESS, String.format("%.0f",lastPubishedBrightness));
 			}
 		}
 	}
@@ -279,5 +272,7 @@ public class LightControlPCA9685 extends LightControl implements Runnable {
 	private Thread                 dimThread        = null; // thread used for dimming
 	private int                    dimDuration      = 0;    // duration for dim up
 	private double                 dimTargetPercent = 0;    // target brightness in % for dim up
-	private double       lastPubishedBrightness     = 0.0;  // last brightness value (percent) that was published on MQTT
+	
+	private final static String    MQTT_TOPIC_BRIGHTNESS  = "brightness";  // MQTT topic to publish LED brightness
+	private double       lastPubishedBrightness           = 0.0;           // last brightness value (percent) that was published on MQTT
 }

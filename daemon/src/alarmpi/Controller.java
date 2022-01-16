@@ -171,8 +171,8 @@ class Controller implements Runnable, IMqttMessageListener{
 //		thread.setDaemon(true);
 //		thread.run();
 		
-		LightControl lightControl = new LightControlWS2801(1, "name");
-		lightControl.dimUp(100, 100);
+//		LightControl lightControl = new LightControlWS2801(1, "name");
+//		lightControl.dimUp(100, 100);
 		
 		log.info("initialization done");
 	}
@@ -1063,12 +1063,12 @@ class Controller implements Runnable, IMqttMessageListener{
 	private LocalDateTime temperatureLastUpdate = null;
 	
 	// MQTT topics
-	final static String MQTT_TOPIC_ALARMLIST   = "alarmlist";   // published topic, contains alarm list in JSON format 
-	final static String MQTT_TOPIC_SHORTCLICK  = "shortclick";  // published topic, published after a button short click
-	final static String MQTT_TOPIC_LONGCLICK   = "longclick";   // published topic, published after a button long click
-	final static String MQTT_TOPIC_LIGHT       = "light";       // command topic, turns on/off the lights
-	final static String MQTT_TOPIC_TEMPERATURE = "temperature"; // command topic, sets the actual, measured temperature
-	final static String MQTT_TOPIC_OFF         = "off";         // command topic, turns all off
-	final static String MQTT_TOPIC_ALIVE       = "alive";       // command topic, send alive signal
+	private final static String MQTT_TOPIC_ALARMLIST   = "alarmlist";   // published topic, contains alarm list in JSON format 
+	private final static String MQTT_TOPIC_SHORTCLICK  = "shortclick";  // published topic, published after a button short click
+	private final static String MQTT_TOPIC_LONGCLICK   = "longclick";   // published topic, published after a button long click
+	private final static String MQTT_TOPIC_LIGHT       = "light";       // command topic, turns on/off the lights
+	private final static String MQTT_TOPIC_TEMPERATURE = "temperature"; // command topic, sets the actual, measured temperature
+	private final static String MQTT_TOPIC_OFF         = "off";         // command topic, turns all off
+	private final static String MQTT_TOPIC_ALIVE       = "alive";       // published topic, send alive signal
 	
 }

@@ -97,21 +97,31 @@ public class LightControlWS2801 extends LightControl implements Runnable {
 		
 		log.finest("setting PWM to "+pwmValue+" base value="+baseValue+", increased value on "+increasedValueCount+"/"+GROUP_SIZE+" LEDs");
 
-//		short data[] = new short[LED_COUNT*3];
-//		
-//		
-//		for(int i=0 ; i<LED_COUNT ; i++) {
-//			
-//			data[i*3 + 0] = 1;
-//			data[i*3 + 1] = 0;
-//			data[i*3 + 2] = 0;
-//		}
-//				
-//		try {
-//			spi.write(data,0,data.length);
-//		} catch (IOException e) {
-//			log.severe("Error during SPI write: "+e.getMessage());
-//		}
+		short data[] = new short[(LED_COUNT_SKIP_NEAR_END+LED_COUNT_SKIP_FAR_END+LED_COUNT_ACTIVE)*3];
+		
+		for(int i=0 ; i<LED_COUNT_SKIP_NEAR_END ; i++) {
+			data[i*3 + 0] = 0;
+			data[i*3 + 1] = 0;
+			data[i*3 + 2] = 0;
+		}
+		
+		for(int i=0 ; i<LED_COUNT_ACTIVE ; i++) {
+			data[(LED_COUNT_SKIP_NEAR_END+i)*3 + 0] = (short)baseValue;
+			data[(LED_COUNT_SKIP_NEAR_END+i)*3 + 1] = (short)(baseValue*GREEN_BLUE_SCALE);
+			data[(LED_COUNT_SKIP_NEAR_END+i)*3 + 2] = (short)(baseValue*GREEN_BLUE_SCALE);
+		}
+		
+		for(int i=0 ; i<LED_COUNT_SKIP_FAR_END ; i++) {
+			data[(LED_COUNT_SKIP_NEAR_END+LED_COUNT_ACTIVE+i)*3 + 0] = 0;
+			data[(LED_COUNT_SKIP_NEAR_END+LED_COUNT_ACTIVE+i)*3 + 1] = 0;
+			data[(LED_COUNT_SKIP_NEAR_END+LED_COUNT_ACTIVE+i)*3 + 2] = 0;
+		}
+		
+		try {
+			spi.write(data,0,data.length);
+		} catch (IOException e) {
+			log.severe("Error during SPI write: "+e.getMessage());
+		}
 	}
 
 	@Override
@@ -167,8 +177,10 @@ public class LightControlWS2801 extends LightControl implements Runnable {
 	private static final int GROUP_SIZE = 1 << GROUP_BITS;  // group size for simulated LSBs
 	private static final int RANGE      = 1 << (PWM_BITS+GROUP_BITS); // number of possible steps (range)
 	
-	private static final int LED_COUNT_SKIP   = 2;
+	private static final int LED_COUNT_SKIP_FAR_END   = 50;
+	private static final int LED_COUNT_SKIP_NEAR_END  = 3;
 	private static final int LED_COUNT_ACTIVE = 8;
+	private static final double GREEN_BLUE_SCALE = 0.6;
 	
 	private int                    pwmValue;                // actual PWM value of each LED controlled thru me
 	private Thread                 dimThread        = null; // thread used for dimming
