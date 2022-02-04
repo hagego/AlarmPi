@@ -27,14 +27,12 @@ import javax.json.JsonObjectBuilder;
 import org.eclipse.paho.client.mqttv3.IMqttMessageListener;
 import org.eclipse.paho.client.mqttv3.MqttMessage;
 
-import com.pi4j.io.gpio.GpioController;
-import com.pi4j.io.gpio.GpioFactory;
-import com.pi4j.io.gpio.GpioPinDigitalInput;
-import com.pi4j.io.gpio.PinPullResistance;
-import com.pi4j.io.gpio.PinState;
-import com.pi4j.io.gpio.RaspiPin;
-import com.pi4j.io.gpio.event.GpioPinDigitalStateChangeEvent;
-import com.pi4j.io.gpio.event.GpioPinListenerDigital;
+import com.pi4j.context.Context;
+import com.pi4j.io.gpio.digital.DigitalInput;
+import com.pi4j.io.gpio.digital.DigitalState;
+import com.pi4j.io.gpio.digital.DigitalStateChangeEvent;
+import com.pi4j.io.gpio.digital.DigitalStateChangeListener;
+import com.pi4j.io.gpio.digital.PullResistance;
 
 import alarmpi.Alarm.Sound.Type;
 
@@ -47,37 +45,18 @@ class Controller implements Runnable, IMqttMessageListener{
 	/**
 	 * Constructor
 	 */
-	public Controller() {
+	public Controller(final Context pi4j) {
 		configuration       = Configuration.getConfiguration();
 		eventList           = new LinkedList<Event>();
 		dataExecutorService = Executors.newSingleThreadExecutor();
 		
-		// initialize pi4j objects for GPIO handling
-		final GpioController gpioController;
-		if(configuration.getRunningOnRaspberry()) {
-			log.info("running on Raspberry - initializing WiringPi");
-			
-			// initialize wiringPi library
-			// I get a crash when calling this - something changed in the new rev of pi4j
-			// com.pi4j.wiringpi.Gpio.wiringPiSetup();
-			gpioController       = GpioFactory.getInstance();
-			log.info("running on Raspberry - initializing WiringPi done.");
-		}
-		else {
-			gpioController = null;
-		}
-			
 		// instantiate light control
 		log.info("initializing light control");
 		Configuration.getConfiguration().getLightControlSettings().stream().forEach(setting -> {
 			switch(setting.type) {
-				case RASPBERRY:
-					log.config("creating light control for Raspberry PWM");
-					lightControlList.add(new LightControlRaspiPwm(setting));
-					break;
 				case PCA9685:
 					log.config("creating light control for PCA9685");
-					lightControlList.add(new LightControlPCA9685(setting));
+					lightControlList.add(new LightControlPCA9685(setting,pi4j));
 					break;
 				case NRF24LO1:
 					log.config("creating light control for nRF24LO1 remote control");
@@ -102,35 +81,21 @@ class Controller implements Runnable, IMqttMessageListener{
 		Configuration.getConfiguration().getButtonSettings().stream().forEach(button -> {
 			switch(button.type) {
 				case GPIO :
-					if(gpioController!=null) {
+					if(pi4j!=null) {
 						try {
-							GpioPinDigitalInput input = null;
-							
-							// https://github.com/raspberrypi/linux/issues/553
-							// allow one retry
-							try {
-								input = gpioController.provisionDigitalInputPin(RaspiPin.getPinByAddress(button.wiringpigpio), PinPullResistance.PULL_UP);
-								input.addListener(new PushButtonListener(button,input,this));
-							}
-							catch(Throwable e) {
-								Thread.sleep(100);
-								try {
-									if(input==null) {
-										input = gpioController.provisionDigitalInputPin(RaspiPin.getPinByAddress(button.wiringpigpio), PinPullResistance.PULL_UP);
-									}
-									input.addListener(new PushButtonListener(button,input,this));
-								}
-								catch(Throwable e2) {
-									Thread.sleep(100);
-									if(input==null) {
-										input = gpioController.provisionDigitalInputPin(RaspiPin.getPinByAddress(button.wiringpigpio), PinPullResistance.PULL_UP);
-									}
-									input.addListener(new PushButtonListener(button,input,this));
-								}
-							}
+							var buttonConfig = DigitalInput.newConfigBuilder(pi4j)
+								      .id("button"+button.id)
+								      .name("button"+button.id)
+								      .address(button.bcmgpio)
+								      .pull(PullResistance.PULL_UP)
+								      .debounce(3000L)
+								      .provider("pigpio-digital-input");
+								      
+							var pi4jbutton = pi4j.create(buttonConfig);
+							pi4jbutton.addListener(new PushButtonListener(button,pi4jbutton,this));
 						}
 						catch(Throwable e) {
-							log.severe("Uncaught runtime exception during initialization of button control, final attempts: "+e.getMessage());
+							log.severe("Uncaught runtime exception during initialization of button control: "+e.getMessage());
 							log.severe(e.getCause().toString());
 							for(StackTraceElement element:e.getStackTrace()) {
 				    			log.severe(element.toString());
@@ -146,9 +111,8 @@ class Controller implements Runnable, IMqttMessageListener{
 
 		log.info("initializing push buttons done");
 
-		log.info("initializing sound control");
+		// get sound control object
 		soundControl = SoundControl.getSoundControl();
-		log.info("initializing sound control done");
 		
 		log.info("initializing MQTT client");
 		mqttClient = MqttClient.getMqttClient();
@@ -164,15 +128,6 @@ class Controller implements Runnable, IMqttMessageListener{
 		MqttClient.getMqttClient().subscribe(MQTT_TOPIC_LIGHT, this);
 		MqttClient.getMqttClient().subscribe(MQTT_TOPIC_TEMPERATURE, this);
 		MqttClient.getMqttClient().subscribe(MQTT_TOPIC_OFF, this);
-		
-		// create LED Strip trial object
-//		LedStripTrial ledStripTrial = new LedStripTrial();
-//		Thread thread = new Thread(ledStripTrial);
-//		thread.setDaemon(true);
-//		thread.run();
-		
-//		LightControl lightControl = new LightControlWS2801(1, "name");
-//		lightControl.dimUp(100, 100);
 		
 		log.info("initialization done");
 	}
@@ -888,12 +843,12 @@ class Controller implements Runnable, IMqttMessageListener{
 	/**
 	 * private class implementing Listener for PushButton
 	 */
-	private class PushButtonListener implements GpioPinListenerDigital {
-		public PushButtonListener(Configuration.ButtonSettings pushButtonSetting,GpioPinDigitalInput inputPin,Controller controller) {
+	private class PushButtonListener implements DigitalStateChangeListener {
+		public PushButtonListener(Configuration.ButtonSettings pushButtonSetting,DigitalInput inputPin,Controller controller) {
 			this.pushButtonSetting = pushButtonSetting;
 			this.inputPin          = inputPin;
 			
-			log.fine("Creating PushButtonListener for button with WiringPi IO="+pushButtonSetting.wiringpigpio+" light IDs="+pushButtonSetting.lightIds);
+			log.fine("Creating PushButtonListener for button with BCM IO="+pushButtonSetting.bcmgpio+" light ID="+pushButtonSetting.id);
 			
 			if(pushButtonSetting.triggerSpeechControl) {
 				// prepare speech control
@@ -910,14 +865,14 @@ class Controller implements Runnable, IMqttMessageListener{
 			}
 		}
 		
-        @Override
-        public void handleGpioPinDigitalStateChangeEvent(GpioPinDigitalStateChangeEvent event) {
-        	try {
-	        	log.fine("LED control button state change on GPIO address "+event.getPin().getPin().getAddress()+" state="+event.getState()+" light IDy="+pushButtonSetting.lightIds);
-	        	if(event.getState()==PinState.LOW) {
+		@Override
+		public void onDigitalStateChange(DigitalStateChangeEvent event) {
+			try {
+	        	log.fine("LED control button state change on GPIO address "+event.source().getId()  +" state="+event.state().getName()+" light ID="+pushButtonSetting.id);
+	        	if(event.state().equals(DigitalState.LOW)) {
 	        		start = System.currentTimeMillis();
 	        		boolean longClick = false;
-	        		while(inputPin.getState()==PinState.LOW) {
+	        		while(inputPin.state().equals(DigitalState.LOW)) {
 	        			try {
 							TimeUnit.MILLISECONDS.sleep(50);
 		            		if(System.currentTimeMillis()-start > 400) {
@@ -985,13 +940,16 @@ class Controller implements Runnable, IMqttMessageListener{
         			log.severe(element.toString());
         		}
         	}
-        }
+		}
+		
         
         private long                             start = System.currentTimeMillis();
         private Configuration.ButtonSettings pushButtonSetting;
-        private GpioPinDigitalInput              inputPin;
+        private DigitalInput                 inputPin;
         
-        private SpeechToCommand                  speechToCommand; 
+        private SpeechToCommand                  speechToCommand;
+
+ 
 	}
 	
 	@Override
@@ -1049,8 +1007,6 @@ class Controller implements Runnable, IMqttMessageListener{
 	Event                soundTimerEvent;       // event to switch off sound or null if no timer is active
 	
 	final List<LightControl>   lightControlList = new LinkedList<>();    // list of light control objects
-	
-	
 	
 	private long         lastClick;             // time in milliseconds since last push button click
 	

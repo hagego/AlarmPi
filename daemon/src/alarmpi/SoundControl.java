@@ -9,11 +9,10 @@ import java.net.UnknownHostException;
 import java.util.logging.Logger;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
-
-import com.pi4j.io.gpio.GpioController;
-import com.pi4j.io.gpio.GpioFactory;
-import com.pi4j.io.gpio.GpioPinDigitalOutput;
-import com.pi4j.io.gpio.RaspiPin;
+import com.pi4j.context.Context;
+import com.pi4j.exception.Pi4JException;
+import com.pi4j.io.gpio.digital.DigitalOutput;
+import com.pi4j.io.gpio.digital.DigitalState;
 
 
 /**
@@ -25,10 +24,24 @@ import com.pi4j.io.gpio.RaspiPin;
 public class SoundControl {
 
 	/**
-	 * returns the singleton object
-	 * @return the singleton object
+	 * Must be called once before doing anything else with this class
+	 * Sets the pi4j context
+	 * @param pi4j PI4J context
 	 */
+	static void setPi4jContext(Context pi4j) {
+		if(object==null) {
+			object = new SoundControl(pi4j);
+		}
+		else {
+			log.warning("setPi4jContext called multiple times");
+		}
+	}
+	
 	static SoundControl getSoundControl() {
+		if(object==null) {
+			log.severe("getSoundControl() called before setPi4jContext()");
+		}
+		
 		return object;
 	}
 	
@@ -36,36 +49,34 @@ public class SoundControl {
 	 * Default constructor, requires a configuration object
 	 * @param configuration configuration object
 	 */
-	private SoundControl() {
-		// create Pin object for GPIO to turn on/off audio power
-		// WiringPi Pin GPIO4 = BRCM GPIO 23
+	private SoundControl(Context pi4j) {
+		// initialize pi4j objects for GPIO handling
+		// Sound power on uses BRCM 23 (WiringPI 04)
 		if(Configuration.getConfiguration().getRunningOnRaspberry()) {
-			try {
-				log.info("initializing GPIO to control 5V supply");
-				GpioController gpioController = GpioFactory.getInstance();
-				log.fine("GpioController instance retrieved");
-				
-				// there seems to be a known, intermittent issue with the timing inside this code...
-				// https://github.com/raspberrypi/linux/issues/553
-				// allow one retry
-				try {
-					gpioPinAudioControl = gpioController.provisionDigitalOutputPin(RaspiPin.GPIO_04);
-				}
-				catch(Throwable e) {
-					Thread.sleep(100);
-					gpioPinAudioControl = gpioController.provisionDigitalOutputPin(RaspiPin.GPIO_04);
-				}
-				log.fine("GPIO_04 privisioned as output");
-			}
-			catch(Throwable e) {
-				log.severe("Uncaught runtime exception during initialization of Sound Control: "+e.getMessage());
-				log.severe(e.getCause().toString());
-				for(StackTraceElement element:e.getStackTrace()) {
-	    			log.severe(element.toString());
-	    		}
-			}
+			log.info("running on Raspberry - initializing pi4j");
+			
+	        try {
+	            var config = DigitalOutput.newConfigBuilder(pi4j)
+	            	      .id("soundcontrol")
+	            	      .name("soundcontrol")
+	            	      .address(GPIO_SOUND_POWER)
+	            	      .shutdown(DigitalState.LOW)
+	            	      .initial(DigitalState.LOW)
+	            	      .provider("pigpio-digital-output");
+	            	      
+	            gpioSoundPower = pi4j.create(config);
+	        }
+	        catch (Pi4JException e) {
+	        	log.severe("Exception during initializaion of pi4j digital output");
+	        	log.severe(e.getMessage());
+	        }
+	        
+			log.info("running on Raspberry - initializing pi4j done.");
 		}
-		
+		else {
+			gpioSoundPower = null;
+		}
+				
 		stop();
 		off();
 	}
@@ -76,8 +87,8 @@ public class SoundControl {
 	synchronized void on() {
 		log.fine("turning 5V audio supply ON");
 
-		if(Configuration.getConfiguration().getRunningOnRaspberry()) {
-			gpioPinAudioControl.high();
+		if(Configuration.getConfiguration().getRunningOnRaspberry() && gpioSoundPower!=null) {
+			gpioSoundPower.high();
 		}
 		log.fine("GPIO for audio set to high");
 	}
@@ -88,8 +99,8 @@ public class SoundControl {
 	synchronized void off() {
 		log.fine("turning 5V audio supply OFF");
 		stop();
-		if(Configuration.getConfiguration().getRunningOnRaspberry()) {
-			gpioPinAudioControl.low();
+		if(Configuration.getConfiguration().getRunningOnRaspberry() && gpioSoundPower!=null) {
+			gpioSoundPower.low();
 		}
 		log.fine("GPIO for audio set to low");
 		
@@ -389,12 +400,10 @@ public class SoundControl {
 	// private members
 	private static final Logger  log    = Logger.getLogger( SoundControl.class.getName() );
 	
-	private static SoundControl  object;   // singleton object
-	static {
-		object = new SoundControl();
-	}
+	private static SoundControl  object = null;   // singleton object
 
-	private GpioPinDigitalOutput gpioPinAudioControl;   // WiringPi Pin GPIOO5 = BRCM GPIO 24, used to enable Audio 5V power
+	private DigitalOutput        gpioSoundPower = null; // pi4j digital output pin to control sound power
+	private final static int     GPIO_SOUND_POWER = 23; // GPIO number for sound power control
 	
 	private Socket               socket;                // TCP socket
 	private BufferedReader       reader;

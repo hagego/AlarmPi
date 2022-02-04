@@ -65,7 +65,7 @@ public class Configuration {
 		Type    type;                 // button type
 		int     id;                   // button ID
 		boolean triggerSpeechControl; // if set to true, single click triggers speech control
-		int     wiringpigpio;         // WiringPi GPIO address of input key
+		int     bcmgpio;              // BCM GPIO address of input key
 		int     brightnessIncrement;  // LED control (single click): brightness increment in percent
 		int     soundId;              // sound control (double click): sound to play
 		int     soundVolume;          // sound control (double click): volume (in percent)
@@ -198,7 +198,7 @@ public class Configuration {
 	    	else {
 	    		log.severe("no button type specified for button"+index);
 	    	}
-	    	buttonSettingItem.wiringpigpio         = sectionButton.get("wiringpigpio", Integer.class, 0);
+	    	buttonSettingItem.bcmgpio              = sectionButton.get("bcmgpio", Integer.class, 0);
 	    	buttonSettingItem.brightnessIncrement  = sectionButton.get("brightnessIncrement", Integer.class, 10);
 			buttonSettingItem.soundId              = sectionButton.get("sound", Integer.class, 0)-1;
 			buttonSettingItem.soundVolume          = sectionButton.get("soundVolume", Integer.class, 40);

@@ -3,14 +3,10 @@ package alarmpi;
 import java.io.IOException;
 import java.util.logging.Logger;
 
-import com.pi4j.io.spi.SpiChannel;
-import com.pi4j.io.spi.SpiDevice;
-import com.pi4j.io.spi.SpiFactory;
 import com.pi4j.io.spi.SpiMode;
 
 public class LedStripTrial implements Runnable{
 	
-	SpiDevice       spi = null;
 	private static final Logger log = Logger.getLogger( LedStripTrial.class.getName() );
 	
 	private static final int LED_COUNT = 6;
@@ -18,11 +14,11 @@ public class LedStripTrial implements Runnable{
 	
 	public LedStripTrial() {
 		// setup SPI
-		try {
-			spi = SpiFactory.getInstance(SpiChannel.CS0,1000000,SpiMode.MODE_0);
-		} catch (IOException e) {
-			log.severe("Error during SPI initialize: "+e.getMessage());
-		}
+//		try {
+//			spi = SpiFactory.getInstance(SpiChannel.CS0,1000000,SpiMode.MODE_0);
+//		} catch (IOException e) {
+//			log.severe("Error during SPI initialize: "+e.getMessage());
+//		}
 		
 		log.info("LedStripTrial initialized");
 	}
@@ -40,11 +36,11 @@ public class LedStripTrial implements Runnable{
 			data[i*3 + 2] = 0;
 		}
 				
-		try {
-			spi.write(data,0,data.length);
-		} catch (IOException e) {
-			log.severe("Error during SPI write: "+e.getMessage());
-		}
+//		try {
+//			spi.write(data,0,data.length);
+//		} catch (IOException e) {
+//			log.severe("Error during SPI write: "+e.getMessage());
+//		}
 	}
 	
 	public void turnOff() {
@@ -59,11 +55,11 @@ public class LedStripTrial implements Runnable{
 			data[i*3 + 2] = 0;
 		}
 				
-		try {
-			spi.write(data,0,data.length);
-		} catch (IOException e) {
-			log.severe("Error during SPI write: "+e.getMessage());
-		}
+//		try {
+//			spi.write(data,0,data.length);
+//		} catch (IOException e) {
+//			log.severe("Error during SPI write: "+e.getMessage());
+//		}
 	}
 
 	@Override

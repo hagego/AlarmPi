@@ -1,17 +1,13 @@
 package alarmpi;
 
-import java.io.IOException;
 import java.util.logging.Logger;
 
-import com.pi4j.io.gpio.GpioController;
-import com.pi4j.io.gpio.GpioFactory;
-import com.pi4j.io.gpio.GpioPinDigitalOutput;
-import com.pi4j.io.gpio.PinState;
-import com.pi4j.io.gpio.RaspiPin;
-import com.pi4j.io.i2c.I2CBus;
-import com.pi4j.io.i2c.I2CDevice;
-import com.pi4j.io.i2c.I2CFactory;
-import com.pi4j.io.i2c.I2CFactory.UnsupportedBusNumberException;
+import com.pi4j.context.Context;
+import com.pi4j.exception.Pi4JException;
+import com.pi4j.io.gpio.digital.DigitalOutput;
+import com.pi4j.io.gpio.digital.DigitalState;
+import com.pi4j.io.i2c.I2C;
+import com.pi4j.io.i2c.I2CConfig;
 
 /**
  * LighControl implementation for NXP PCA9685
@@ -21,10 +17,11 @@ public class LightControlPCA9685 extends LightControl implements Runnable {
 	/**
 	 * Constructor
 	 */
-	public LightControlPCA9685(Configuration.LightControlSettings lightControlSettings) {
+	public LightControlPCA9685(Configuration.LightControlSettings lightControlSettings,Context pi4j) {
 		super(lightControlSettings.id,lightControlSettings.name);
 		
 		this.lightControlSettings = lightControlSettings;
+		this.pi4j = pi4j;
 		
 		USABLE_SCALE = lightControlSettings.pwmFullScale-lightControlSettings.pwmOffset;
 		pwmValue  = lightControlSettings.pwmOffset;
@@ -40,71 +37,105 @@ public class LightControlPCA9685 extends LightControl implements Runnable {
 			if(Configuration.getConfiguration().getRunningOnRaspberry()) {
 				log.info("Initializing PCA9685 IIC Light Control");
 				
-				try {
-					I2CBus bus = I2CFactory.getInstance(I2CBus.BUS_1);
-					
-					// reset PCA9685
-					I2CDevice pcaReset = bus.getDevice(0x00);
-					pcaReset.write((byte)0x06);
-					log.fine("PCA9685: reset done");
-					try {
-						Thread.sleep(100);
-					} catch (InterruptedException e) {
-						log.severe("PCA9685: sleep exception "+e.getMessage());
-					}
-					
-					pca9685 = bus.getDevice(lightControlSettings.deviceAddress);
-					
-					// read status registers and dump to logfile
-					log.fine("PCA9685: MODE1 register after reset: "+pca9685.read(0x00));
-					log.fine("PCA9685: MODE2 register after reset: "+pca9685.read(0x01));
+				final int IIC_BUS       = 0x1;
+				final int RESET_ADDRESS = 0x0;
+				
+				// initialize pi4j objects for GPIO handling
+				if(Configuration.getConfiguration().getRunningOnRaspberry()) {
+					log.info("running on Raspberry - initializing pi4j IIC access");
+			        
+			        try {
+			            I2CConfig i2cDeviceConfigReset = I2C.newConfigBuilder(pi4j)
+			                    .bus(IIC_BUS)
+			                    .device(RESET_ADDRESS)
+			                    .id("PCA9685_reset")
+			                    .name("PCA9685_reset")
+			                    .provider("pigpio-i2c")
+			                    .build();
+			            log.fine("i2c config created");;
+			        
+			            I2C resetDevice = pi4j.create(i2cDeviceConfigReset);
+			            log.fine("i2c reset device created");;
+			            
+			            resetDevice.write((byte) 0x06);
+			            resetDevice.close();
+			            log.fine("PCA9685: reset done");
+			            
+			            try {
+							Thread.sleep(100);
+						} catch (InterruptedException e) {
+							log.severe("PCA9685: sleep exception "+e.getMessage());
+						}
+			            
+			            I2CConfig config = I2C.newConfigBuilder(pi4j)
+			                    .bus(IIC_BUS)
+			                    .device(lightControlSettings.deviceAddress)
+			                    .id("PCA9685")
+			                    .name("PCA9685")
+			                    .provider("pigpio-i2c")
+			                    .build();
+			        
+			            pca9685 = pi4j.create(config);
+			            log.fine("created i2c device with device address "+lightControlSettings.deviceAddress);
+			        } catch (Pi4JException e) {
+			            log.severe("Exception during creation of IIC objects: "+e.getMessage());
+			        } catch (Exception e) {
+			        	log.severe("Exception during pi4j initialization: "+e.getMessage());
+			        	for( var v:e.getStackTrace()) {
+			        		log.severe(v.toString());
+			        	}
+			        }
+			        
+			        // read status registers and dump to logfile
+					log.fine("PCA9685: MODE1 register after reset: "+pca9685.readRegisterByte(0x00));
+					log.fine("PCA9685: MODE2 register after reset: "+pca9685.readRegisterByte(0x01));
 					
 					// turn oscillator on at 1.5MHz, inversion depends on configuration
-					pca9685.write(0x00,(byte) 0x10);
-					pca9685.write(0xFE,(byte) 0x05);
-					pca9685.write(0x00,(byte) 0x00);
+					pca9685.writeRegister(0x00,(byte) 0x10);
+					pca9685.writeRegister(0xFE,(byte) 0x05);
+					pca9685.writeRegister(0x00,(byte) 0x00);
 					if(lightControlSettings.pwmInversion) {
-						pca9685.write(0x01,(byte) 0x15);
+						pca9685.writeRegister(0x01,(byte) 0x15);
 					}
 					else {
-						pca9685.write(0x01,(byte) 0x05);
+						pca9685.writeRegister(0x01,(byte) 0x05);
 					}
 					
-					log.fine("PCA9685: MODE1 register after setup: "+pca9685.read(0x00));
-					log.fine("PCA9685: MODE2 register after setup: "+pca9685.read(0x01));
+					log.fine("PCA9685: MODE1 register after setup: "+pca9685.readRegisterByte(0x00));
+					log.fine("PCA9685: MODE2 register after setup: "+pca9685.readRegisterByte(0x01));
 					
 					// all LEDs off
-					pca9685.write(0xFA,(byte) 0x00);
-					pca9685.write(0xFB,(byte) 0x00);
-					pca9685.write(0xFC,(byte) 0x00);
-					pca9685.write(0xFD,(byte) 0x10);
+					pca9685.writeRegister(0xFA,(byte) 0x00);
+					pca9685.writeRegister(0xFB,(byte) 0x00);
+					pca9685.writeRegister(0xFC,(byte) 0x00);
+					pca9685.writeRegister(0xFD,(byte) 0x10);
 					
-					GpioController gpioController = GpioFactory.getInstance();
-					
-					GpioPinDigitalOutput output = null;;
-					
-					// there seems to be a known, intermittent issue with the timing inside this code...
-					// https://github.com/raspberrypi/linux/issues/553
-					// allow one retry
+
 					try {
-						output   = gpioController.provisionDigitalOutputPin (RaspiPin.GPIO_27);
+						int                  GPIO_OUTPUT = 16; // GPIO number for XX
+						
+			            log.fine("digital output provider created");;
+			            
+						var outputConfig = DigitalOutput.newConfigBuilder(pi4j)
+			            	      .id("PCA9685 Output")
+			            	      .name("PCA9685 Output")
+			            	      .address(GPIO_OUTPUT)
+			            	      .shutdown(DigitalState.LOW)
+			            	      .initial(DigitalState.LOW)
+			            	      .provider("pigpio-digital-output");
+			            	      
+			            var output = pi4j.create(outputConfig);
+			            output.low();
 					}
-					catch(Throwable e) {
-						Thread.sleep(100);
-						output   = gpioController.provisionDigitalOutputPin (RaspiPin.GPIO_27);
+					catch(Pi4JException e) {
+						log.severe("Exception during setting OE pin low using pi4j");
+						log.severe(e.getMessage());
 					}
 					
-					output.setState(PinState.LOW);
-				} catch (IOException | UnsupportedBusNumberException e) {
-					log.severe("PCA9685 light control: Unable to initialize: "+e.getMessage());
-					pca9685 = null;
+					log.info("running on Raspberry - initializing WiringPi done.");
 				}
-				catch(Throwable e) {
-					log.severe("Uncaught runtime exception during initialization of PCS9685 light control: "+e.getMessage());
-					log.severe(e.getCause().toString());
-					for(StackTraceElement element:e.getStackTrace()) {
-		    			log.severe(element.toString());
-		    		}
+				else {
+					pi4j = null;
 				}
 			}
 		}
@@ -125,8 +156,8 @@ public class LightControlPCA9685 extends LightControl implements Runnable {
 		if(pca9685!=null) {
 			try {
 				pwmValue = 0;
-				pca9685.write(0x09+lightControlSettings.ledId*4,(byte) 0x10);
-			} catch (IOException e) {
+				pca9685.writeRegister(0x09+lightControlSettings.ledId*4,(byte) 0x10);
+			} catch (Pi4JException e) {
 				log.severe("Error during I2C write: "+e.getMessage());
 			}
 		}
@@ -206,9 +237,9 @@ public class LightControlPCA9685 extends LightControl implements Runnable {
 			try {
 //				pca9685.write(0x06+4*address,(byte) 0x00);
 //				pca9685.write(0x07+4*address,(byte) 0x00);
-				pca9685.write(0x08+4*address,(byte) lsb);
-				pca9685.write(0x09+4*address,(byte) msb);
-			} catch (IOException e) {
+				pca9685.writeRegister(0x08+4*address,(byte) lsb);
+				pca9685.writeRegister(0x09+4*address,(byte) msb);
+			} catch (Pi4JException e) {
 				log.severe("Error during I2C write: "+e.getMessage());
 			}
 		}
@@ -266,13 +297,16 @@ public class LightControlPCA9685 extends LightControl implements Runnable {
 	private final        Configuration.LightControlSettings lightControlSettings;
 	private final        int                                USABLE_SCALE;
 	private final        int                                DIM_STEP_COUNT = 150;
+
+	private Context      pi4j                       = null; // pi4j context
+	private static       I2C pca9685                = null; // pi4j I2C device
 	
-	private static       I2CDevice pca9685          = null;
-	private int                    pwmValue;                // actual PWM value of each LED controlled thru me
-	private Thread                 dimThread        = null; // thread used for dimming
-	private int                    dimDuration      = 0;    // duration for dim up
-	private double                 dimTargetPercent = 0;    // target brightness in % for dim up
+	private int          pwmValue;                          // actual PWM value of each LED controlled thru me
+	private Thread       dimThread                  = null; // thread used for dimming
+	private int          dimDuration      = 0;              // duration for dim up
+	private double       dimTargetPercent = 0;              // target brightness in % for dim up
 	
 	private final static String    MQTT_TOPIC_BRIGHTNESS  = "brightness";  // MQTT topic to publish LED brightness
 	private double       lastPubishedBrightness           = 0.0;           // last brightness value (percent) that was published on MQTT
 }
+ 

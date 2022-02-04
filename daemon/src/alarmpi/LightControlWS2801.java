@@ -3,9 +3,6 @@ package alarmpi;
 import java.io.IOException;
 import java.util.logging.Logger;
 
-import com.pi4j.io.spi.SpiChannel;
-import com.pi4j.io.spi.SpiDevice;
-import com.pi4j.io.spi.SpiFactory;
 import com.pi4j.io.spi.SpiMode;
 
 public class LightControlWS2801 extends LightControl implements Runnable {
@@ -15,11 +12,11 @@ public class LightControlWS2801 extends LightControl implements Runnable {
 		// TODO Auto-generated constructor stub
 		
 		// setup SPI
-		try {
-			spi = SpiFactory.getInstance(SpiChannel.CS0,1000000,SpiMode.MODE_0);
-		} catch (IOException e) {
-			log.severe("Error during SPI initialize: "+e.getMessage());
-		}
+//		try {
+//			spi = SpiFactory.getInstance(SpiChannel.CS0,1000000,SpiMode.MODE_0);
+//		} catch (IOException e) {
+//			log.severe("Error during SPI initialize: "+e.getMessage());
+//		}
 		
 		log.info("LedStripTrial initialized");
 	}
@@ -117,11 +114,11 @@ public class LightControlWS2801 extends LightControl implements Runnable {
 			data[(LED_COUNT_SKIP_NEAR_END+LED_COUNT_ACTIVE+i)*3 + 2] = 0;
 		}
 		
-		try {
-			spi.write(data,0,data.length);
-		} catch (IOException e) {
-			log.severe("Error during SPI write: "+e.getMessage());
-		}
+//		try {
+//			spi.write(data,0,data.length);
+//		} catch (IOException e) {
+//			log.severe("Error during SPI write: "+e.getMessage());
+//		}
 	}
 
 	@Override
@@ -186,6 +183,4 @@ public class LightControlWS2801 extends LightControl implements Runnable {
 	private Thread                 dimThread        = null; // thread used for dimming
 	private int                    dimDuration      = 0;    // duration for dim up in seconds
 	private double                 dimTargetPercent = 0;    // target brightness in % for dim up
-	
-	SpiDevice                      spi              = null; // PI4J SPI device
 }
