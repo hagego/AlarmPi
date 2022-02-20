@@ -52,10 +52,10 @@ public class LightControlPCA9685 extends LightControl implements Runnable {
 			                    .name("PCA9685_reset")
 			                    .provider("pigpio-i2c")
 			                    .build();
-			            log.fine("i2c config created");;
+			            log.fine("i2c config created");
 			        
 			            I2C resetDevice = pi4j.create(i2cDeviceConfigReset);
-			            log.fine("i2c reset device created");;
+			            log.fine("i2c reset device created");
 			            
 			            resetDevice.write((byte) 0x06);
 			            resetDevice.close();
@@ -162,6 +162,7 @@ public class LightControlPCA9685 extends LightControl implements Runnable {
 			}
 		}
 		
+		// publish brightness 0 to MQTT
 		lastPubishedBrightness = 0.0;
 		MqttClient.getMqttClient().publish(MQTT_TOPIC_BRIGHTNESS, String.format("%.0f",lastPubishedBrightness));
 		

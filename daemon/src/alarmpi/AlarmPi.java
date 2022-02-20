@@ -109,13 +109,6 @@ public class AlarmPi {
 			
 			// Initialize pi4j
 	        try {
-	        	//final Context pi4j = Pi4J.newAutoContext();
-
-//	        	Provider p1 = new RpiI2CProviderImpl();
-//	        	Provider p2 = new RpiDigitalInputProviderImpl();
-//	        	Provider p3 = new RpiDigitalOutputProviderImpl();
-	        	
-	        	
 	        	PiGpio piGpio = PiGpio.newNativeInstance();
 	        	
 	        	// switch to PWM as clock source so that sound output is not distorted
@@ -125,24 +118,15 @@ public class AlarmPi {
 	        	log.fine("pigpio version: "+piGpio.gpioVersion());
 	        	log.fine("pigpio HW version: "+piGpio.gpioHardwareRevisionString());
 	        	
-	        	
-	        	
-	        	//piGpio.gpioCfgClock(5, 1, 0);
-	        	Provider p1 = new PiGpioI2CProviderImpl(piGpio);
-	        	Provider p2 = new PiGpioDigitalInputProviderImpl(piGpio);
-	        	Provider p3 = new PiGpioDigitalOutputProviderImpl(piGpio);
-	        	Provider p4 = new PiGpioSpiProviderImpl(piGpio);
-	        	
-	        	
 	        	final Context pi4j = Pi4J.newContextBuilder()
 	            .noAutoDetectPlatforms()
 	            .noAutoDetectProviders()
 	            .noAutoDetect()
-	            //.addPlatform(new RaspberryPiPlatform())
-	            .add(p1,p2,p3,p4)
+	            .add(new PiGpioI2CProviderImpl(piGpio),
+	            	 new PiGpioDigitalInputProviderImpl(piGpio),
+	            	 new PiGpioDigitalOutputProviderImpl(piGpio),
+	            	 new PiGpioSpiProviderImpl(piGpio) )
 	            .build();
-	        	
-	        	
 	        	
 	            // dump some pi4j details into logfile
 	            var platforms = pi4j.platforms().all();

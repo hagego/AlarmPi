@@ -50,6 +50,10 @@ class Controller implements Runnable, IMqttMessageListener{
 		eventList           = new LinkedList<Event>();
 		dataExecutorService = Executors.newSingleThreadExecutor();
 		
+		log.info("initializing MQTT client");
+		mqttClient = MqttClient.getMqttClient();
+		log.info("initializing MQTT client done");
+		
 		// instantiate light control
 		log.info("initializing light control");
 		Configuration.getConfiguration().getLightControlSettings().stream().forEach(setting -> {
@@ -57,6 +61,10 @@ class Controller implements Runnable, IMqttMessageListener{
 				case PCA9685:
 					log.config("creating light control for PCA9685");
 					lightControlList.add(new LightControlPCA9685(setting,pi4j));
+					break;
+				case WS2801:
+					log.config("creating light control for WS2801");
+					lightControlList.add(new LightControlWS2801(setting.id,setting.name,pi4j));
 					break;
 				case NRF24LO1:
 					log.config("creating light control for nRF24LO1 remote control");
@@ -107,16 +115,31 @@ class Controller implements Runnable, IMqttMessageListener{
 					log.severe("Unknown button type: "+button.type);
 			}
 		});
-		
 
 		log.info("initializing push buttons done");
+		
+		log.info("preparing external alarms");
+		
+		int externalAlarmCount = 0;
+		var externalAlarms = Configuration.getConfiguration().getExternalAlarms();
+		if(externalAlarms!=null) {
+			for(String id:externalAlarms.keySet()) {
+				String alarmText = externalAlarms.get(id);
+				if(alarmText!=null && !alarmText.isBlank()) {
+					log.fine("preparing external alarm id="+id+" text="+alarmText);
+					new TextToSpeech().createPermanentFile(alarmText);
+					externalAlarmCount++;
+				}
+				else {
+					log.warning("external alarm with ID "+id+" has no alarm text");
+				}
+			}
+		}
+		
+		log.info("preparing external alarms done. Found "+externalAlarmCount+" alarm(s)");
 
 		// get sound control object
 		soundControl = SoundControl.getSoundControl();
-		
-		log.info("initializing MQTT client");
-		mqttClient = MqttClient.getMqttClient();
-		log.info("initializing MQTT client done");
 		
 		// update mpd with tmp files for next alarm announcement
 		new TextToSpeech().createTempFile("dummy", "nextAlarmToday.mp3");
@@ -128,6 +151,10 @@ class Controller implements Runnable, IMqttMessageListener{
 		MqttClient.getMqttClient().subscribe(MQTT_TOPIC_LIGHT, this);
 		MqttClient.getMqttClient().subscribe(MQTT_TOPIC_TEMPERATURE, this);
 		MqttClient.getMqttClient().subscribe(MQTT_TOPIC_OFF, this);
+		
+		if(externalAlarmCount>0) {
+			MqttClient.getMqttClient().subscribe(MQTT_TOPIC_EXTERNAL_ALARM, this);
+		}
 		
 		log.info("initialization done");
 	}
@@ -175,6 +202,53 @@ class Controller implements Runnable, IMqttMessageListener{
 		}
 		
 		soundControl.off();
+	}
+	
+	/**
+	 * plays an external alarm message
+	 * @param alarmId ID of external alarm, must be configured in config file
+	 */
+	void raiseExternalAlarm(String alarmId) {
+		var externalAlarmMap = Configuration.getConfiguration().getExternalAlarms();
+		if(externalAlarmMap==null) {
+			log.warning("received external alarm with ID "+alarmId+" but no external alarms configured");
+			return;
+		}
+		
+		String message = externalAlarmMap.get(alarmId);
+		if(message==null) {
+			log.warning("received external alarm with ID "+alarmId+" but this alaram is not configured");
+			return;
+		}
+		
+		log.info("raising external alarm: "+message);
+		lightControlList.stream().forEach(light -> light.setBrightness(30));
+		
+		soundControl.stop();
+		soundControl.on();
+		soundControl.playFile("alarm_5s.mp3", 70, false);
+		soundControl.playFile(new TextToSpeech().createPermanentFile(message), null, true);
+		
+		// repeat alarm text after 10s
+		Event event        = new Event();
+		Alarm.Sound sound  = new Alarm.Sound();
+		sound.name         = "external alarm message";
+		sound.type         = Type.FILE;
+		sound.source       = new TextToSpeech().createPermanentFile(message);
+		event.type         = Event.EventType.PLAY_SOUND;
+		event.alarm        = null;
+		event.time         = LocalTime.now().plusSeconds(10);
+		event.sound        = sound;
+		event.interrupt    = true;
+		eventList.add(event);
+		
+		event              = new Event();
+		event.type         = Event.EventType.PLAY_SOUND;
+		event.alarm        = null;
+		event.time         = LocalTime.now().plusSeconds(20);
+		event.sound        = sound;
+		event.interrupt    = true;
+		eventList.add(event);
 	}
 
 	
@@ -325,7 +399,7 @@ class Controller implements Runnable, IMqttMessageListener{
 	 * @param alarm Alarm for which all events shall be updated
 	 */
 	synchronized private void updateAlarmEvents(Alarm alarm) {
-		log.fine("updateALarmEvents called for alarm ID="+alarm.getId());
+		log.fine("updateAlarmEvents called for alarm ID="+alarm.getId());
 		
 		deleteAlarmEvents(alarm);
 		addAlarmEvents(alarm);
@@ -388,6 +462,14 @@ class Controller implements Runnable, IMqttMessageListener{
 				eventSound.sound        = alarm.getAlarmSound();
 				eventSound.volume       = alarm.getVolumeFadeInStart();
 				eventList.add(eventSound);
+				
+				Event eventCheck = new Event();
+				eventCheck.type         = Event.EventType.CHECK_SOUND;
+				eventCheck.alarm        = alarm;
+				eventCheck.time         = fadeInStart.plusSeconds(15);
+				eventCheck.sound        = alarm.getAlarmSound();
+				eventCheck.volume       = null;
+				eventList.add(eventCheck);
 			}
 			
 			for(int step=1 ; step<stepCountFadeIn ; step++) {
@@ -501,6 +583,14 @@ class Controller implements Runnable, IMqttMessageListener{
 					eventPlay.sound        = alarm.getAlarmSound();
 					eventPlay.interrupt    = false;
 					eventList.add(eventPlay);
+					
+					Event eventCheck = new Event();
+					eventCheck.type         = Event.EventType.CHECK_SOUND;
+					eventCheck.alarm        = alarm;
+					eventCheck.time         = time.plusSeconds(15);
+					eventCheck.sound        = alarm.getAlarmSound();
+					eventCheck.volume       = null;
+					eventList.add(eventCheck);
 				}
 				
 				count++;
@@ -677,6 +767,9 @@ class Controller implements Runnable, IMqttMessageListener{
 		case PLAY_SOUND:
 			soundControl.playSound(e.sound, e.volume, !e.interrupt);
 			break;
+		case CHECK_SOUND:
+			soundControl.checkSound(e.sound);
+			break;
 		case SET_VOLUME:
 			soundControl.setVolume(e.volume);
 			break;
@@ -824,7 +917,7 @@ class Controller implements Runnable, IMqttMessageListener{
 	 * private local class to model events
 	 */
 	private static class Event implements Comparable<Event> {
-		enum EventType {SET_VOLUME,PLAY_SOUND,PLAY_WEATHER,PLAY_CALENDAR,STOP_SOUND,LED_OFF,LED_SET_PWM,ALARM_START,ALARM_END};
+		enum EventType {SET_VOLUME,PLAY_SOUND,CHECK_SOUND,PLAY_WEATHER,PLAY_CALENDAR,STOP_SOUND,LED_OFF,LED_SET_PWM,ALARM_START,ALARM_END};
 
 		EventType            type;            // event type
 		Alarm                alarm;           // alarm to which this event belongs to (or null)
@@ -865,6 +958,7 @@ class Controller implements Runnable, IMqttMessageListener{
 			}
 		}
 		
+		@SuppressWarnings("rawtypes")
 		@Override
 		public void onDigitalStateChange(DigitalStateChangeEvent event) {
 			try {
@@ -993,6 +1087,12 @@ class Controller implements Runnable, IMqttMessageListener{
 			log.fine("MQTT OFF message arrived");
 			allOff(false);
 		}
+		
+		if(topic.endsWith(MQTT_TOPIC_EXTERNAL_ALARM)) {
+			log.fine("MQTT externalAlarm message arrived, alarm ID="+message.toString());
+			
+			raiseExternalAlarm(message.toString());
+		}
 	}
 	
 	final static String watchDogFile       = "/var/log/alarmpi/watchdog";
@@ -1019,12 +1119,13 @@ class Controller implements Runnable, IMqttMessageListener{
 	private LocalDateTime temperatureLastUpdate = null;
 	
 	// MQTT topics
-	private final static String MQTT_TOPIC_ALARMLIST   = "alarmlist";   // published topic, contains alarm list in JSON format 
-	private final static String MQTT_TOPIC_SHORTCLICK  = "shortclick";  // published topic, published after a button short click
-	private final static String MQTT_TOPIC_LONGCLICK   = "longclick";   // published topic, published after a button long click
-	private final static String MQTT_TOPIC_LIGHT       = "light";       // command topic, turns on/off the lights
-	private final static String MQTT_TOPIC_TEMPERATURE = "temperature"; // command topic, sets the actual, measured temperature
-	private final static String MQTT_TOPIC_OFF         = "off";         // command topic, turns all off
-	private final static String MQTT_TOPIC_ALIVE       = "alive";       // published topic, send alive signal
+	private final static String MQTT_TOPIC_ALARMLIST      = "alarmlist";     // published topic, contains alarm list in JSON format 
+	private final static String MQTT_TOPIC_SHORTCLICK     = "shortclick";    // published topic, published after a button short click
+	private final static String MQTT_TOPIC_LONGCLICK      = "longclick";     // published topic, published after a button long click
+	private final static String MQTT_TOPIC_LIGHT          = "light";         // command topic, turns on/off the lights
+	private final static String MQTT_TOPIC_TEMPERATURE    = "temperature";   // command topic, sets the actual, measured temperature
+	private final static String MQTT_TOPIC_OFF            = "off";           // command topic, turns all off
+	private final static String MQTT_TOPIC_EXTERNAL_ALARM = "externalAlarm"; // command topic, receives an external alarm
+	private final static String MQTT_TOPIC_ALIVE          = "alive";         // published topic, send alive signal
 	
 }

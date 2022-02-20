@@ -214,6 +214,41 @@ public class SoundControl {
 	}
 	
 	/**
+	 * checks if mpd returns "state: play". If not, the specified sound gets started
+	 * @param sound sound to play
+	 */
+	synchronized void checkSound(Alarm.Sound sound) {
+		log.fine("checkSound: name="+sound.name+" type="+sound.type);
+		
+		try {
+			connect();
+			try {
+				String answer = sendCommand("status");
+				
+				// check for "state: play"
+				Pattern pattern = Pattern.compile("state:\\s*(\\w+)");
+				Matcher matcher = pattern.matcher(answer);
+				if(matcher.find() && !matcher.group(1).equals("play")) {
+					log.warning("checkSound found state "+matcher.group(1)+" trying to restart sound");
+					sendCommand("stop");
+					sendCommand("clear");
+					sendCommand("add \""+sound.source+"\"");
+					sendCommand("play");
+				}
+			} catch (IOException e) {
+				disconnect();
+				throw e;
+			}
+			disconnect();
+			
+			activeSound = null;
+		} catch (IOException e) {
+			log.severe("Exception in checkSound");
+			log.severe(e.getMessage());
+		}
+	}
+	
+	/**
 	 * plays a local mp3 file
 	 * @param filename filename of mp3 file
 	 * @param volume   optional volume. If null, volume remains unchanged
@@ -387,7 +422,7 @@ public class SoundControl {
 			}
 			log.fine("sendCommand "+cmd+" returns line "+line);
 			
-			answer += line;
+			answer += line+"\n";
 		}
 		
 		if(!line.startsWith("OK")) {

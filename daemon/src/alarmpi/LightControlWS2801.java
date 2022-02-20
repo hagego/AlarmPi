@@ -1,29 +1,54 @@
 package alarmpi;
 
-import java.io.IOException;
 import java.util.logging.Logger;
 
+import com.pi4j.context.Context;
+import com.pi4j.exception.Pi4JException;
+import com.pi4j.io.spi.Spi;
+import com.pi4j.io.spi.SpiConfig;
 import com.pi4j.io.spi.SpiMode;
 
 public class LightControlWS2801 extends LightControl implements Runnable {
 
-	public LightControlWS2801(int id, String name) {
+	public LightControlWS2801(int id, String name,Context pi4j) {
 		super(id, name);
-		// TODO Auto-generated constructor stub
 		
-		// setup SPI
-//		try {
-//			spi = SpiFactory.getInstance(SpiChannel.CS0,1000000,SpiMode.MODE_0);
-//		} catch (IOException e) {
-//			log.severe("Error during SPI initialize: "+e.getMessage());
-//		}
-		
-		log.info("LedStripTrial initialized");
+		try {
+	        SpiConfig spiDeviceConfig = Spi.newConfigBuilder(pi4j)
+	                .id("WS2801")
+	                .name("WS2801")
+	                .mode(SpiMode.MODE_0)
+	                .baud(1000000)
+	                .address(0)
+	                .provider("pigpio-spi")
+	                .build();
+	        log.fine("spi config created");
+			
+	        ws2801 = pi4j.create(spiDeviceConfig);
+	        log.fine("spi ws2801 device created");
+			
+			log.info("WS2801 LedStrip initialized");
+		}
+		catch(Pi4JException e) {
+			log.severe("Exception during creation of SPI device: "+e.getMessage());
+		}
 	}
 
 	@Override
 	void setOff() {
-		// TODO Auto-generated method stub
+		if(dimThread!=null) {
+			dimThread.interrupt();
+			try {
+				dimThread.join();
+				dimThread = null;
+			} catch (InterruptedException e) {}
+		}
+		
+		setPwm(0);
+		
+		// publish brightness 0 to MQTT
+		lastPubishedBrightness = 0.0;
+		MqttClient.getMqttClient().publish(MQTT_TOPIC_BRIGHTNESS, String.format("%.0f",lastPubishedBrightness));
 
 	}
 
@@ -45,16 +70,13 @@ public class LightControlWS2801 extends LightControl implements Runnable {
 				pwm = (int)(Math.pow((percentage+16.0)/116.0, 3.0)*(double)RANGE);
 			}
 			
-			log.finest("setting brightness to "+percentage+"% pwm="+pwm);;
+			log.finest("setting brightness to "+(int)percentage+"% pwm="+pwm);;
 			setPwm(pwm);
 			
-//			if(percentage >= lastPubishedBrightness+10.0) {
-//				lastPubishedBrightness = percentage;
-//				String topic = Configuration.getConfiguration().getValue("mqtt", "publishTopicBrightness", null);
-//				if(topic != null) {
-//					MqttClient.getMqttClient().publish(topic, String.format("%.0f",lastPubishedBrightness));
-//				}
-//			}
+			if(percentage >= lastPubishedBrightness+10.0) {
+				lastPubishedBrightness = percentage;
+				MqttClient.getMqttClient().publish(MQTT_TOPIC_BRIGHTNESS, String.format("%.0f",lastPubishedBrightness));
+			}
 		}
 	}
 
@@ -89,12 +111,7 @@ public class LightControlWS2801 extends LightControl implements Runnable {
 		}
 		this.pwmValue = pwmValue;
 		
-		int baseValue = pwmValue / GROUP_SIZE;
-		int increasedValueCount = pwmValue % GROUP_SIZE;
-		
-		log.finest("setting PWM to "+pwmValue+" base value="+baseValue+", increased value on "+increasedValueCount+"/"+GROUP_SIZE+" LEDs");
-
-		short data[] = new short[(LED_COUNT_SKIP_NEAR_END+LED_COUNT_SKIP_FAR_END+LED_COUNT_ACTIVE)*3];
+		byte data[] = new byte[(LED_COUNT_SKIP_NEAR_END+LED_COUNT_SKIP_FAR_END+LED_COUNT_ACTIVE)*3];
 		
 		for(int i=0 ; i<LED_COUNT_SKIP_NEAR_END ; i++) {
 			data[i*3 + 0] = 0;
@@ -102,10 +119,25 @@ public class LightControlWS2801 extends LightControl implements Runnable {
 			data[i*3 + 2] = 0;
 		}
 		
-		for(int i=0 ; i<LED_COUNT_ACTIVE ; i++) {
-			data[(LED_COUNT_SKIP_NEAR_END+i)*3 + 0] = (short)baseValue;
-			data[(LED_COUNT_SKIP_NEAR_END+i)*3 + 1] = (short)(baseValue*GREEN_BLUE_SCALE);
-			data[(LED_COUNT_SKIP_NEAR_END+i)*3 + 2] = (short)(baseValue*GREEN_BLUE_SCALE);
+		final double offset[] = {-6.3,-4.2,-1.8,0.3};
+		int value[] = new int[4];
+		
+		for(int i=0 ; i<4 ; i++) {
+			value[i] = (byte)(Math.round((double)pwmValue/4.0+offset[i]));
+			value[i] = Integer.min(value[i], 255);
+			value[i] = Integer.max(value[i], 0);
+		}
+			
+			
+		for(int i=0 ; i<LED_COUNT_ACTIVE ; i+=4) {
+			for(int j=0 ; j<4 ; j++) {
+				int index = i+j;
+				if(index < LED_COUNT_ACTIVE) {
+					data[(LED_COUNT_SKIP_NEAR_END+index)*3 + 0] = (byte)value[j];
+					data[(LED_COUNT_SKIP_NEAR_END+index)*3 + 1] = (byte)Math.round(value[j]*GREEN_BLUE_SCALE);
+					data[(LED_COUNT_SKIP_NEAR_END+index)*3 + 2] = (byte)Math.round(value[j]*GREEN_BLUE_SCALE);
+				}
+			}
 		}
 		
 		for(int i=0 ; i<LED_COUNT_SKIP_FAR_END ; i++) {
@@ -114,11 +146,15 @@ public class LightControlWS2801 extends LightControl implements Runnable {
 			data[(LED_COUNT_SKIP_NEAR_END+LED_COUNT_ACTIVE+i)*3 + 2] = 0;
 		}
 		
-//		try {
-//			spi.write(data,0,data.length);
-//		} catch (IOException e) {
-//			log.severe("Error during SPI write: "+e.getMessage());
-//		}
+		try {
+			if(ws2801!=null) {
+				log.finest("writing to SPI. 10-bit PWM="+pwmValue+" 8-bit PMW values="+value[0]+" "+value[1]+" "+value[2]+" "+value[3]);
+				ws2801.write(data);
+			}
+		}
+		catch ( Pi4JException e) {
+			log.severe("Exception during spi write: "+e.getMessage());
+		}
 	}
 
 	@Override
@@ -169,18 +205,20 @@ public class LightControlWS2801 extends LightControl implements Runnable {
 	// private members
 	private static final Logger log = Logger.getLogger( LightControlWS2801.class.getName() );
 	
-	private static final int PWM_BITS   = 8;                // number of PWM bits in WS2801
-	private static final int GROUP_BITS = 2;                // additional (LSB) bits thru grouping
-	private static final int GROUP_SIZE = 1 << GROUP_BITS;  // group size for simulated LSBs
-	private static final int RANGE      = 1 << (PWM_BITS+GROUP_BITS); // number of possible steps (range)
+	private static final int RANGE      = 1023;             // 8 real bits, plus 2 virtual bits by distributing over mutliple LEDs
 	
-	private static final int LED_COUNT_SKIP_FAR_END   = 50;
-	private static final int LED_COUNT_SKIP_NEAR_END  = 3;
-	private static final int LED_COUNT_ACTIVE = 8;
+	private static final int LED_COUNT_SKIP_FAR_END   = 10;
+	private static final int LED_COUNT_SKIP_NEAR_END  = 20;
+	private static final int LED_COUNT_ACTIVE = 70;
 	private static final double GREEN_BLUE_SCALE = 0.6;
 	
 	private int                    pwmValue;                // actual PWM value of each LED controlled thru me
 	private Thread                 dimThread        = null; // thread used for dimming
 	private int                    dimDuration      = 0;    // duration for dim up in seconds
 	private double                 dimTargetPercent = 0;    // target brightness in % for dim up
+	
+	private Spi                    ws2801 = null;           // PI4J SPI device object
+	
+	private final static String    MQTT_TOPIC_BRIGHTNESS  = "brightness";  // MQTT topic to publish LED brightness
+	private double       lastPubishedBrightness           = 0.0;           // last brightness value (percent) that was published on MQTT
 }

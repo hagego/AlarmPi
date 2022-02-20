@@ -8,6 +8,7 @@ import java.util.ArrayList;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.logging.Logger;
 
 import javax.json.Json;
@@ -39,6 +40,7 @@ public class Configuration {
 			NONE,                      // no light
 			RASPBERRY,                 // Raspberry built-in GPIO18 PWM
 			PCA9685,                   // NXP PCA9685 PWM IIC
+			WS2801,                    // WS2801 based LED strip
 			NRF24LO1,                  // remote control based on nRF24LO1
 			MQTT
 		};
@@ -149,6 +151,9 @@ public class Configuration {
 	    		else if(pwmType.equalsIgnoreCase("pca9685")) {
 	    			lightControlSettingItem.type = LightControlSettings.Type.PCA9685;
 	    		}
+	    		else if(pwmType.equalsIgnoreCase("ws2801")) {
+	    			lightControlSettingItem.type = LightControlSettings.Type.WS2801;
+	    		}
 	    		else if(pwmType.equalsIgnoreCase("nrf24lo1")) {
 	    			lightControlSettingItem.type = LightControlSettings.Type.NRF24LO1;
 	    		}
@@ -225,6 +230,9 @@ public class Configuration {
 			
 			index++;
         }
+        
+        // external alarms
+        externalAlarms = ini.get("externalAlarms");
         
         // weather
 		Ini.Section sectionWeather = ini.get("weather");
@@ -506,6 +514,13 @@ public class Configuration {
 	}
 	
 	/**
+	 * @return a map of external alarms (key: alarm ID, value: alarm text)
+	 */
+	final Map<String,String> getExternalAlarms() {
+		return externalAlarms;
+	}
+	
+	/**
 	 * @return the MQTT broker address
 	 */
 	final String getMqttAddress() {
@@ -590,6 +605,16 @@ public class Configuration {
 			dump += "  MQTT topic prefix="+mqttTopicPrefix+"\n";
 		}
 		
+		if(externalAlarms==null) {
+			dump += "  no extrernal alarms configured";
+		}
+		else {
+			dump += "  external alarms:\n";
+			for(String alarmId:externalAlarms.keySet()) {
+				dump += "    "+alarmId+" : "+externalAlarms.get(alarmId)+"\n";
+			}
+		}
+		
 		if(speechControlSound==null) {
 			dump += "  no spechcontrol configured\n";
 		}
@@ -629,4 +654,5 @@ public class Configuration {
 	private String                           mqttTopicPrefix;           // MQTT topic prefix
 	private String                           speechControlDevice;
 	private Integer                          speechControlSound;
+	private Map<String,String>               externalAlarms;            // a map with external alarms
 }
