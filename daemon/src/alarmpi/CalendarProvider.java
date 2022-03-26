@@ -23,7 +23,7 @@ public class CalendarProvider implements Callable<String> {
 			if(entries.size()>0) {
 				String text = entries.size()>1 ? "Kalendereintraege fuer heute : " : "Kalendereintrag fuer heute : ";
 				for(String entry:entries) {
-					text += entry.replace("ü", "ue")+" ";
+					text += entry.replace("Ã¼", "ue")+" ";
 				}
 				// create mp3 file with this weather announcement
 				log.info("preparing Calendar announcement, text="+text);

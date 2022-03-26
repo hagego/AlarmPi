@@ -999,6 +999,11 @@ class Controller implements Runnable, IMqttMessageListener{
 	    						speechToCommand.captureCommand();
 	    					}
 	    					else {
+	    						// turn on light
+	    						if(lightControlList!=null) {
+	    							lightControlList.stream().forEach(light -> light.setBrightness(40));
+	    						}
+	    						
 		            			// publish to MQTT broker (if configured)
 		            			if(mqttClient!=null) {
 	            					log.fine("publishing short click topic: "+MQTT_TOPIC_SHORTCLICK);

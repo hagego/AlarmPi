@@ -14,6 +14,8 @@ import com.pi4j.exception.Pi4JException;
 import com.pi4j.io.gpio.digital.DigitalOutput;
 import com.pi4j.io.gpio.digital.DigitalState;
 
+import alarmpi.Alarm.Sound.Type;
+
 
 /**
  * Controls the sound output of AlarmPi using mpd
@@ -232,8 +234,15 @@ public class SoundControl {
 					log.warning("checkSound found state "+matcher.group(1)+" trying to restart sound");
 					sendCommand("stop");
 					sendCommand("clear");
-					sendCommand("add \""+sound.source+"\"");
-					sendCommand("play");
+					if(sound.type==Type.STREAM) {
+						sendCommand("load "+sound.source);
+						sendCommand("play");
+					}
+					else {
+						sendCommand("add \""+sound.source+"\"");
+						sendCommand("play");
+					}
+					
 				}
 			} catch (IOException e) {
 				disconnect();
