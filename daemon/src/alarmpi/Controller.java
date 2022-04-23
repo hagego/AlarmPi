@@ -68,7 +68,7 @@ class Controller implements Runnable, IMqttMessageListener{
 					break;
 				case NRF24LO1:
 					log.config("creating light control for nRF24LO1 remote control");
-					lightControlList.add(new LightControlNRF24LO1(setting.id,setting.name));
+					lightControlList.add(new LightControlNRF24LO1(setting.id,setting.name,pi4j));
 					break;
 				case MQTT:
 					log.config("creating light control for MQTT controlled light");

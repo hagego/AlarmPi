@@ -13,6 +13,7 @@ import com.pi4j.io.i2c.I2C;
 import com.pi4j.io.i2c.I2CConfig;
 import com.pi4j.io.spi.Spi;
 import com.pi4j.io.spi.SpiConfig;
+import com.pi4j.io.spi.SpiMode;
 import com.pi4j.io.spi.impl.DefaultSpiConfig;
 import com.pi4j.library.pigpio.PiGpioState;
 import com.pi4j.plugin.raspberrypi.provider.spi.RpiSpi;
@@ -33,9 +34,8 @@ public class NRF24LO1Control {
 	//
 	private static final Logger   log     = Logger.getLogger( MethodHandles.lookup().lookupClass().getName() );
 	
-	private Context              pi4j = null;           // pi4j context
 	private DigitalOutput        gpioCE = null; // pi4j digital output pin to control sound power
-	private final static int     GPIO_CE = 5; // GPIO number for CE
+	private final static int     GPIO_CE = 21; // GPIO number for CE
 	private Spi spi;
 	
 	private       boolean              isReady;           // indicates if object can be used or not
@@ -67,60 +67,40 @@ public class NRF24LO1Control {
 	/**
 	 * constructor
 	 */
-	public NRF24LO1Control() {
-		log.fine("Instantiating nRF204 controller");
+	public NRF24LO1Control(Context pi4j) {
+		log.info("Instantiating nRF204 controller");
+		isReady = false;
 		
 		if(Configuration.getConfiguration().getRunningOnRaspberry()) {
 			
-			pi4j = null;
 	        try {
-	            pi4j = Pi4J.newAutoContext();
-	            
+		        SpiConfig spiDeviceConfig = Spi.newConfigBuilder(pi4j)
+		                .id("nRF24LO1")
+		                .name("nRF24LO1")
+		                .mode(SpiMode.MODE_0)
+		                .baud(1000000)
+		                .address(0)
+		                .provider("pigpio-spi")
+		                .build();
+		        
+		        spi = pi4j.create(spiDeviceConfig);
+		        
 	            var config = DigitalOutput.newConfigBuilder(pi4j)
 	            	      .id("nRF24LO1_CE")
 	            	      .name("nRF24LO1_CE")
 	            	      .address(GPIO_CE)
-	            	      .shutdown(DigitalState.LOW)
-	            	      .initial(DigitalState.LOW)
+	            	      .shutdown(DigitalState.HIGH)
+	            	      .initial(DigitalState.HIGH)
 	            	      .provider("pigpio-digital-output");
 	            	      
 	            gpioCE = pi4j.create(config);
-	            
-	            
+		        
+		        isReady = true;
 	        }
 	        catch (Exception e) {
 	        	log.severe("Exception during initializaion of pi4j");
 	        	log.severe(e.getMessage());
-	        	
-	        	gpioCE = null;
 	        }
-		}
-		
-		if(Configuration.getConfiguration().getRunningOnRaspberry()) {
-			try {
-	            SpiConfig spiDeviceConfig = Spi.newConfigBuilder(pi4j)
-	                    .id("id")
-	                    .name("name")
-	                    .provider("pigpio-spi")
-	                    .address(0)
-	                    .baud(1000000)
-	                    .build();
-				
-				
-				spi = pi4j.create(spiDeviceConfig);
-			} catch (Pi4JException e) {
-				log.severe("Error during SPI initialize: "+e.getMessage());
-				spi = null;
-			}
-		}
-		
-		if(gpioCE!=null && spi!=null) {
-			log.config("nRF204 controller successfully instantiated");
-			isReady = true;
-		}
-		else {
-			log.severe("nRF204 controller could not be instantiated");
-			isReady = false;
 		}
 	}
 	
@@ -131,7 +111,7 @@ public class NRF24LO1Control {
 	 *         false in case of any error
 	 */
 	boolean init() {
-		log.fine("Initializing nRF24 controller");
+		log.info("Initializing nRF24 controller");
 		if(isReady) {
 			gpioCE.state(DigitalState.LOW);
 			
@@ -171,7 +151,7 @@ public class NRF24LO1Control {
 			    setChannel(2); // The default, in case it was set by another app without powering down
 			    setRF(DataRate.DataRate2Mbps, TransmitPower.TransmitPower0dBm);
 	
-			    log.config("nRF204 controller successfully initialized");
+			    log.info("nRF204 controller successfully initialized");
 			    isReady = true;
 			    return isReady;
 		    } catch (IOException e) {
@@ -319,7 +299,7 @@ public class NRF24LO1Control {
         long start = System.nanoTime();
         while (((status = statusRead()) & (RH_NRF24_TX_DS | RH_NRF24_MAX_RT))==0)
         {
-	    	if ((System.nanoTime() - start) > 300000000) // 300ms
+	    	if ((System.nanoTime() - start) > 500000000) // 500ms
 	    	{
 	    		setModeIdle();
 	            spiWriteRegister(RH_NRF24_REG_07_STATUS, RH_NRF24_TX_DS | RH_NRF24_MAX_RT);
@@ -413,14 +393,21 @@ public class NRF24LO1Control {
 	}
 	
 	private short spiRead(short reg) throws IOException {
-		byte result[] = null;
-
 		byte data[] = new byte[2];
 		data[0] = (byte)reg;
 		data[1] = (byte)0; // shift-in data is ignored
 		
-		spi.write(data);
-		return (short) spi.read(data);
+		byte result[] = new byte[2];
+		
+		spi.transfer(data,result);
+		
+		if(result==null || result.length!=2) {
+			log.severe("Invalid response during spiRead");
+			throw new IOException("Invalid response during spiRead");
+		}
+		else {
+			return result[1];
+		}
 	}
 	
 	

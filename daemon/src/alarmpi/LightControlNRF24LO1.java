@@ -4,6 +4,8 @@ import java.io.IOException;
 import java.lang.invoke.MethodHandles;
 import java.util.logging.Logger;
 
+import com.pi4j.context.Context;
+
 public class LightControlNRF24LO1 extends LightControl {
 
 	final private short CMD_ON  = 1;
@@ -13,8 +15,10 @@ public class LightControlNRF24LO1 extends LightControl {
 	 * constructor
 	 * @param id unique light ID
 	 */
-	LightControlNRF24LO1(int id,String name) {
+	LightControlNRF24LO1(int id,String name, Context pi4j) {
 		super(id,name);
+		
+		nRF204Control    = new NRF24LO1Control(pi4j);
 	}
 	
 	@Override
@@ -122,7 +126,7 @@ public class LightControlNRF24LO1 extends LightControl {
 
 	private static final Logger log = Logger.getLogger(MethodHandles.lookup().lookupClass().getName());
 
-	private NRF24LO1Control nRF204Control    = new NRF24LO1Control();
+	private NRF24LO1Control nRF204Control    = null;
 	private boolean         lastCommandWasOn = false;
 
 }
