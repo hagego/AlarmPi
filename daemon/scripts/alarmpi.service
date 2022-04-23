@@ -11,12 +11,11 @@ User=root
 Group=root
 WorkingDirectory=/opt/alarmpi/bin
 #PermissionsStartOnly=true
-ExecStartPre=-/opt/alarmpi/bin/rpiLedsOff
 ExecStartPre=-/bin/mkdir -p /var/log/alarmpi
 ExecStartPre=-/bin/chown alarmpi:alarmpi /var/log/alarmpi
 ExecStartPre=-/bin/chown mpd:audio /var/lib/mpd/music/tmp
 ExecStartPre=-/bin/chmod g+w /var/lib/mpd/music/tmp
-ExecStart=/usr/bin/sudo -u alarmpi /usr/bin/java -classpath /opt/alarmpi/bin/alarmpi.jar alarmpi/AlarmPi
+ExecStart=/usr/bin/sudo /usr/bin/java -classpath /opt/alarmpi/bin/alarmpi.jar alarmpi/AlarmPi
 #ExecStop=
 # Shutdown delay in seconds, before process is tried to be killed with KILL (if configured)
 KillSignal=SIGTERM

@@ -10,6 +10,28 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.logging.LogManager;
 import java.util.logging.Logger;
+import com.pi4j.Pi4J;
+import com.pi4j.common.Metadata;
+import com.pi4j.context.Context;
+import com.pi4j.exception.InitializeException;
+import com.pi4j.exception.Pi4JException;
+import com.pi4j.exception.ShutdownException;
+import com.pi4j.io.i2c.I2C;
+import com.pi4j.io.i2c.I2CConfig;
+import com.pi4j.io.i2c.I2CProvider;
+import com.pi4j.library.pigpio.PiGpio;
+import com.pi4j.plugin.pigpio.PiGpioPlugin;
+import com.pi4j.plugin.pigpio.provider.gpio.digital.PiGpioDigitalInput;
+import com.pi4j.plugin.pigpio.provider.gpio.digital.PiGpioDigitalInputProviderImpl;
+import com.pi4j.plugin.pigpio.provider.gpio.digital.PiGpioDigitalOutputProviderImpl;
+import com.pi4j.plugin.pigpio.provider.i2c.PiGpioI2C;
+import com.pi4j.plugin.pigpio.provider.i2c.PiGpioI2CProviderImpl;
+import com.pi4j.plugin.pigpio.provider.spi.PiGpioSpiProviderImpl;
+import com.pi4j.plugin.raspberrypi.platform.RaspberryPiPlatform;
+import com.pi4j.plugin.raspberrypi.provider.gpio.digital.RpiDigitalInputProviderImpl;
+import com.pi4j.plugin.raspberrypi.provider.gpio.digital.RpiDigitalOutputProviderImpl;
+import com.pi4j.plugin.raspberrypi.provider.i2c.RpiI2CProviderImpl;
+import com.pi4j.provider.Provider;
 
 /**
  * The main class for the AlarmPi daemon application.
@@ -85,108 +107,152 @@ public class AlarmPi {
 			    }
 			};
 			
-			// explicitly instantiate sound control
-			SoundControl.getSoundControl();
+			// Initialize pi4j
+	        try {
+	        	PiGpio piGpio = PiGpio.newNativeInstance();
+	        	
+	        	// switch to PWM as clock source so that sound output is not distorted
+	        	piGpio.gpioCfgClock(5, 0, 0);
+	        	piGpio.initialise();
+	        	
+	        	log.fine("pigpio version: "+piGpio.gpioVersion());
+	        	log.fine("pigpio HW version: "+piGpio.gpioHardwareRevisionString());
+	        	
+	        	final Context pi4j = Pi4J.newContextBuilder()
+	            .noAutoDetectPlatforms()
+	            .noAutoDetectProviders()
+	            .noAutoDetect()
+	            .add(new PiGpioI2CProviderImpl(piGpio),
+	            	 new PiGpioDigitalInputProviderImpl(piGpio),
+	            	 new PiGpioDigitalOutputProviderImpl(piGpio),
+	            	 new PiGpioSpiProviderImpl(piGpio) )
+	            .build();
+	        	
+	            // dump some pi4j details into logfile
+	            var platforms = pi4j.platforms().all();
+	            for(String name:platforms.keySet()) {
+	            	log.fine("PI4J Platform description: "+name+" : "+platforms.get(name).description());
+	            	var providers = pi4j.providers();
+	            	for(var provider:providers.getAll().keySet()) {
+	            		log.fine("provider: "+provider+" : "+providers.get(provider).description());
+	            	}
+	            }
+	            
+	            log.info("PI4J context created successfully");;
+
 			
-			// create the user thread to manage alarms and HW buttons
-			final Controller controller = new Controller();
-			final Thread controllerThread = new Thread(controller);
-			controllerThread.setDaemon(false);
-			controllerThread.setUncaughtExceptionHandler(handler);
-			controllerThread.start();
-			
-			// prepare threads for TCP servers
-			final ExecutorService threadPool = Executors.newCachedThreadPool();
-			
-			// start TCP server to listen for external commands
-			if(configuration.getPort()==null) {
-				// no port specified (or set to 0)
-				log.warning("No TCP cmd server port specified - no server is started");
-			}
-			else {
-			    try {
-			    	final ServerSocket cmdServerSocket  = new ServerSocket(configuration.getPort());
-					
-					Thread cmdServerThread = new Thread(new TcpServer(TcpServer.Type.CMD,controller,cmdServerSocket,threadPool));
-					cmdServerThread.setDaemon(true);
-					cmdServerThread.setUncaughtExceptionHandler(handler);
-					cmdServerThread.start();
-					
-				    Runtime.getRuntime().addShutdownHook( new Thread() {
-						public void run() {
-							log.info("shutdown hook started to shut down command server");
-							
-							try {
-								cmdServerSocket.close();
-								log.info("command server socket closed");
-							}
-							catch (IOException  e) {
-								log.severe("Exception during shutdown: "+e);
-							}
-						}
-					});
-				} catch (IOException e) {
-					log.severe("Unable to create server socket for remote client access on port "+configuration.getPort());
-					log.severe(e.getMessage());
+				// initialize sound control
+				SoundControl.setPi4jContext(pi4j);
+				
+				// create the user thread to manage alarms and HW buttons
+				final Controller controller = new Controller(pi4j);
+				final Thread controllerThread = new Thread(controller);
+				controllerThread.setDaemon(false);
+				controllerThread.setUncaughtExceptionHandler(handler);
+				controllerThread.start();
+				
+				// prepare threads for TCP servers
+				final ExecutorService threadPool = Executors.newCachedThreadPool();
+				
+				// start TCP server to listen for external commands
+				if(configuration.getPort()==null) {
+					// no port specified (or set to 0)
+					log.warning("No TCP cmd server port specified - no server is started");
 				}
-			}
-			
-			if(configuration.getJsonServerPort()==null) {
-				// no port specified (or set to 0)
-				log.severe("No HTTP JSON server port specified - no server is started");
-			}
-			else {
-			    try {
-			    	final ServerSocket jsonServerSocket = new ServerSocket(configuration.getJsonServerPort());
-					
-					Thread jsonServerThread = new Thread(new TcpServer(TcpServer.Type.JSON,controller,jsonServerSocket,threadPool));
-					jsonServerThread.setDaemon(true);
-					jsonServerThread.setUncaughtExceptionHandler(handler);
-					jsonServerThread.start();
-					
-				    Runtime.getRuntime().addShutdownHook( new Thread() {
-						public void run() {
-							log.info("shutdown hook started to shut down json server");
-							try {
-								jsonServerSocket.close();
-								log.info("json server socket closed");
+				else {
+				    try {
+				    	final ServerSocket cmdServerSocket  = new ServerSocket(configuration.getPort());
+						
+						Thread cmdServerThread = new Thread(new TcpServer(TcpServer.Type.CMD,controller,cmdServerSocket,threadPool));
+						cmdServerThread.setDaemon(true);
+						cmdServerThread.setUncaughtExceptionHandler(handler);
+						cmdServerThread.start();
+						
+					    Runtime.getRuntime().addShutdownHook( new Thread() {
+							public void run() {
+								log.info("shutdown hook started to shut down command server");
+								
+								try {
+									cmdServerSocket.close();
+									log.info("command server socket closed");
+								}
+								catch (IOException  e) {
+									log.severe("Exception during shutdown: "+e);
+								}
 							}
-							catch (IOException  e) {
-								log.severe("Exception during shutdown: "+e);
-							}
-						}
-					});
-				} catch (IOException e) {
-					log.severe("Unable to create server socket for json client access on port "+configuration.getJsonServerPort());
-					log.severe(e.getMessage());
-				}
-			}
-			
-			// add hook to shut down server at a CTRL-C or system shutdown
-			// actually copy & paste code from some forum on the web - no idea if it is working
-		    Runtime.getRuntime().addShutdownHook( new Thread() {
-				public void run() {
-					// logging in shutdown hook does not work
-					log.info("shutdown hook started to end controller thread");
-					
-					// write timestamp of shutdown to a /tmp file
-					if(configuration.getRunningOnRaspberry()) {
-						try {
-							FileWriter writer = new FileWriter("/etc/alarmpi/tmp/AlarmPiShutdown.txt");
-							writer.write(LocalDate.now().toString());
-							writer.write(LocalTime.now().toString());
-							writer.close();
-						} catch (IOException e) {}
+						});
+					} catch (IOException e) {
+						log.severe("Unable to create server socket for remote client access on port "+configuration.getPort());
+						log.severe(e.getMessage());
 					}
-					
-					// switch all lights and alarms off
-					controller.allOff(false);
-					controllerThread.interrupt();
-					threadPool.shutdownNow();
 				}
-			});
-			
-			log.info("AlarmPi main is now finished");
+				
+				if(configuration.getJsonServerPort()==null) {
+					// no port specified (or set to 0)
+					log.severe("No HTTP JSON server port specified - no server is started");
+				}
+				else {
+				    try {
+				    	final ServerSocket jsonServerSocket = new ServerSocket(configuration.getJsonServerPort());
+						
+						Thread jsonServerThread = new Thread(new TcpServer(TcpServer.Type.JSON,controller,jsonServerSocket,threadPool));
+						jsonServerThread.setDaemon(true);
+						jsonServerThread.setUncaughtExceptionHandler(handler);
+						jsonServerThread.start();
+						
+					    Runtime.getRuntime().addShutdownHook( new Thread() {
+							public void run() {
+								log.info("shutdown hook started to shut down json server");
+								try {
+									jsonServerSocket.close();
+									log.info("json server socket closed");
+								}
+								catch (IOException  e) {
+									log.severe("Exception during shutdown: "+e);
+								}
+							}
+						});
+					} catch (IOException e) {
+						log.severe("Unable to create server socket for json client access on port "+configuration.getJsonServerPort());
+						log.severe(e.getMessage());
+					}
+				}
+				
+				// add hook to shut down server at a CTRL-C or system shutdown
+				// actually copy & paste code from some forum on the web - no idea if it is working
+			    Runtime.getRuntime().addShutdownHook( new Thread() {
+					public void run() {
+						// logging in shutdown hook does not work
+						log.info("shutdown hook started to end controller thread");
+						
+						// write timestamp of shutdown to a /tmp file
+						if(configuration.getRunningOnRaspberry()) {
+							try {
+								FileWriter writer = new FileWriter("/etc/alarmpi/tmp/AlarmPiShutdown.txt");
+								writer.write(LocalDate.now().toString());
+								writer.write(LocalTime.now().toString());
+								writer.close();
+							} catch (IOException e) {}
+						}
+						
+						// switch all lights and alarms off
+						controller.allOff(false);
+						controllerThread.interrupt();
+						threadPool.shutdownNow();
+						
+						if (pi4j != null) {
+				            pi4j.shutdown();
+				        }
+					}
+				});
+				
+				log.info("AlarmPi main is now finished");
+	        }
+	        catch (Pi4JException e) {
+	        	log.severe("Exception during creation of pi4j context");
+	        	log.severe(e.getMessage());
+	        	log.severe(e.getCause().toString());
+	        }
 		}
 		catch(Throwable e) {
 			log.severe("Uncaught runtime exception in main thread: "+e.getMessage());
@@ -202,3 +268,4 @@ public class AlarmPi {
 	
 	final static String watchDogFile       = "/var/log/alarmpi/watchdog";
 }
+

@@ -4,14 +4,19 @@ import java.io.IOException;
 import java.lang.invoke.MethodHandles;
 import java.util.logging.Logger;
 
-import com.pi4j.io.gpio.GpioController;
-import com.pi4j.io.gpio.GpioFactory;
-import com.pi4j.io.gpio.GpioPinDigitalOutput;
-import com.pi4j.io.gpio.PinState;
-import com.pi4j.io.gpio.RaspiPin;
-import com.pi4j.io.spi.SpiChannel;
-import com.pi4j.io.spi.SpiDevice;
-import com.pi4j.io.spi.SpiFactory;
+import com.pi4j.Pi4J;
+import com.pi4j.context.Context;
+import com.pi4j.exception.Pi4JException;
+import com.pi4j.io.gpio.digital.DigitalOutput;
+import com.pi4j.io.gpio.digital.DigitalState;
+import com.pi4j.io.i2c.I2C;
+import com.pi4j.io.i2c.I2CConfig;
+import com.pi4j.io.spi.Spi;
+import com.pi4j.io.spi.SpiConfig;
+import com.pi4j.io.spi.SpiMode;
+import com.pi4j.io.spi.impl.DefaultSpiConfig;
+import com.pi4j.library.pigpio.PiGpioState;
+import com.pi4j.plugin.raspberrypi.provider.spi.RpiSpi;
 
 
 /**
@@ -29,8 +34,9 @@ public class NRF24LO1Control {
 	//
 	private static final Logger   log     = Logger.getLogger( MethodHandles.lookup().lookupClass().getName() );
 	
-	private final GpioPinDigitalOutput gpioOutCE;         // nRF204 chip enable
-	private       SpiDevice            spiDevice;         // SPI object
+	private DigitalOutput        gpioCE = null; // pi4j digital output pin to control sound power
+	private final static int     GPIO_CE = 21; // GPIO number for CE
+	private Spi spi;
 	
 	private       boolean              isReady;           // indicates if object can be used or not
 	
@@ -61,38 +67,40 @@ public class NRF24LO1Control {
 	/**
 	 * constructor
 	 */
-	public NRF24LO1Control() {
-		log.fine("Instantiating nRF204 controller");
-		
-		GpioController gpioController = null;
-		
-		if(Configuration.getConfiguration().getRunningOnRaspberry()) {
-			gpioController  = GpioFactory.getInstance();
-		}
-		if(gpioController!=null) {
-			gpioOutCE = gpioController.provisionDigitalOutputPin(RaspiPin.GPIO_21, "nRF204CE", PinState.LOW);
-		}
-		else {
-			log.severe("Unable to instantiate GPIO to control nRF204 CE");
-			gpioOutCE = null;
-		}
+	public NRF24LO1Control(Context pi4j) {
+		log.info("Instantiating nRF204 controller");
+		isReady = false;
 		
 		if(Configuration.getConfiguration().getRunningOnRaspberry()) {
-			try {
-				spiDevice = SpiFactory.getInstance(SpiChannel.CS0);
-			} catch (IOException e) {
-				log.severe("Error during SPI initialize: "+e.getMessage());
-				spiDevice = null;
-			}
-		}
-		
-		if(gpioOutCE!=null && spiDevice!=null) {
-			log.config("nRF204 controller successfully instantiated");
-			isReady = true;
-		}
-		else {
-			log.severe("nRF204 controller could not be instantiated");
-			isReady = false;
+			
+	        try {
+		        SpiConfig spiDeviceConfig = Spi.newConfigBuilder(pi4j)
+		                .id("nRF24LO1")
+		                .name("nRF24LO1")
+		                .mode(SpiMode.MODE_0)
+		                .baud(1000000)
+		                .address(0)
+		                .provider("pigpio-spi")
+		                .build();
+		        
+		        spi = pi4j.create(spiDeviceConfig);
+		        
+	            var config = DigitalOutput.newConfigBuilder(pi4j)
+	            	      .id("nRF24LO1_CE")
+	            	      .name("nRF24LO1_CE")
+	            	      .address(GPIO_CE)
+	            	      .shutdown(DigitalState.HIGH)
+	            	      .initial(DigitalState.HIGH)
+	            	      .provider("pigpio-digital-output");
+	            	      
+	            gpioCE = pi4j.create(config);
+		        
+		        isReady = true;
+	        }
+	        catch (Exception e) {
+	        	log.severe("Exception during initializaion of pi4j");
+	        	log.severe(e.getMessage());
+	        }
 		}
 	}
 	
@@ -103,9 +111,9 @@ public class NRF24LO1Control {
 	 *         false in case of any error
 	 */
 	boolean init() {
-		log.fine("Initializing nRF24 controller");
+		log.info("Initializing nRF24 controller");
 		if(isReady) {
-			gpioOutCE.setState(PinState.LOW);
+			gpioCE.state(DigitalState.LOW);
 			
 			
 		    // Clear interrupts
@@ -143,7 +151,7 @@ public class NRF24LO1Control {
 			    setChannel(2); // The default, in case it was set by another app without powering down
 			    setRF(DataRate.DataRate2Mbps, TransmitPower.TransmitPower0dBm);
 	
-			    log.config("nRF204 controller successfully initialized");
+			    log.info("nRF204 controller successfully initialized");
 			    isReady = true;
 			    return isReady;
 		    } catch (IOException e) {
@@ -166,7 +174,7 @@ public class NRF24LO1Control {
 	void setModeIdle() throws IOException
 	{
 		spiWriteRegister(RH_NRF24_REG_00_CONFIG, configuration);
-		gpioOutCE.setState(PinState.LOW);
+		gpioCE.state(DigitalState.LOW);
 	}
 	
 	/**
@@ -177,13 +185,13 @@ public class NRF24LO1Control {
 	{
 		// Its the CE rising edge that puts us into TX mode
 		// CE staying high makes us go to standby-II when the packet is sent
-		gpioOutCE.setState(PinState.LOW);
+		gpioCE.state(DigitalState.LOW);
 		
 		// Ensure DS is not set
 		spiWriteRegister(RH_NRF24_REG_07_STATUS, RH_NRF24_TX_DS | RH_NRF24_MAX_RT);
 		spiWriteRegister(RH_NRF24_REG_00_CONFIG, configuration | RH_NRF24_PWR_UP);
-		
-		gpioOutCE.setState(PinState.HIGH);
+
+		gpioCE.state(DigitalState.HIGH);
 	}
 	
 
@@ -291,7 +299,7 @@ public class NRF24LO1Control {
         long start = System.nanoTime();
         while (((status = statusRead()) & (RH_NRF24_TX_DS | RH_NRF24_MAX_RT))==0)
         {
-	    	if ((System.nanoTime() - start) > 300000000) // 300ms
+	    	if ((System.nanoTime() - start) > 500000000) // 500ms
 	    	{
 	    		setModeIdle();
 	            spiWriteRegister(RH_NRF24_REG_07_STATUS, RH_NRF24_TX_DS | RH_NRF24_MAX_RT);
@@ -337,18 +345,7 @@ public class NRF24LO1Control {
 	 * @throws IOException 
 	 */
 	private short spiCommand(short command) throws IOException {
-		short data[] = new short[1];
-		data[0] = command;
-		short status[] = null;
-		
-		status = spiDevice.write(data);
-		
-		if(status!=null && status.length==1) {
-			return status[0];
-		}
-		else {
-			throw new IOException("invalid response from spiCommand");
-		}
+		return (short)spi.write((byte)command);
 	}
 	
 	/**
@@ -368,21 +365,21 @@ public class NRF24LO1Control {
 	 * @throws IOException 
 	 */
 	private void spiWrite(short reg,int val) throws IOException {
-		short data[] = new short[2];
-		data[0] = reg;
-		data[1] = (short)val;
+		byte data[] = new byte[2];
+		data[0] = (byte)reg;
+		data[1] = (byte)val;
 		
-		spiDevice.write(data);
+		spi.write(data);
 	}
 	
 	private void spiBurstWrite(short reg,short val[]) throws IOException {
-		short data[] = new short[val.length+1];
-		data[0] = reg;
+		byte data[] = new byte[val.length+1];
+		data[0] = (byte)reg;
 		for(int b=0 ; b<val.length ; b++) {
-			data[b+1] = val[b];
+			data[b+1] = (byte)val[b];
 		}
 		
-		spiDevice.write(data);
+		spi.write(data);
 	}
 
 	/**
@@ -396,13 +393,13 @@ public class NRF24LO1Control {
 	}
 	
 	private short spiRead(short reg) throws IOException {
-		short result[] = null;
-
-		short data[] = new short[2];
-		data[0] = reg;
-		data[1] = (short)0; // shift-in data is ignored
+		byte data[] = new byte[2];
+		data[0] = (byte)reg;
+		data[1] = (byte)0; // shift-in data is ignored
 		
-		result = spiDevice.write(data);
+		byte result[] = new byte[2];
+		
+		spi.transfer(data,result);
 		
 		if(result==null || result.length!=2) {
 			log.severe("Invalid response during spiRead");

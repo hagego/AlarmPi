@@ -19,6 +19,9 @@ sudo apt-get install lighttpd -y -q
 # git
 sudo apt-get install git-core -y -q
 
+# pigpio (needed by pi4j)
+sudo apt-get install pigpio -y -q
+
 # create user alarmpi and add to groups
 sudo useradd -M alarmpi
 sudo usermod -p alarmpi alarmpi
