@@ -38,7 +38,7 @@ public class TcpServer implements Runnable {
 				
 			}
 			catch(SocketException e) {
-				log.info("Server socket closed");
+				log.warning("Server socket closed");
 			}
 			catch (IOException e) {
 				log.severe("IO error during TCP client connect");

@@ -29,6 +29,10 @@ import com.google.api.services.calendar.model.Events;
  */
 public class GoogleCalendar {
 
+	/**
+	 * used to specify for which day (today or tomorrow) calendar items are to be retrieved
+	 */
+	public enum Mode {TODAY,TOMORROW};
 
 	/**
 	 * Connects to Google Calendar
@@ -126,18 +130,18 @@ public class GoogleCalendar {
      * Returns a list with calendar entries for today
      * @return list with calendar entries for today
      */
-    List<String> getCalendarEntriesForToday() {
+    List<String> getCalendarEntries(Mode mode) {
     	LinkedList<String> entries = new LinkedList<String>();
     	
-    	log.fine("Getting calender enries for today");
+    	log.fine("Getting calender enries for "+mode.toString());
     	
     	if(calendar==null) {
-    		log.warning("getCalendarEntriesForToday called, but Calendar is not connected yet");
+    		log.warning("getCalendarEntries called, but Calendar is not connected yet");
     		return entries;
     	}
     	
     	if(Configuration.getConfiguration().getCalendarSummary()==null) {
-    		log.warning("getCalendarEntriesForToday called, but no calendar specified in configuration");
+    		log.warning("getCalendarEntries called, but no calendar specified in configuration");
     		return entries;
     	}
     	
@@ -162,6 +166,12 @@ public class GoogleCalendar {
 	            		endOfDay.set(Calendar.HOUR_OF_DAY, 23);
 	            		endOfDay.set(Calendar.MINUTE, 59);
 	            		endOfDay.set(Calendar.SECOND, 59);
+	            		
+	            		// add 1d in case we have to retrieve entries for tomorrow
+	            		if(mode == Mode.TOMORROW) {
+	            			startOfDay.add(Calendar.DAY_OF_YEAR, 1);
+	            			endOfDay.add(Calendar.DAY_OF_YEAR, 1);
+	            		}
 	            		log.fine("start="+startOfDay+" end="+endOfDay);
 	            		
 	            		DateTime start= new DateTime(Date.from(startOfDay.toInstant()));

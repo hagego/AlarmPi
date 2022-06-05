@@ -521,7 +521,7 @@ public class TcpRequestHandler implements Runnable {
 					return new ReturnCodeError("Unable to read calendar");
 				}
 			}
-			List<String> entries = calendar.getCalendarEntriesForToday();
+			List<String> entries = calendar.getCalendarEntries(GoogleCalendar.Mode.TODAY);
 			String answer = new String();
 			for(String entry:entries) {
 				answer += entry+"\n";

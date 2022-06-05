@@ -12,6 +12,10 @@ import java.util.logging.Logger;
  *
  */
 public class CalendarProvider implements Callable<String> {
+	
+	public CalendarProvider(GoogleCalendar.Mode mode) {
+		this.mode = mode;
+	}
 
 	@Override
 	public String call() throws Exception {
@@ -19,18 +23,28 @@ public class CalendarProvider implements Callable<String> {
 		
 		GoogleCalendar calendar = new GoogleCalendar();
 		if( calendar.connect() ) {
-			List<String> entries = calendar.getCalendarEntriesForToday();
+			List<String> entries = calendar.getCalendarEntries(mode);
 			if(entries.size()>0) {
-				String text = entries.size()>1 ? "Kalendereintraege fuer heute : " : "Kalendereintrag fuer heute : ";
-				for(String entry:entries) {
-					text += entry.replace("ü", "ue")+" ";
+				String text = "";
+				if(mode == GoogleCalendar.Mode.TODAY) {
+					text = entries.size()>1 ? "Kalendereinträge fuer heute : " : "Kalendereintrag fuer heute : ";
 				}
+				if(mode == GoogleCalendar.Mode.TOMORROW) {
+					text = entries.size()>1 ? "Kalendereinträge fuer morgen : " : "Kalendereintrag fuer morgen : ";
+				}
+				
+//				for(String entry:entries) {
+//					text += entry.replace("ü", "ue")+" ";
+//				}
 				// create mp3 file with this weather announcement
 				log.info("preparing Calendar announcement, text="+text);
 				return new TextToSpeech().createPermanentFile(text);
 			}
 			else {
 				log.fine("No calendar entries found");
+				if(mode == GoogleCalendar.Mode.TOMORROW) {
+					return new TextToSpeech().createPermanentFile("Kein Kalendereintrag für morgen");
+				}
 			}
 		}
 		else {
@@ -45,4 +59,6 @@ public class CalendarProvider implements Callable<String> {
 	//
 	
 	private static final Logger log = Logger.getLogger( CalendarProvider.class.getName() );
+	
+	private GoogleCalendar.Mode mode;   // defines if calendar entries shall be retrieved for today ot for tomorrow
 }

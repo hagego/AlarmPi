@@ -147,7 +147,8 @@ class Controller implements Runnable, IMqttMessageListener{
 		soundControl.update();
 		
 		mqttSendAliveInterval = Configuration.getConfiguration().getValue("mqtt", "sendAliveInterval", 30);
-		
+
+		// subscribe to MQTT topics
 		MqttClient.getMqttClient().subscribe(MQTT_TOPIC_LIGHT, this);
 		MqttClient.getMqttClient().subscribe(MQTT_TOPIC_TEMPERATURE, this);
 		MqttClient.getMqttClient().subscribe(MQTT_TOPIC_OFF, this);
@@ -155,6 +156,10 @@ class Controller implements Runnable, IMqttMessageListener{
 		if(externalAlarmCount>0) {
 			MqttClient.getMqttClient().subscribe(MQTT_TOPIC_EXTERNAL_ALARM, this);
 		}
+		
+		// send initial MQTT alive message
+		log.fine("publishing sign of life to MQTT");;
+		MqttClient.getMqttClient().publish(MQTT_TOPIC_ALIVE, LocalDateTime.now().toString());
 		
 		log.info("initialization done");
 	}
@@ -169,9 +174,12 @@ class Controller implements Runnable, IMqttMessageListener{
 		
 		if(announceNextAlarm) {
 			// announce next alarms before switching off
+			var calendarAnnouncementFile = dataExecutorService.submit(new CalendarProvider(GoogleCalendar.Mode.TOMORROW));
+			boolean appendCalendar = false;
+			
 			Alarm alarm = Alarm.getNextAlarmToday();
 			if(alarm!=null) {
-				String text = "Der nächste Alarm ist heute um "+alarm.getTime().getHour()+" Uhr ";
+				String text = "Der naechste Alarm ist heute um "+alarm.getTime().getHour()+" Uhr ";
 				if(alarm.getTime().getMinute()!=0) {
 					text += alarm.getTime().getMinute();
 				}
@@ -179,6 +187,7 @@ class Controller implements Runnable, IMqttMessageListener{
 				soundControl.on();
 				soundControl.setVolume(Configuration.getConfiguration().getDefaultVolume());
 				soundControl.playFile(filename, null, false);
+				appendCalendar = true;
 			}
 			else {
 				alarm = Alarm.getNextAlarmTomorrow();
@@ -191,12 +200,39 @@ class Controller implements Runnable, IMqttMessageListener{
 					soundControl.on();
 					soundControl.setVolume(Configuration.getConfiguration().getDefaultVolume());
 					soundControl.playFile(filename, null, false);
+					appendCalendar = true;
+				}
+			}
+			
+			if(calendarAnnouncementFile!=null) {
+				if(!calendarAnnouncementFile.isDone()) {
+					// wait a fixed time of 3s
+					try {
+						Thread.sleep(3000);
+					} catch (InterruptedException e) {}
+				}
+				if(calendarAnnouncementFile.isDone()) {
+					try {
+						String file = calendarAnnouncementFile.get();
+						if(file!=null && !file.isEmpty()) {
+							soundControl.on();
+							soundControl.setVolume(Configuration.getConfiguration().getDefaultVolume());
+							soundControl.playFile(file, null, appendCalendar);
+						}
+						else {
+							// can be null in case no calendar entry exists
+							log.fine("calendar announcement file does not exist");
+						}
+					} catch (InterruptedException | ExecutionException exception) {
+						log.severe("Unable to play calendar announcement");
+						log.severe(exception.getMessage());
+					}
+					calendarAnnouncementFile = null;
 				}
 			}
 			try {
 				Thread.sleep(5000);
-			} catch (InterruptedException e) {
-			}
+			} catch (InterruptedException e) {}
 			
 			soundControl.stop();
 		}
@@ -831,7 +867,7 @@ class Controller implements Runnable, IMqttMessageListener{
 			
 			weatherAnnouncementFile  = dataExecutorService.submit(new WeatherProvider(temperature));
 			if(Configuration.getConfiguration().getCalendarSummary()!=null) {
-				calendarAnnouncementFile = dataExecutorService.submit(new CalendarProvider());
+				calendarAnnouncementFile = dataExecutorService.submit(new CalendarProvider(GoogleCalendar.Mode.TODAY));
 			}
 			
 			// publish modified alarm status on MQTT broker
@@ -1001,7 +1037,7 @@ class Controller implements Runnable, IMqttMessageListener{
 	    					else {
 	    						// turn on light
 	    						if(lightControlList!=null) {
-	    							lightControlList.stream().forEach(light -> light.setBrightness(40));
+	    							lightControlList.stream().forEach(light -> light.setBrightness(30));
 	    						}
 	    						
 		            			// publish to MQTT broker (if configured)

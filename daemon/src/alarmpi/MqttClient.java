@@ -44,18 +44,18 @@ public class MqttClient implements MqttCallbackExtended{
 				log.fine("Connecting to MQTT broker "+brokerAddress);
 				mqttClient.connect(connectOptions);
 				
-				// wait until connection is successfull, or time out
-				final int TIMEOUT=20;
+				// wait until connection is successful, or time out
+				final int TIMEOUT=10;
 				int i;
 				for(i=0 ; i<TIMEOUT && isConnected.get()==false ; i++) {
-					Thread.sleep(100);
+					Thread.sleep(500);
 				}
 				
 				if(i<TIMEOUT) {
 					log.info("MQTT client connected");
 				}
 				else {
-					log.warning("MQTT client connet timeout");
+					log.severe("MQTT client connect timeout");
 				}
 			} catch (MqttException e) {
 				log.severe("Excepion during MQTT connect: "+e.getMessage());
