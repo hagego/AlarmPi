@@ -139,6 +139,7 @@ public class MqttClient implements MqttCallbackExtended{
 		}
 		
 		try {
+			log.fine("publishing topic "+topic+" to MQTT, value="+data);;
 			mqttClient.publish(getFullyQualifiedTopic(topic), data.getBytes(), 0, false);
 		} catch (MqttException e) {
 			log.severe("Unable to publish MQTT topic "+topic+", data="+data);

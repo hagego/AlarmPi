@@ -27,15 +27,16 @@ public class CalendarProvider implements Callable<String> {
 			if(entries.size()>0) {
 				String text = "";
 				if(mode == GoogleCalendar.Mode.TODAY) {
-					text = entries.size()>1 ? "Kalendereinträge fuer heute : " : "Kalendereintrag fuer heute : ";
+					text = entries.size()>1 ? "Kalendereinträge für heute : " : "Kalendereintrag für heute : ";
 				}
 				if(mode == GoogleCalendar.Mode.TOMORROW) {
-					text = entries.size()>1 ? "Kalendereinträge fuer morgen : " : "Kalendereintrag fuer morgen : ";
+					text = entries.size()>1 ? "Kalendereinträge für morgen : " : "Kalendereintrag für morgen : ";
 				}
 				
-//				for(String entry:entries) {
-//					text += entry.replace("ü", "ue")+" ";
-//				}
+				for(String entry:entries) {
+					//text += entry.replace("ü", "ue")+" ";
+					text += entry+" ";
+				}
 				// create mp3 file with this weather announcement
 				log.info("preparing Calendar announcement, text="+text);
 				return new TextToSpeech().createPermanentFile(text);

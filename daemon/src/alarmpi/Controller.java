@@ -174,12 +174,14 @@ class Controller implements Runnable, IMqttMessageListener{
 		
 		if(announceNextAlarm) {
 			// announce next alarms before switching off
-			var calendarAnnouncementFile = dataExecutorService.submit(new CalendarProvider(GoogleCalendar.Mode.TOMORROW));
+			Future<String> calendarAnnouncementFile = null;
 			boolean appendCalendar = false;
 			
 			Alarm alarm = Alarm.getNextAlarmToday();
 			if(alarm!=null) {
-				String text = "Der naechste Alarm ist heute um "+alarm.getTime().getHour()+" Uhr ";
+				calendarAnnouncementFile = dataExecutorService.submit(new CalendarProvider(GoogleCalendar.Mode.TODAY));
+				
+				String text = "Der nächste Alarm ist heute um "+alarm.getTime().getHour()+" Uhr ";
 				if(alarm.getTime().getMinute()!=0) {
 					text += alarm.getTime().getMinute();
 				}
@@ -190,6 +192,8 @@ class Controller implements Runnable, IMqttMessageListener{
 				appendCalendar = true;
 			}
 			else {
+				calendarAnnouncementFile = dataExecutorService.submit(new CalendarProvider(GoogleCalendar.Mode.TOMORROW));
+				
 				alarm = Alarm.getNextAlarmTomorrow();
 				if(alarm!=null) {
 					String text = "Der nächste Alarm ist morgen um "+alarm.getTime().getHour()+" Uhr ";
@@ -205,11 +209,13 @@ class Controller implements Runnable, IMqttMessageListener{
 			}
 			
 			if(calendarAnnouncementFile!=null) {
-				if(!calendarAnnouncementFile.isDone()) {
-					// wait a fixed time of 3s
+				int retries = 0;
+				while(!calendarAnnouncementFile.isDone() && retries<5) {
+					// wait 1 s
 					try {
-						Thread.sleep(3000);
+						Thread.sleep(1000);
 					} catch (InterruptedException e) {}
+					retries++;
 				}
 				if(calendarAnnouncementFile.isDone()) {
 					try {

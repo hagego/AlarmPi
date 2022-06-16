@@ -6,9 +6,15 @@ import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.io.UnsupportedEncodingException;
 import java.net.HttpURLConnection;
 import java.net.URL;
+import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.logging.Logger;
+import java.util.stream.Collectors;
 
 /**
  * Converts a text string into a .mp3 file.
@@ -83,8 +89,19 @@ public class TextToSpeech {
 			try{
 	            text=java.net.URLEncoder.encode(text, "UTF-8");
 	            //URL url = new URL("http://translate.google.com/translate_tts?tl=de&ie=UTF-8&q="+text+"&total=1&idx=0&client=alarmpi");
-	            URL url = new URL("http://api.voicerss.org/?key=f5d762f987f34397b350af6563ffb818&hl=de-de&c=MP3&src="+text);
-	            log.fine("URL="+url);
+	            
+	            Map<String, String> requestParams = new HashMap<>();
+	            requestParams.put("key", "f5d762f987f34397b350af6563ffb818");
+	            requestParams.put("hl", "de-de");
+	            requestParams.put("c", "MP3");
+	            requestParams.put("src", text);
+	            
+				String encodedURL = requestParams.keySet().stream()
+	            	      .map(key -> key + "=" + requestParams.get(key))
+	            	      .collect(Collectors.joining("&", "http://api.voicerss.org?", ""));
+	            
+	            URL url = new URL(encodedURL);
+	            log.fine("URL="+encodedURL);
 	            
 	            HttpURLConnection urlConn = (HttpURLConnection) url.openConnection();
 	            urlConn.addRequestProperty("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/45.0.2454.85 Safari/537.36");
