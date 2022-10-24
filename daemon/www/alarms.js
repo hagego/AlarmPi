@@ -87,7 +87,15 @@ function updateAlarms() {
         alarmRow.append('<td><input type="checkbox" class="alarm_friday" value="FRIDAY">');
         alarmRow.append('<td><input type="checkbox" class="alarm_saturday" value="SATURDAY">');
         alarmRow.append('<td><input type="checkbox" class="alarm_sunday" value="SUNDAY">');
-        alarmRow.append('<td>'+alarm.alarmSound+'</td>');
+        
+        const selectStartTag = `<td><select class="alarm_sounds">`;
+        const selectEndTag = '</select></td>';
+        let options = '';
+
+        alarmPiData.sounds.forEach(sound => {
+          options += `<option value=${sound.name} ${sound.name === alarm.alarmSound && 'selected'}>${sound.name}</option>`;
+        })
+        alarmRow.append(selectStartTag + options + selectEndTag);
         
         alarmRow.children().children('.alarm_enabled').attr('checked',alarm.enabled).click(handleAlarmModification);
         alarmRow.children().children('.alarm_time').attr('value',alarm.time).change(handleAlarmModification);
@@ -100,6 +108,7 @@ function updateAlarms() {
         alarmRow.children().children('.alarm_friday').attr('checked',alarm.weekDays.indexOf('FRIDAY')>=0).click(handleAlarmModification);
         alarmRow.children().children('.alarm_saturday').attr('checked',alarm.weekDays.indexOf('SATURDAY')>=0).click(handleAlarmModification);
         alarmRow.children().children('.alarm_sunday').attr('checked',alarm.weekDays.indexOf('SUNDAY')>=0).click(handleAlarmModification);
+        alarmRow.children().children('.alarm_sounds').on('change', handleAlarmModification);
         
         $('#alarmsSubmit').attr('disabled',true);
     }
@@ -134,6 +143,7 @@ function submitAlarms() {
             alarm.time        = alarmRow.children().children('.alarm_time').val();
             alarm.oneTimeOnly = alarmRow.children().children('.alarm_oneTimeOnly').prop('checked');
             alarm.skipOnce    = alarmRow.children().children('.alarm_skipOnce').prop('checked');
+            alarm.alarmSound  = alarmRow.children().children('.alarm_sounds').val();
             
             var weekDaysString = '[';
             var hasDays = false;
