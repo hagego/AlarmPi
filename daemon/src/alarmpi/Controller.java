@@ -165,6 +165,15 @@ class Controller implements Runnable, IMqttMessageListener{
 	}
 	
 	/**
+	 * turns on all lights
+	 */
+	void lightsOn() {
+		if(lightControlList!=null) {
+			lightControlList.stream().forEach(light -> light.setBrightness(30));
+		}
+	}
+	
+	/**
 	 * switches everything off
 	 */
 	void allOff(boolean announceNextAlarm) {
@@ -237,7 +246,7 @@ class Controller implements Runnable, IMqttMessageListener{
 				}
 			}
 			try {
-				Thread.sleep(5000);
+				Thread.sleep(10000);
 			} catch (InterruptedException e) {}
 			
 			soundControl.stop();
@@ -1038,7 +1047,10 @@ class Controller implements Runnable, IMqttMessageListener{
 	    					
 	    					if(speechToCommand!=null) {
 	    						// trigger speech control
-	    						speechToCommand.captureCommand();
+	    						JsonObject jsonIntent = speechToCommand.captureCommand();
+	    						if(jsonIntent!=null) {
+	    							speechToCommand.processCommand(jsonIntent);
+	    						}
 	    					}
 	    					else {
 	    						// turn on light

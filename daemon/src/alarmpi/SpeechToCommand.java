@@ -1,17 +1,25 @@
 package alarmpi;
 
-import java.io.FileInputStream;
-import java.io.FileNotFoundException;
+import java.io.BufferedReader;
+import java.io.ByteArrayInputStream;
+import java.io.InputStreamReader;
+import java.io.StringReader;
 import java.lang.invoke.MethodHandles;
+import java.nio.file.Path;
 import java.util.logging.Logger;
+import java.util.zip.GZIPInputStream;
 
-import com.amazonaws.auth.AWSCredentialsProvider;
-import com.amazonaws.auth.DefaultAWSCredentialsProviderChain;
-import com.amazonaws.services.lexruntime.AmazonLexRuntime;
-import com.amazonaws.services.lexruntime.AmazonLexRuntimeClient;
-import com.amazonaws.services.lexruntime.AmazonLexRuntimeClientBuilder;
-import com.amazonaws.services.lexruntime.model.PostContentRequest;
-import com.amazonaws.services.lexruntime.model.PostContentResult;
+import javax.json.Json;
+import javax.json.JsonArray;
+import javax.json.JsonObject;
+import javax.json.JsonValue;
+
+import software.amazon.awssdk.regions.Region;
+import software.amazon.awssdk.services.lexruntimev2.*;
+import software.amazon.awssdk.services.lexruntimev2.model.RecognizeUtteranceRequest;
+import software.amazon.awssdk.services.lexruntimev2.model.RecognizeUtteranceResponse;
+
+import java.util.*;
 
 
 /**
@@ -26,29 +34,51 @@ public class SpeechToCommand {
 	public SpeechToCommand(Controller controller) {
 		this.controller = controller;
 		
-		builder = AmazonLexRuntimeClient.builder();
-		builder.setRegion("us-east-1");
-		runtime = builder.build();
-		request = new PostContentRequest();
-		
-		provider = new DefaultAWSCredentialsProviderChain();
+        lexRuntimeClient = LexRuntimeV2Client.builder()
+                .region(awsRegion)
+                .build();
+        
 	}
 	
+	/**
+	 * decompresses a gzip compressed byte array into an UTF-8 String
+	 * @param bytes data to decompress
+	 * @return      decompressed data as string
+	 * @throws Exception
+	 */
+	private String decompress(byte[] bytes) throws Exception {
+	    
+	    GZIPInputStream gis = new GZIPInputStream(new ByteArrayInputStream(bytes));
+	    BufferedReader bf = new BufferedReader(new InputStreamReader(gis, "UTF-8"));
+	    String outStr = "";
+	    String line;
+	    while ((line=bf.readLine())!=null) {
+	        outStr += line;
+	    }
+	    return outStr;
+	}
 	
-	synchronized void captureCommand() {
-		final String tmpAwsLexFilename = "/tmp/alarmpilex.wav";
+	/**
+	 * records 3s of audio and performs speech connection thru Amazon Lex
+	 * @return intent as Json object as received from LEX
+	 */
+	synchronized JsonObject captureCommand() {
+		final Path pathRecordingFile = Path.of("/tmp","alarmpilex.wav");
+		final Path pathResponseFile  = Path.of("/tmp","response");
+		
+		JsonObject jsonIntent = null;
 		
 		String device = Configuration.getConfiguration().getSpeechControlDevice();
 		if(device==null) {
-			log.severe("no recording device specified");;
-			return;
+			log.severe("no recording device specified");
+			return null;
 		}
 		
-		log.fine("starting recording of AWS speech control to "+tmpAwsLexFilename);
+		log.fine("starting recording of AWS speech control to "+pathRecordingFile.toString());
 		try {
-	        ProcessBuilder pb = new ProcessBuilder("/usr/bin/arecord", "-f","S16_LE","-r","16000","-d","3","-vv","-D",device,tmpAwsLexFilename);
-	        
+	        ProcessBuilder pb = new ProcessBuilder("/usr/bin/arecord", "-f","S16_LE","-r","16000","-d","3","-vv","-D",device,pathRecordingFile.toString());
 	        // PC: /usr/bin/arecord -f S16_LE -r 16000 -d 3 -vv -D plughw:CARD=Device,DEV=0 /tmp/alarmpilex.wav
+	        
 	        
 	        final Process p=pb.start();
             p.waitFor();
@@ -56,80 +86,152 @@ public class SpeechToCommand {
             
             if(p.exitValue()!=0) {
             	log.severe("arecord returns exit code "+p.exitValue());
+            	feedbackError();
+            	
+            	return null;
             }
-             
-     		FileInputStream inputStream;
-    		try {
-    			log.finest("processing speech control recording");
-    			
-    			log.fine("reading file "+tmpAwsLexFilename);
-    			inputStream = new FileInputStream(tmpAwsLexFilename);
-    			
-	    		request.setRequestCredentialsProvider(provider);
-	    		request.setBotName("AlarmPiGerman");
-	    		request.setBotAlias("AlarmPiGermanProd");
-	    		request.setUserId("AlarmPi");
-	    		request.setContentType("audio/l16; rate=16000; channels=1");
-	    		request.setInputStream(inputStream);
-	    		
-	    		log.finest("sending AWS request");
-	    		PostContentResult result = runtime.postContent(request);
-	    		
-	    		log.fine("result of AWS LEX request: intent="+result.getIntentName()+" slots="+result.getSlots());
-	    		
-	    		log.finest("transcript: "+result.getInputTranscript());
-	    		log.finest("dialog state: "+result.getDialogState());
-	    		log.finest("intent: "+result.getIntentName());
-	    		log.finest("message: "+result.getMessage());
-	    		log.finest("content: "+result.getContentType());
-	    		log.finest("attributes: "+result.getSessionAttributes());
-	    		log.finest("slots: "+result.getSlots());
-	    		
-	    		boolean found = false;
-	    		if(result.getIntentName().equalsIgnoreCase("TurnOn")) {
-	    			turnOn(result.getSlots());
-	    			found = true;
-	    		}
-	    		if(found==false) {
-	    			log.warning("Ein Sprachbefehl wurde nicht verstanden: "+result.getInputTranscript());
-	    			String filename = new TextToSpeech().createPermanentFile("Ich habe dich leider nicht verstanden.");
-	    			SoundControl.getSoundControl().playFile(filename, FEEDBACK_VOLUME, false);
-	    		}
-    		
-    		} catch (FileNotFoundException e) {
-    			log.severe("Unable to find AWS recording file: "+e.getMessage());
-    			feedbackError();
-    		}
+            
+	        // remove old response file (if any)
+	        Path response = Path.of("/tmp","response");
+	        response.toFile().delete();
+	        
+	        // send audio to Amazon Lex
+            RecognizeUtteranceRequest recognizeUtteranceRequest = RecognizeUtteranceRequest.builder()
+            		.botAliasId("TSTALIASID")
+                    .botId("DQMDVGSSDL")
+                    .localeId("de_DE")
+                    .sessionId(UUID.randomUUID().toString())
+                    .requestContentType("audio/x-l16")
+                    .build();
+            RecognizeUtteranceResponse recognizeUtteranceResponse = lexRuntimeClient.recognizeUtterance(recognizeUtteranceRequest, pathRecordingFile, pathResponseFile);
+            
+            byte[] decodedBytes = Base64.getDecoder().decode(recognizeUtteranceResponse.inputTranscript());
+            String decompressedObjectAsString = decompress(decodedBytes);
+            log.fine("transcript="+decompressedObjectAsString);
+            
+            decodedBytes = Base64.getDecoder().decode(recognizeUtteranceResponse.interpretations());
+            decompressedObjectAsString = decompress(decodedBytes);
+            log.fine("interpretations: "+decompressedObjectAsString);
+            
+            // process JSON return data
+            StringReader stringReader = new StringReader(decompressedObjectAsString);
+            JsonArray interpretations = Json.createReaderFactory(null).createReader(stringReader).readArray();
+
+            double highestScore = 0.0;
+            
+            for (JsonValue jsonValue : interpretations) {
+				JsonObject interpretation = jsonValue.asJsonObject();
+				JsonObject jsonNluConfidence= interpretation.getJsonObject("nluConfidence");
+				if(jsonNluConfidence!=null) {
+					Double score = jsonNluConfidence.getJsonNumber("score").doubleValue();
+					JsonObject jsonIntentLocal = interpretation.getJsonObject("intent");
+					String intentName = jsonIntentLocal.getString("name", null);
+					
+					log.fine("found intent: score="+score+" name="+intentName);
+					if(score>highestScore) {
+						highestScore = score;
+						jsonIntent   = interpretation.getJsonObject("intent");
+					}
+				}
+			}
 	      } catch (Exception ex) {
 	    	  log.severe("Exception during recording of AWS speech control command: "+ex.getMessage());
 	    	  feedbackError();
 	    }
+		
+		return jsonIntent;
 	}
 	
-	
-	private void turnOn(String slots) {
-		log.fine("deteced intent: turnOn, slots="+slots);
+	/**
+	 * process a speech command
+	 * @param jsonIntent intent in AWS Lex JSON format
+	 */
+	synchronized void processCommand(JsonObject jsonIntent) {
 		
-		if(slots.contains("Licht")) {
-			log.fine("turning on lights");
-			controller.getLightControlList().stream().filter(light -> light.getClass()!=LightControlPCA9685.class).forEach(light -> light.setBrightness(30));
-		}
-		if(slots.contains("Lichterkette")) {
-			log.fine("turning on light chains");
-			controller.getLightControlList().stream().filter(light -> light.getClass()!=LightControlPCA9685.class).forEach(light -> light.setBrightness(30));
-		}
-		if(slots.contains("Radio")) {
-			log.fine("turning on radio");
-			SoundControl soundControl = SoundControl.getSoundControl();
-			soundControl.on();
-			Alarm.Sound sound = Configuration.getConfiguration().getSoundList().get(0);
-			soundControl.playSound(sound, 50, false);
+		String intentName = jsonIntent.getString("name", null);
+
+		// check for intent: set alarm time for tomorrow
+		if(intentName.equals("SetAlarm")) {
+			log.fine("processing intent SetAlarm");
+			String interpretedValue = getInterpretedValue(jsonIntent, "alarmTime");
+			if(interpretedValue!=null) {
+				log.fine("set alarm: interpreted alarm time="+interpretedValue);
+			}
+			
 		}
 		
+		// check for intent: turn on something
+		if(intentName.equals("TurnOn")) {
+			log.fine("processing intent TurnOn");
+			String interpretedValue = getInterpretedValue(jsonIntent, "item");
+			if(interpretedValue!=null) {
+				log.fine("turn on: interpreted item="+interpretedValue);
+				
+				if(interpretedValue.compareToIgnoreCase("radio")==0) {
+					if(Configuration.getConfiguration().getSpeechControlSound()>0) {
+			    		log.fine("turning radio on");
+			    		SoundControl soundControl = SoundControl.getSoundControl();
+						soundControl.on();
+						Alarm.Sound sound = Configuration.getConfiguration().getSoundList().get(Configuration.getConfiguration().getSpeechControlSound()-1);
+						soundControl.playSound(sound, 50, false);
+						
+						return;
+					}
+				}
+				if(interpretedValue.compareToIgnoreCase("licht")==0) {
+					log.fine("setting lights on");
+					controller.lightsOn();
+					
+					return;
+				}
+
+					
+			}
+		}
+		
+		// check for intent: turn off something
+		if(intentName.equals("TurnOff")) {
+			log.fine("processing intent TurnOff");
+			String interpretedValue = getInterpretedValue(jsonIntent, "item");
+			if(interpretedValue!=null) {
+				log.fine("turn off: interpreted item="+interpretedValue);
+			}
+		}
+		
+		// if we are here, something went wrong
+		log.warning("unknown intent: "+intentName);
+		feedbackError();
 	}
+	
+	/**
+	 * extarcts the interpreted value for a given slot from an AWS Intent
+	 * @param jsonIntent  AWS Lex intent in JSON format
+	 * @param slot        name of slot for which the value should be retrieved
+	 * @return            value for the slot
+	 */
+	private String getInterpretedValue(JsonObject jsonIntent,String slot) {
+		JsonObject jsonSlots = jsonIntent.getJsonObject("slots");
+		if(jsonSlots!=null) {
+			JsonObject jsonSlot = jsonSlots.getJsonObject(slot);
+			if(jsonSlot!=null) {
+				JsonObject jsonValue=jsonSlot.getJsonObject("value");
+				if(jsonValue!=null) {
+					String interpretedValue = jsonValue.getString("interpretedValue");
+					if(interpretedValue!=null) {
+						log.fine("interpreted value for slot "+slot+": "+interpretedValue);
+						return interpretedValue;
+					}
+				}
+			}
+		}
+		
+		return null;
+	}
+	
 	
 	private void feedbackError() {
 		String filename = new TextToSpeech().createPermanentFile("Bei der Sprachsteuerung ist leider ein Fehler aufgetreten");
+		SoundControl.getSoundControl().on();
 		SoundControl.getSoundControl().playFile(filename, FEEDBACK_VOLUME, false);		
 	}
 	
@@ -138,8 +240,10 @@ public class SpeechToCommand {
 	private static final Logger     log             = Logger.getLogger( MethodHandles.lookup().lookupClass().getName() );
 	private              Controller controller;
 	
-	private AmazonLexRuntimeClientBuilder builder;
-	private AmazonLexRuntime              runtime;
-	private PostContentRequest            request;
-	private AWSCredentialsProvider        provider;
+	private Region     		   awsRegion = Region.EU_CENTRAL_1;
+	private LexRuntimeV2Client lexRuntimeClient;
 }
+
+
+
+
