@@ -6,6 +6,8 @@ import java.io.InputStreamReader;
 import java.io.StringReader;
 import java.lang.invoke.MethodHandles;
 import java.nio.file.Path;
+import java.time.LocalTime;
+import java.time.format.DateTimeParseException;
 import java.util.logging.Logger;
 import java.util.zip.GZIPInputStream;
 
@@ -97,7 +99,7 @@ public class SpeechToCommand {
 	        
 	        // send audio to Amazon Lex
             RecognizeUtteranceRequest recognizeUtteranceRequest = RecognizeUtteranceRequest.builder()
-            		.botAliasId("TSTALIASID")
+            		.botAliasId("NCWO5BMP1G")
                     .botId("DQMDVGSSDL")
                     .localeId("de_DE")
                     .sessionId(UUID.randomUUID().toString())
@@ -156,8 +158,28 @@ public class SpeechToCommand {
 			String interpretedValue = getInterpretedValue(jsonIntent, "alarmTime");
 			if(interpretedValue!=null) {
 				log.fine("set alarm: interpreted alarm time="+interpretedValue);
+				
+				try {
+					LocalTime time = LocalTime.parse(interpretedValue+":00");
+					Alarm.setAlarmTomorrow(time);
+					
+					String text = "Der nächste Alarm ist morgen um "+time.getHour()+" Uhr ";
+					if(time.getMinute()!=0) {
+						text += time.getMinute();
+					}
+					String filename = new TextToSpeech().createTempFile(text, "nextAlarmTomorrow.mp3");
+					SoundControl.getSoundControl().on();
+					SoundControl.getSoundControl().playFile(filename, FEEDBACK_VOLUME, false);
+				}
+				catch(DateTimeParseException e) {
+					log.warning("Unable to parse alarm time: "+interpretedValue);
+					feedbackError();
+					
+					return;
+				}
+				
+				return;
 			}
-			
 		}
 		
 		// check for intent: turn on something
@@ -184,8 +206,6 @@ public class SpeechToCommand {
 					
 					return;
 				}
-
-					
 			}
 		}
 		
@@ -195,6 +215,31 @@ public class SpeechToCommand {
 			String interpretedValue = getInterpretedValue(jsonIntent, "item");
 			if(interpretedValue!=null) {
 				log.fine("turn off: interpreted item="+interpretedValue);
+				
+				if(interpretedValue.compareToIgnoreCase("radio")==0) {
+					log.fine("turning radio off");
+					SoundControl.getSoundControl().stop();
+					
+					return;
+				}
+				
+				if(interpretedValue.compareToIgnoreCase("licht")==0) {
+					log.fine("setting lights off");
+					controller.lightsOff();
+					
+					return;
+				}
+				
+				if(interpretedValue.compareToIgnoreCase("wecker")==0) {
+					log.fine("setting alarms for tomorrow off");
+					Alarm.skipAllAlarmsTomorrow();
+					
+					String filename = new TextToSpeech().createPermanentFile("Alle Alarme für morgen sind ausgeschaltet");
+					SoundControl.getSoundControl().on();
+					SoundControl.getSoundControl().playFile(filename, FEEDBACK_VOLUME, false);
+					
+					return;
+				}
 			}
 		}
 		
@@ -210,19 +255,24 @@ public class SpeechToCommand {
 	 * @return            value for the slot
 	 */
 	private String getInterpretedValue(JsonObject jsonIntent,String slot) {
-		JsonObject jsonSlots = jsonIntent.getJsonObject("slots");
-		if(jsonSlots!=null) {
-			JsonObject jsonSlot = jsonSlots.getJsonObject(slot);
-			if(jsonSlot!=null) {
-				JsonObject jsonValue=jsonSlot.getJsonObject("value");
-				if(jsonValue!=null) {
-					String interpretedValue = jsonValue.getString("interpretedValue");
-					if(interpretedValue!=null) {
-						log.fine("interpreted value for slot "+slot+": "+interpretedValue);
-						return interpretedValue;
+		try {
+			JsonObject jsonSlots = jsonIntent.getJsonObject("slots");
+			if(jsonSlots!=null) {
+				JsonObject jsonSlot = jsonSlots.getJsonObject(slot);
+				if(jsonSlot!=null) {
+					JsonObject jsonValue=jsonSlot.getJsonObject("value");
+					if(jsonValue!=null) {
+						String interpretedValue = jsonValue.getString("interpretedValue");
+						if(interpretedValue!=null) {
+							log.fine("interpreted value for slot "+slot+": "+interpretedValue);
+							return interpretedValue;
+						}
 					}
 				}
 			}
+		}
+		catch(NullPointerException e) {
+			log.warning("getInterprestedValue for slot "+slot+" failed");
 		}
 		
 		return null;

@@ -165,11 +165,20 @@ class Controller implements Runnable, IMqttMessageListener{
 	}
 	
 	/**
-	 * turns on all lights
+	 * turns all lights on
 	 */
 	void lightsOn() {
 		if(lightControlList!=null) {
 			lightControlList.stream().forEach(light -> light.setBrightness(30));
+		}
+	}
+	
+	/**
+	 * turns all lights off
+	 */
+	void lightsOff() {
+		if(lightControlList!=null) {
+			lightControlList.stream().forEach(light -> light.setOff());
 		}
 	}
 	

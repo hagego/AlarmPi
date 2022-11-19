@@ -579,6 +579,34 @@ public class Alarm {
 			.orElse(null);
 	}
 	
+	/**
+	 * skips all alarms tomorrow
+	 */
+	static void skipAllAlarmsTomorrow() {
+		alarmList.stream()
+		.filter(alarm -> alarm.getEnabled()==true && alarm.getSkipOnce()==false && alarm.getWeekDays().contains(LocalDate.now().getDayOfWeek().plus(1)))
+		.forEach(alarm -> alarm.setSkipOnce(true));
+		
+		storeAlarmList();
+	}
+	
+	/**
+	 * set a single alarm for the next day
+	 */
+	static void setAlarmTomorrow(LocalTime time) {
+		skipAllAlarmsTomorrow();
+		Alarm alarm = alarmList.get(alarmList.size()-1);
+		
+		alarm.enabled     = true;
+		alarm.skipOnce    = false;
+		alarm.oneTimeOnly = true;
+		alarm.time        = time;
+		alarm.weekDays.clear();
+		alarm.weekDays.add(DayOfWeek.from(LocalDate.now().getDayOfWeek().plus(1)));
+		
+		storeAlarmList();
+	}
+	
 	
 	
 	

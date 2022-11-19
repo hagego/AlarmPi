@@ -11,30 +11,15 @@ import java.util.concurrent.Executors;
 import java.util.logging.LogManager;
 import java.util.logging.Logger;
 
-import javax.json.JsonObject;
 
 import com.pi4j.Pi4J;
-import com.pi4j.common.Metadata;
 import com.pi4j.context.Context;
-import com.pi4j.exception.InitializeException;
 import com.pi4j.exception.Pi4JException;
-import com.pi4j.exception.ShutdownException;
-import com.pi4j.io.i2c.I2C;
-import com.pi4j.io.i2c.I2CConfig;
-import com.pi4j.io.i2c.I2CProvider;
 import com.pi4j.library.pigpio.PiGpio;
-import com.pi4j.plugin.pigpio.PiGpioPlugin;
-import com.pi4j.plugin.pigpio.provider.gpio.digital.PiGpioDigitalInput;
 import com.pi4j.plugin.pigpio.provider.gpio.digital.PiGpioDigitalInputProviderImpl;
 import com.pi4j.plugin.pigpio.provider.gpio.digital.PiGpioDigitalOutputProviderImpl;
-import com.pi4j.plugin.pigpio.provider.i2c.PiGpioI2C;
 import com.pi4j.plugin.pigpio.provider.i2c.PiGpioI2CProviderImpl;
 import com.pi4j.plugin.pigpio.provider.spi.PiGpioSpiProviderImpl;
-import com.pi4j.plugin.raspberrypi.platform.RaspberryPiPlatform;
-import com.pi4j.plugin.raspberrypi.provider.gpio.digital.RpiDigitalInputProviderImpl;
-import com.pi4j.plugin.raspberrypi.provider.gpio.digital.RpiDigitalOutputProviderImpl;
-import com.pi4j.plugin.raspberrypi.provider.i2c.RpiI2CProviderImpl;
-import com.pi4j.provider.Provider;
 
 /**
  * The main class for the AlarmPi daemon application.
@@ -265,10 +250,6 @@ public class AlarmPi {
 			});
 			
 			log.info("AlarmPi main is now finished");
-			
-//			SpeechToCommand speechToCommand = new SpeechToCommand(controller);
-//			JsonObject jsonIntent = speechToCommand.captureCommand();
-//			speechToCommand.processCommand(jsonIntent);
 			
 			return;
 
