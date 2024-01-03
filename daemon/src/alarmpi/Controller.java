@@ -246,6 +246,10 @@ class Controller implements Runnable, IMqttMessageListener{
 						else {
 							// can be null in case no calendar entry exists
 							log.fine("calendar announcement file does not exist");
+							String filename = new TextToSpeech().createPermanentFile("Kein Kalendereintrag");
+							soundControl.on();
+							soundControl.setVolume(Configuration.getConfiguration().getDefaultVolume());
+							soundControl.playFile(filename, null, appendCalendar);
 						}
 					} catch (InterruptedException | ExecutionException exception) {
 						log.severe("Unable to play calendar announcement");
@@ -570,9 +574,6 @@ class Controller implements Runnable, IMqttMessageListener{
 				if(it.hasNext()) {
 					signalSound = it.next();
 					log.fine("found next signal sound: "+signalSound.name);
-				}
-				else {
-					log.fine("keeping signal sound: "+signalSound.name);
 				}
 				
 				if(signalSound!=null) {
