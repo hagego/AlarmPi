@@ -57,7 +57,7 @@ class UI {
     // x/y coordinates to display the various labels
     // 3 rows, 4 columns
     const u_int16_t xCol1 = 10;
-    const u_int16_t xCol2 = 100;
+    const u_int16_t xCol2 = 110;
     const u_int16_t xCol3 = 180;
     const u_int16_t xCol4 = 256;
 

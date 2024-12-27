@@ -82,7 +82,7 @@ void UI::initTouchScreen() {
   ledcAttachPin(LCD_BACK_LIGHT_PIN, PWM_CHANNEL);
 
   // set initial backlight
-  setBacklight(100);
+  setBacklight(30);
 }
 
 // set backlight brightness
@@ -151,8 +151,7 @@ void UI::displayAlarmTime(u_int8_t alarm_h, u_int8_t alarm_m) {
 
 // clears the alarm time display
 void UI::clearAlarmTime() {
-  tft.setTextColor(TFT_BLACK, TFT_BLACK, false);
-  tft.drawString("     ", xCol2, yRow1, 4);
+  tft.fillRect(xCol2, yRow1, xCol3-xCol2, 20, TFT_BLACK);
 }
 
 // updates waste collection display
@@ -163,6 +162,5 @@ void UI::displayWasteCollection(const char* wasteCollection) {
 
 // clears the waste collection display
 void UI::clearWasteCollection() {
-  tft.setTextColor(TFT_BLACK, TFT_BLACK, false);
-  tft.drawString("         ", xCol3, yRow3, 4);
+  tft.fillRect(xCol3, yRow3, SCREEN_WIDTH-xCol3, 20, TFT_BLACK);
 }

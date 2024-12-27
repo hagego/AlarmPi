@@ -2,6 +2,10 @@
 
 #include <WiFi.h>
 #include <WiFiClient.h>
+#include <AsyncTCP.h>
+#include <ESPAsyncWebServer.h>
+#include <ESPAsyncHTTPUpdateServer.h>
+#include <esp_task_wdt.h>
 
 /* AlarmPi Display, based on the following sample code for CYD
 
@@ -35,6 +39,9 @@ const char* mqtt_server = "192.168.178.27";
 
 WiFiClient espClient;
 PubSubClient mqttClient(espClient);
+AsyncWebServer server(80);
+ESPAsyncHTTPUpdateServer updateServer;
+
 UI ui(mqttClient);
 
 // buffer for sprintfs
@@ -47,9 +54,8 @@ uint8_t time_h=0,
 
 // MQTT callback function
 void mqttCallback(char* topic, byte* payload, unsigned int length) {
-  Serial.print("MQTT Message arrived [");
-  Serial.print(topic);
-  Serial.print("] value=");
+  sprintf(buffer,"MQTT Message arrived [%s] length=%d value=",topic,length);
+  Serial.print(buffer);
   for (int i = 0; i < length; i++) {
     Serial.print((char)payload[i]);
   }
@@ -63,6 +69,12 @@ void mqttCallback(char* topic, byte* payload, unsigned int length) {
     uint32_t secondsSinceMidnight = atol(payloadString);
     sprintf(buffer,"received seconds since midnight: %d",secondsSinceMidnight);
     Serial.println(buffer);
+
+    // send old time as alive signal as response
+    sprintf(buffer,"%d",time_h*3600UL+time_m*60UL+time_s);
+    Serial.println("sending alive ping");
+    mqttClient.publish(mqttTopicPublishAlive, buffer);
+
     if(secondsSinceMidnight>86400) {
       secondsSinceMidnight = 86400;
     }
@@ -73,7 +85,7 @@ void mqttCallback(char* topic, byte* payload, unsigned int length) {
   }
 
   if(strcmp(topic,mqttTopicSubscribeNextAlarm)==0) {
-    if(length==0) {
+    if(length<=1) {
       ui.clearAlarmTime();
       return;
     }
@@ -108,7 +120,8 @@ void mqttCallback(char* topic, byte* payload, unsigned int length) {
   }
 
   if(strcmp(topic,mqttTopicSubscribeWasteCollection)==0) {
-    if(length==0) {
+    if(length<=1) {
+      Serial.println("clearing waste collection");
       ui.clearWasteCollection();
       return;
     }
@@ -121,6 +134,9 @@ void mqttCallback(char* topic, byte* payload, unsigned int length) {
   }
 }
 
+void notFound(AsyncWebServerRequest *request) {
+    request->send(404, "text/plain", "AlarmPi Display: Use /update");
+}
 
 void setup() {
   // setup serial
@@ -144,7 +160,7 @@ void setup() {
   }
 
   if(counter>=COUNTER_MAX) {
-    Serial.print(F("Connection failed - restarting"));
+    Serial.println(F("Connection failed - restarting"));
     ESP.restart();
   }
 
@@ -152,19 +168,30 @@ void setup() {
   Serial.print(F("Connected to WiFi, IP address="));
   Serial.println(WiFi.localIP());
 
+  server.on("/", HTTP_GET, [](AsyncWebServerRequest *request){
+    request->send(200, "text/plain", "AlarmPi Display Update Server. Use /update");
+  });
+  server.onNotFound(notFound);
+  
+  updateServer.setup(&server);
+  server.begin();
+
   // connect to MQTT broker
   mqttClient.setServer(mqtt_server, 1883);
   mqttClient.setCallback(mqttCallback);
   
-  sprintf(buffer,"Attempting MQTT connection to broker at %s as client %s-%d",mqtt_server,mqttClientName,ESP.getEfuseMac());
+  char mqttFullClientName[64];
+  sprintf(mqttFullClientName,"%s-%d",mqttClientName,ESP.getEfuseMac());
+  sprintf(buffer,"Attempting MQTT connection to broker at %s as client %s",mqtt_server,mqttFullClientName);
   Serial.println(buffer);
     
   // Attempt to connect
-  sprintf(buffer,"%s-%d",mqttClientName,ESP.getEfuseMac());
-  if (mqttClient.connect(buffer)) {
-    Serial.println(F("MQTT connected"));
+  if (mqttClient.connect(mqttFullClientName)) {
+    sprintf(buffer,"connected to MQTT broker at %s as client %s, local IP=%s",mqtt_server,mqttFullClientName,WiFi.localIP().toString().c_str());
+    Serial.println(buffer);
+
     // Once connected, publish an announcement...
-    mqttClient.publish(mqttTopicPublishConnected, "connected");
+    mqttClient.publish(mqttTopicPublishConnected, buffer);
 
     // subscribe topics
     mqttClient.subscribe(MQTT_PREFIX "#");
@@ -174,20 +201,21 @@ void setup() {
   }
 
   ui.initTouchScreen();
+
+  // initialize watchdog timer to 1 hour
+  esp_task_wdt_init(600, true);
+  esp_task_wdt_add(NULL); // add current task to watchdog
 }
 
 
 
 uint8_t loopCounter = 0;
-
-
-
 void loop() {
   // reconnect to WIFI if needed
   while (WiFi.status() != WL_CONNECTED){
     Serial.println("WIFI disconnected");
     WiFi.begin(WIFI_SSID, WIFI_PSK);
-    uint8_t timeout = 8;
+    uint8_t timeout = 60;
     while (timeout && (WiFi.status() != WL_CONNECTED)) {
       timeout--;
       delay(1000);
@@ -197,21 +225,30 @@ void loop() {
 
       sprintf(buffer,"%s-%d",mqttClientName,ESP.getEfuseMac());
       if (mqttClient.connect(buffer)) {
-        Serial.println(F("MQTT reconnected"));      
-        mqttClient.publish(mqttTopicPublishConnected, "connected");
+        sprintf(buffer,"reconnected in loop() to MQTT broker at %s as client %s-%d, local IP=%s",mqtt_server,mqttClientName,ESP.getEfuseMac(),WiFi.localIP().toString().c_str());
+        Serial.println(buffer);
+
+        // Once connected, publish an announcement...
+        mqttClient.publish(mqttTopicPublishConnected, buffer);
       }
+    }
+    else {
+      Serial.println("WIFI reconnect failed. Rebooting...");
+      // reboot
+      ESP.restart();
     }
   }
 
+  // check for MQTT messages
+  mqttClient.loop();
+
+  // handle touch screen
   ui.handleTouchScreen();
 
   loopCounter++;
-  if(loopCounter==10) {
+  if(loopCounter>=10) {
     // 1 second passed
     loopCounter = 0;
-
-    // check for MQTT messages and adjust time
-    mqttClient.loop();
 
     // adjust time
     time_s++;
@@ -222,10 +259,9 @@ void loop() {
       Serial.print("new minute started: ");
       Serial.println(time_m);
 
-      if(time_m%10==0) {
-        // send alive ping via MQTT every 10s
-        Serial.println("sending alive ping");
-        mqttClient.publish(mqttTopicPublishAlive, "alive");
+      // check MQTT client state and feed watchdog if connected
+      if(mqttClient.connected()) {
+        esp_task_wdt_reset();
       }
 
       if(time_m>=60) {
@@ -239,6 +275,6 @@ void loop() {
     ui.displayTime(time_h,time_m);
   }
 
-  // sleep for 100ms
-  delay(100);
+  // sleep for 98ms
+  delay(98);
 }
