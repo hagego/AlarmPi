@@ -18,3 +18,5 @@ Android/AlarmPi/app/debug/*
 Android/AlarmPi/app/release/*
 Android/AlarmPi/.idea/*
 Android/AlarmPi/.idea/caches/*
+EspWS2801Control/WifiInfo.h
+display/include/WifiInfo.h

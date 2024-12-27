@@ -98,8 +98,11 @@ public class Configuration {
 	private Configuration(Ini ini) {
 		this.iniFile = ini;
 		
+		log.fine("System property os.name: "+System.getProperty("os.name"));
+		log.fine("System property os.arch: "+System.getProperty("os.arch"));
 		if(System.getProperty("os.name").toLowerCase(Locale.ENGLISH).contains("linux")
-				&& System.getProperty("os.arch").toLowerCase(Locale.ENGLISH).contains("arm")) {
+				&& (System.getProperty("os.arch").toLowerCase(Locale.ENGLISH).contains("arm")
+						|| System.getProperty("os.arch").toLowerCase(Locale.ENGLISH).contains("aarch64") )) {
 			runningOnRaspberry = true;
 		}
 		else {
@@ -241,10 +244,11 @@ public class Configuration {
         // mqtt
 		Ini.Section sectionMqtt = ini.get("mqtt");
 		if(sectionMqtt!=null) {
-			mqttAddress     = sectionMqtt.get("address", String.class, null);
-		    mqttPort        = sectionMqtt.get("port", Integer.class, 1883);
-		    mqttKeepAlive   = sectionMqtt.get("keepalive", Integer.class, 60);
-		    mqttTopicPrefix = sectionMqtt.get("topicPrefix", String.class, "alarmpi");
+			mqttAddress            = sectionMqtt.get("address", String.class, null);
+		    mqttPort               = sectionMqtt.get("port", Integer.class, 1883);
+		    mqttKeepAlive          = sectionMqtt.get("keepalive", Integer.class, 60);
+		    mqttTopicPrefix        = sectionMqtt.get("topicPrefix", String.class, "alarmpi");
+		    mqttDisplayTopicPrefix = sectionMqtt.get("topicPrefixDisplay", String.class, null);
 		}
         
 		Ini.Section sectionSpeechControl = ini.get("speechcontrol");
@@ -548,6 +552,13 @@ public class Configuration {
 		return mqttTopicPrefix;
 	}
 	
+	/**
+	 * @return the MQTT prefix for the display or null if not set
+	 */
+	final String getMqttDisplayTopicPrefix() {
+		return mqttDisplayTopicPrefix;
+	}
+	
 	final String getSpeechControlDevice() {
 		return speechControlDevice;
 	}
@@ -603,6 +614,7 @@ public class Configuration {
 		else {
 			dump += "  MQTT broker: address="+mqttAddress+" port="+mqttPort+"\n";
 			dump += "  MQTT topic prefix="+mqttTopicPrefix+"\n";
+			dump += "  MQTT topic prefix display="+mqttDisplayTopicPrefix+"\n";
 		}
 		
 		if(externalAlarms==null) {
@@ -652,6 +664,7 @@ public class Configuration {
 	private Integer                          mqttPort;                  // MQTT broker port
 	private Integer                          mqttKeepAlive;             // MQTT keepalive interval in seconds
 	private String                           mqttTopicPrefix;           // MQTT topic prefix
+	private String                           mqttDisplayTopicPrefix;    // MQTT topic prefix of display or null
 	private String                           speechControlDevice;
 	private Integer                          speechControlSound;
 	private Map<String,String>               externalAlarms;            // a map with external alarms

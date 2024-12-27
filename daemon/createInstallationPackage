@@ -1,1 +1,2 @@
+mvn install
 tar cvfz alarmpi.tar.gz conf res scripts target/libs target/alarmpi.jar www

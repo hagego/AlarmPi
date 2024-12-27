@@ -29,8 +29,6 @@ public class TcpServer implements Runnable {
 			try {
 				Socket clientSocket = serverSocket.accept();
 				switch(type) {
-					case CMD: threadPool.execute(new TcpRequestHandler(controller, clientSocket));
-						break;
 					case JSON: threadPool.execute(new JsonRequestHandler(controller, clientSocket));
 						break;
 					default: log.severe("Unknown server type: "+type);
@@ -53,7 +51,7 @@ public class TcpServer implements Runnable {
 	//
 	private static final Logger log = Logger.getLogger( TcpServer.class.getName() );
 	
-	public enum Type {CMD,JSON};                          // defines protocol
+	public enum Type {JSON};                          // defines protocol
 	
 	private final Type            type;
 	private final ServerSocket    serverSocket;

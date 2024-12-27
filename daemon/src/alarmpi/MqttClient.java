@@ -123,9 +123,9 @@ public class MqttClient implements MqttCallbackExtended{
 	}
 	
 	/**
-	 * publishes an MQTT topic
-	 * @param topic  topic to publish to
-	 * @param data   data to publish
+	 * publishes an MQTT topic using the prefix specified in the configuration file
+	 * @param topic  topic to publish
+	 * @param data   data to publish or null
 	 */
 	public void publish(String topic,String data) {
 		if(topic==null || topic.length()==0) {
@@ -139,7 +139,7 @@ public class MqttClient implements MqttCallbackExtended{
 		}
 		
 		try {
-			log.fine("publishing topic "+topic+" to MQTT, value="+data);;
+			log.fine("publishing MQTT topic "+topic+", value="+data);;
 			mqttClient.publish(getFullyQualifiedTopic(topic), data.getBytes(), 0, false);
 		} catch (MqttException e) {
 			log.severe("Unable to publish MQTT topic "+topic+", data="+data);
@@ -147,9 +147,54 @@ public class MqttClient implements MqttCallbackExtended{
 		}
 	}
 	
+	/**
+	 * publishes an MQTT topic using the display prefix specified in the configuration file
+	 * @param topic topic to display
+	 * @param data  data to publish or null
+	 */
+	public void publishToDisplay(String topic,String data) {
+		if(topic==null || topic.length()==0) {
+			log.severe("Invalid topic name to publish: "+topic);
+			
+			return;
+		}
+				
+		if(data==null) {
+			data = new String();
+		}
+		
+		try {
+			log.fine("publishing MQTT Display topic "+topic+", value="+data);
+			mqttClient.publish(getFullyQualifiedDisplayTopic(topic), data.getBytes(), 0, false);
+		} catch (MqttException e) {
+			log.severe("Unable to publish MQTT Display topic "+topic+", data="+data);
+			log.severe(e.getMessage());
+		}
+	}
+	
+	
 	private String getFullyQualifiedTopic(String topic) {
 		String fullTopic;
 		String prefix = Configuration.getConfiguration().getMqttTopicPrefix();
+		
+		if(prefix==null || prefix.length()==0) {
+			fullTopic = topic;
+		}
+		else {
+			if(prefix.endsWith("/")) {
+				fullTopic = prefix+topic;
+			}
+			else {
+				fullTopic = prefix+"/"+topic;
+			}
+		}
+		
+		return fullTopic;
+	}
+	
+	private String getFullyQualifiedDisplayTopic(String topic) {
+		String fullTopic;
+		String prefix = Configuration.getConfiguration().getMqttDisplayTopicPrefix();
 		
 		if(prefix==null || prefix.length()==0) {
 			fullTopic = topic;
@@ -171,8 +216,12 @@ public class MqttClient implements MqttCallbackExtended{
 		isConnected.set(false);
 		
 		log.severe("connection to MQTT broker lost: "+t.getMessage());
+		for(var e:t.getStackTrace()) {
+			log.severe(e.toString());
+		}
+		
 		if(t.getCause()!=null) {
-			log.severe("connection to MQTT broker lost cause: "+t.getCause().getMessage());
+			log.severe("connection to MQTT broker lost cause: "+t.getCause().toString());
 		}
 	}
 

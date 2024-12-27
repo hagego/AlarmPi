@@ -157,39 +157,6 @@ public class AlarmPi {
 			// prepare threads for TCP servers
 			final ExecutorService threadPool = Executors.newCachedThreadPool();
 			
-			// start TCP server to listen for external commands
-			if(configuration.getPort()==null) {
-				// no port specified (or set to 0)
-				log.warning("No TCP cmd server port specified - no server is started");
-			}
-			else {
-			    try {
-			    	final ServerSocket cmdServerSocket  = new ServerSocket(configuration.getPort());
-					
-					Thread cmdServerThread = new Thread(new TcpServer(TcpServer.Type.CMD,controller,cmdServerSocket,threadPool));
-					cmdServerThread.setDaemon(true);
-					cmdServerThread.setUncaughtExceptionHandler(handler);
-					cmdServerThread.start();
-					
-				    Runtime.getRuntime().addShutdownHook( new Thread() {
-						public void run() {
-							log.info("shutdown hook started to shut down command server");
-							
-							try {
-								cmdServerSocket.close();
-								log.info("command server socket closed");
-							}
-							catch (IOException  e) {
-								log.severe("Exception during shutdown: "+e);
-							}
-						}
-					});
-				} catch (IOException e) {
-					log.severe("Unable to create server socket for remote client access on port "+configuration.getPort());
-					log.severe(e.getMessage());
-				}
-			}
-			
 			if(configuration.getJsonServerPort()==null) {
 				// no port specified (or set to 0)
 				log.severe("No HTTP JSON server port specified - no server is started");

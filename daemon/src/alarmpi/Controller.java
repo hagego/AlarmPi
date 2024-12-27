@@ -35,6 +35,7 @@ import com.pi4j.io.gpio.digital.DigitalStateChangeListener;
 import com.pi4j.io.gpio.digital.PullResistance;
 
 import alarmpi.Alarm.Sound.Type;
+import alarmpi.GoogleCalendar.Mode;
 
 /**
  * This class implements the main endless control loop that gets started
@@ -149,17 +150,17 @@ class Controller implements Runnable, IMqttMessageListener{
 		mqttSendAliveInterval = Configuration.getConfiguration().getValue("mqtt", "sendAliveInterval", 30);
 
 		// subscribe to MQTT topics
-		MqttClient.getMqttClient().subscribe(MQTT_TOPIC_LIGHT, this);
-		MqttClient.getMqttClient().subscribe(MQTT_TOPIC_TEMPERATURE, this);
-		MqttClient.getMqttClient().subscribe(MQTT_TOPIC_OFF, this);
+		MqttClient.getMqttClient().subscribe(MQTT_TOPIC_SUB_LIGHT, this);
+		MqttClient.getMqttClient().subscribe(MQTT_TOPIC_SUB_TEMPERATURE, this);
+		MqttClient.getMqttClient().subscribe(MQTT_TOPIC_SUB_ALL_OFF, this);
 		
 		if(externalAlarmCount>0) {
-			MqttClient.getMqttClient().subscribe(MQTT_TOPIC_EXTERNAL_ALARM, this);
+			MqttClient.getMqttClient().subscribe(MQTT_TOPIC_SUB_EXTERNAL_ALARM, this);
 		}
 		
 		// send initial MQTT alive message
 		log.fine("publishing sign of life to MQTT");;
-		MqttClient.getMqttClient().publish(MQTT_TOPIC_ALIVE, LocalDateTime.now().toString());
+		MqttClient.getMqttClient().publish(MQTT_TOPIC_PUB_ALIVE, LocalDateTime.now().toString());
 		
 		log.info("initialization done");
 	}
@@ -327,6 +328,7 @@ class Controller implements Runnable, IMqttMessageListener{
 		LocalDate date = LocalDate.now().minusDays(1);
 		LocalTime time = LocalTime.now();
 		int watchDogCounter = watchDogCounterMax;
+		int lastHour = 0;
 		
 		// load alarm list
 		Alarm.restoreAlarmList();
@@ -353,8 +355,45 @@ class Controller implements Runnable, IMqttMessageListener{
 					if(LocalTime.now().minusMinutes(mqttSendAliveInterval).isAfter(time)) {
 						log.fine("publishing sign of life to MQTT");;
 						
-						MqttClient.getMqttClient().publish(MQTT_TOPIC_ALIVE, LocalDateTime.now().toString());
+						MqttClient.getMqttClient().publish(MQTT_TOPIC_PUB_ALIVE, LocalDateTime.now().toString());
 						time = LocalTime.now();
+					}
+				}
+				
+				// check for new hour
+				if(LocalTime.now().getHour()!=lastHour) {
+					log.fine("New hour detected");
+					lastHour = LocalTime.now().getHour();
+
+					// publish waste collection
+					GoogleCalendar calendar = new GoogleCalendar();
+					calendar.connect();
+					List<String> calendarEntries = calendar.getCalendarEntries(lastHour>=12 ? Mode.TOMORROW : Mode.TODAY);
+					String textToPublish = new String();
+					for(String entry:calendarEntries) {
+						// strip of 'müll' to save characters
+						int pos = entry.indexOf("müll");
+						if(pos!=-1) {
+							textToPublish += entry.substring(pos) + " ";
+						}
+						else {
+							textToPublish += entry + " ";
+						}
+					}
+					log.fine("publishing waste collection to display: "+textToPublish);
+					MqttClient.getMqttClient().publishToDisplay(MQTT_TOPIC_PUB_DISPLAY_WASTE_COLLECTION, textToPublish);
+					
+					// publish next alarm
+					Alarm alarm = lastHour>=12 ? Alarm.getNextAlarmTomorrow() : Alarm.getNextAlarmToday();
+					if(alarm!=null) {
+						// AlarmPi Display expects next alarm time as second of day
+						int nextAlarm = alarm.getTime().getHour()*3600 + alarm.getTime().getMinute()*60;
+						log.fine(String.format("publishing nextAlarm to Display. Time=%s, seconds of day: %d", alarm.getTime().toString(),nextAlarm));
+						MqttClient.getMqttClient().publishToDisplay(MQTT_TOPIC_PUB_DISPLAY_NEXT_ALARM, Integer.toString(nextAlarm));
+					}
+					else {
+						log.fine("publishing nextAlarm to Display: Clearing");
+						MqttClient.getMqttClient().publishToDisplay(MQTT_TOPIC_PUB_DISPLAY_NEXT_ALARM, null);
 					}
 				}
 				
@@ -363,7 +402,7 @@ class Controller implements Runnable, IMqttMessageListener{
 					date = LocalDate.now();
 					log.fine("New day detected, adding alarms for "+date);
 					
-					// create all the events for the alarms of today
+					// create all the events for the alarms of todayMQTT_TOPIC_PUB_ALARMLIST))
 					deleteAlarmEvents();
 					Alarm.getAlarmList().stream().forEach(alarm -> addAlarmEvents(alarm));
 					
@@ -376,11 +415,30 @@ class Controller implements Runnable, IMqttMessageListener{
 					JsonObject jsonObject = builder.build();
 					log.finest("created JSON object:\n"+jsonObject.toString());
 					
-					MqttClient.getMqttClient().publish(MQTT_TOPIC_ALARMLIST, jsonObject.toString());
+					MqttClient.getMqttClient().publish(MQTT_TOPIC_PUB_ALARMLIST, jsonObject.toString());
 				}
 				
-				// check if an alarm was modified and the events need to be processed
-				Alarm.getModifiedAlarmList().stream().forEach(alarm -> updateAlarmEvents(alarm));
+				// check if an alarm was modified and its events need to be processed
+				Alarm.getModifiedAlarmList().stream().forEach(alarm -> {
+					updateAlarmEvents(alarm);
+					
+					// ensure that AlarmPi Display gets updated if needed
+					Alarm nextAlarm = Alarm.getNextAlarmToday();
+					if(nextAlarm==null) {
+						nextAlarm = Alarm.getNextAlarmTomorrow();
+					}
+					if(nextAlarm!=null) {
+						int nextAlarmAsSecondsOfDay = alarm.getTime().getHour()*3600 + alarm.getTime().getMinute()*60;
+						log.fine(String.format("Publishing nextAlarm to Display. Time= %02d:%02d, secondsOfDay=%d",
+								nextAlarm.getTime().getHour(),nextAlarm.getTime().getMinute(),nextAlarmAsSecondsOfDay));
+						MqttClient.getMqttClient().publishToDisplay(MQTT_TOPIC_PUB_DISPLAY_NEXT_ALARM, Integer.toString(nextAlarmAsSecondsOfDay));
+						
+					}
+					else {
+						log.fine("publishing nextAlarm to Display: Clearing");
+						MqttClient.getMqttClient().publishToDisplay(MQTT_TOPIC_PUB_DISPLAY_NEXT_ALARM, null);
+					}
+				});
 				
 				// check if an event needs to be processed
 				checkForEventsToProcess();
@@ -672,6 +730,11 @@ class Controller implements Runnable, IMqttMessageListener{
 	synchronized private void addAlarmEvents(Alarm alarm) {
 		log.fine("addAlarmEvents called for alarm ID="+alarm.getId()+" at time="+alarm.getTime());
 		
+		if(!alarm.getEnabled()) {
+			log.fine("alarm disabled");
+			return;
+		}
+		
 		if(!alarm.getWeekDays().contains(LocalDate.now().getDayOfWeek())) {
 			log.fine("alarm not scheduled for today");
 			return;
@@ -681,12 +744,6 @@ class Controller implements Runnable, IMqttMessageListener{
 			log.fine("alarm time has already passed");
 			return;
 		}
-		
-		if(!alarm.getEnabled()) {
-			log.fine("alarm disabled");
-			return;
-		}
-		
 		
 		generateAlarmEvents(alarm);
 
@@ -904,7 +961,7 @@ class Controller implements Runnable, IMqttMessageListener{
 			JsonObject jsonObject = builder.build();
 			log.finest("created JSON object:\n"+jsonObject.toString());
 			
-			MqttClient.getMqttClient().publish(MQTT_TOPIC_ALARMLIST,jsonObject.toString());
+			MqttClient.getMqttClient().publish(MQTT_TOPIC_PUB_ALARMLIST,jsonObject.toString());
 			
 			break;
 		case ALARM_END:
@@ -1037,8 +1094,8 @@ class Controller implements Runnable, IMqttMessageListener{
 		            			
 		            			// publish to MQTT broker (if configured)
 		            			if(mqttClient!=null) {
-	            					log.fine("publishing long click topic: "+MQTT_TOPIC_LONGCLICK);
-            						mqttClient.publish(MQTT_TOPIC_LONGCLICK, null);
+	            					log.fine("publishing long click topic: "+MQTT_TOPIC_PUB_BUTTON_CLICK_LONG);
+            						mqttClient.publish(MQTT_TOPIC_PUB_BUTTON_CLICK_LONG, null);
 		            			}
 		            			
 		            			allOff(activeAlarm==null);
@@ -1070,8 +1127,8 @@ class Controller implements Runnable, IMqttMessageListener{
 	    						
 		            			// publish to MQTT broker (if configured)
 		            			if(mqttClient!=null) {
-	            					log.fine("publishing short click topic: "+MQTT_TOPIC_SHORTCLICK);
-            						mqttClient.publish(MQTT_TOPIC_SHORTCLICK, null);
+	            					log.fine("publishing short click topic: "+MQTT_TOPIC_PUB_BUTTON_CLICK_SHORT);
+            						mqttClient.publish(MQTT_TOPIC_PUB_BUTTON_CLICK_SHORT, null);
 		            			}
 	    					}
 	        			}
@@ -1119,7 +1176,7 @@ class Controller implements Runnable, IMqttMessageListener{
 	public void messageArrived(String topic, MqttMessage message) throws Exception {
 		log.fine("MQTT message arrived: topic="+topic+" content="+message);
 
-		if(topic.endsWith(MQTT_TOPIC_LIGHT)) {
+		if(topic.endsWith(MQTT_TOPIC_SUB_LIGHT)) {
 			log.fine("MQTT light control message arrived. content="+message);
 			try {
 				int brightness = Integer.parseInt(message.toString());
@@ -1132,7 +1189,7 @@ class Controller implements Runnable, IMqttMessageListener{
 			}
 		}
 		
-		if(topic.endsWith(MQTT_TOPIC_TEMPERATURE)) {
+		if(topic.endsWith(MQTT_TOPIC_SUB_TEMPERATURE)) {
 			log.fine("MQTT temperature update message arrived. content="+message);
 			
 			if(message.getPayload().length>0) {
@@ -1152,12 +1209,12 @@ class Controller implements Runnable, IMqttMessageListener{
 			}
 		}
 		
-		if(topic.endsWith(MQTT_TOPIC_OFF)) {
-			log.fine("MQTT OFF message arrived");
-			allOff(false);
+		if(topic.endsWith(MQTT_TOPIC_SUB_ALL_OFF)) {
+			log.fine("MQTT allOff message arrived");
+			allOff(true);
 		}
 		
-		if(topic.endsWith(MQTT_TOPIC_EXTERNAL_ALARM)) {
+		if(topic.endsWith(MQTT_TOPIC_SUB_EXTERNAL_ALARM)) {
 			log.fine("MQTT externalAlarm message arrived, alarm ID="+message.toString());
 			
 			raiseExternalAlarm(message.toString());
@@ -1188,13 +1245,34 @@ class Controller implements Runnable, IMqttMessageListener{
 	private LocalDateTime temperatureLastUpdate = null;
 	
 	// MQTT topics
-	private final static String MQTT_TOPIC_ALARMLIST      = "alarmlist";     // published topic, contains alarm list in JSON format 
-	private final static String MQTT_TOPIC_SHORTCLICK     = "shortclick";    // published topic, published after a button short click
-	private final static String MQTT_TOPIC_LONGCLICK      = "longclick";     // published topic, published after a button long click
-	private final static String MQTT_TOPIC_LIGHT          = "light";         // command topic, turns on/off the lights
-	private final static String MQTT_TOPIC_TEMPERATURE    = "temperature";   // command topic, sets the actual, measured temperature
-	private final static String MQTT_TOPIC_OFF            = "off";           // command topic, turns all off
-	private final static String MQTT_TOPIC_EXTERNAL_ALARM = "externalAlarm"; // command topic, receives an external alarm
-	private final static String MQTT_TOPIC_ALIVE          = "alive";         // published topic, send alive signal
+	// gets published whenever an alarm got modified, contains alarmlist in JSON format
+	private final static String MQTT_TOPIC_PUB_ALARMLIST         = "alarmlist";
 	
+	// gets published after a long button click
+	private final static String MQTT_TOPIC_PUB_BUTTON_CLICK_LONG = "buttonClickLong";
+	
+	// gets published after a short button click
+	private final static String MQTT_TOPIC_PUB_BUTTON_CLICK_SHORT = "buttonClickShort";
+	
+	// gets published once per hour to indicate AlarmPi is alive
+	private final static String MQTT_TOPIC_PUB_ALIVE             = "alive";
+	
+	// publish to this topic to set the temperature reported by alarmpi (NUMBER)
+	private final static String MQTT_TOPIC_SUB_TEMPERATURE       = "temperature";
+	
+	// publish to this topic to switch local light and alarm off
+	private final static String MQTT_TOPIC_SUB_ALL_OFF           = "allOff";
+	
+	// publish to this topic to set light brightness (NUMBER)
+	private final static String MQTT_TOPIC_SUB_LIGHT             = "light";
+	
+	// publish to this topic to trigger an alarm message
+	private final static String MQTT_TOPIC_SUB_EXTERNAL_ALARM    = "externalAlarm";
+	
+	// MQTT topics to publish to display
+	// publish this topic to set waste collection text
+	private final static String MQTT_TOPIC_PUB_DISPLAY_WASTE_COLLECTION = "wasteCollection";
+	
+	// publish this topic to display next alarm time
+	private final static String MQTT_TOPIC_PUB_DISPLAY_NEXT_ALARM       = "nextAlarm";
 }
