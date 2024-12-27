@@ -20,3 +20,4 @@ Android/AlarmPi/.idea/*
 Android/AlarmPi/.idea/caches/*
 EspWS2801Control/WifiInfo.h
 display/include/WifiInfo.h
+daemon/res/GoogleCalendarCredentials.json
