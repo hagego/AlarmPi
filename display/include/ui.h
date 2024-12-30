@@ -19,8 +19,8 @@ class UI {
     // sets the backlight brightness in percent
     void setBacklight(u_int8_t brightness);
 
-    // handle touch screen events
-    void handleTouchScreen();
+    // handle touch screen events. Returns true if a touch event was detected
+    bool handleTouchScreen();
 
     // updates time of day
     void displayTime(u_int8_t time_h, u_int8_t time_m);

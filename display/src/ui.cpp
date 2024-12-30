@@ -80,9 +80,6 @@ void UI::initTouchScreen() {
   // initialize backlight control 
   ledcSetup(PWM_CHANNEL, PWM_FREQ, PWM_RESOLUTION);
   ledcAttachPin(LCD_BACK_LIGHT_PIN, PWM_CHANNEL);
-
-  // set initial backlight
-  setBacklight(30);
 }
 
 // set backlight brightness
@@ -95,8 +92,8 @@ void UI::setBacklight(u_int8_t brightness) {
 
 
 // handle touch screen events
-void UI::handleTouchScreen() {
-    if (touchscreen.tirqTouched() && touchscreen.touched()) {
+bool UI::handleTouchScreen() {
+  if (touchscreen.tirqTouched() && touchscreen.touched()) {
     // Get Touchscreen points
     TS_Point p = touchscreen.getPoint();
     // Calibrate Touchscreen points with map function to the correct width and height
@@ -124,7 +121,11 @@ void UI::handleTouchScreen() {
       Serial.println("light off button pressed");
       mqttClient.publish(mqttTopicPublishButtonLightOff, "");
     }
+
+    return true;
   }
+
+  return false;
 }
 
 // updates time of day

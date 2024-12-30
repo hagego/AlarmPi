@@ -37,6 +37,10 @@
 // MQTT broker IP address
 const char* mqtt_server = "192.168.178.27";
 
+// display brightness in percent
+const uint8_t displayBrightnessDefault    = 10;
+const uint8_t displayBrightnessAfterTouch = 100;
+
 WiFiClient espClient;
 PubSubClient mqttClient(espClient);
 AsyncWebServer server(80);
@@ -147,6 +151,7 @@ void setup() {
 
     // Connect to WiFi network
   WiFi.mode(WIFI_STA);
+  WiFi.hostname("AlarmPiDisplay");
   Serial.print(F("Connecting to SID "));
   Serial.println(WIFI_SSID);
   WiFi.begin(WIFI_SSID, WIFI_PSK);
@@ -201,6 +206,7 @@ void setup() {
   }
 
   ui.initTouchScreen();
+  ui.setBacklight(displayBrightnessDefault);
 
   // initialize watchdog timer to 1 hour
   esp_task_wdt_init(600, true);
@@ -210,6 +216,8 @@ void setup() {
 
 
 uint8_t loopCounter = 0;
+int8_t  displayBrightnessCounter = -1;
+
 void loop() {
   // reconnect to WIFI if needed
   while (WiFi.status() != WL_CONNECTED){
@@ -243,12 +251,25 @@ void loop() {
   mqttClient.loop();
 
   // handle touch screen
-  ui.handleTouchScreen();
+  if(ui.handleTouchScreen()) {
+    // increase display brightness for 10 seconds
+    ui.setBacklight(displayBrightnessAfterTouch);
+    displayBrightnessCounter = 0;
+  }
 
   loopCounter++;
   if(loopCounter>=10) {
     // 1 second passed
     loopCounter = 0;
+
+    // leave display on for 10 seconds after last touch
+    if(displayBrightnessCounter>=0) {
+      displayBrightnessCounter++;
+      if(displayBrightnessCounter>=10) {
+        ui.setBacklight(displayBrightnessDefault);
+        displayBrightnessCounter = -1;
+      }
+    }
 
     // adjust time
     time_s++;

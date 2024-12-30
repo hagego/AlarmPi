@@ -3,10 +3,6 @@
 
 // definition of MQTT related constants
 
-// mosquitto 1.3.4 speaks MQTT Version 3.1
-// change to MQTT_VERSION MQTT_VERSION_3_1_1 after upgrade to 1.3.5 or higher
-#define MQTT_VERSION MQTT_VERSION_3_1
-
 // MQTT client name
 extern const char* mqttClientName;
 
