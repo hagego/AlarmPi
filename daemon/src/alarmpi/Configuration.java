@@ -53,6 +53,9 @@ public class Configuration {
 		int     pwmFullScale;          // pwm full scale
 		boolean pwmInversion = false;  // invert PWM value if set to true
 		int     ledId;                 // ID of LED to control (PCA9685 only)
+		int     skipFarEnd;            // # of LEDs to skip on far end of LED strip (WS2801 only)
+		int     skipNearEnd;           // # of LEDs to skip on near end of LED strip (WS2801 only)
+		int     count;                 // # of activeLEDs to control (WS2801 only)
 	}
 	
 	/**
@@ -174,6 +177,9 @@ public class Configuration {
 		    	lightControlSettingItem.pwmOffset     = sectionLightControl.get("pwmOffset", Integer.class, 0);
 		    	lightControlSettingItem.pwmFullScale  = sectionLightControl.get("pwmFullScale", Integer.class, 0);
 		    	lightControlSettingItem.ledId         = sectionLightControl.get("ledId", Integer.class, 0);
+				lightControlSettingItem.skipFarEnd    = sectionLightControl.get("skipFarEnd", Integer.class, 0);
+				lightControlSettingItem.skipNearEnd   = sectionLightControl.get("skipNearEnd", Integer.class, 0);
+				lightControlSettingItem.count         = sectionLightControl.get("count", Integer.class, 0);
 	    	}
 	    	else {
 	    		lightControlSettingItem.type = LightControlSettings.Type.NONE;
@@ -239,7 +245,8 @@ public class Configuration {
         
         // weather
 		Ini.Section sectionWeather = ini.get("weather");
-		weatherLocation = sectionWeather.get("location", String.class, "");
+		weatherLocationLongitude = sectionWeather.get("longitude", Double.class, null);
+		weatherLocationLatitude  = sectionWeather.get("latitude", Double.class, null);
         
         // mqtt
 		Ini.Section sectionMqtt = ini.get("mqtt");
@@ -495,12 +502,19 @@ public class Configuration {
 	String getMpdTmpSubDir() {
 		return mpdTmpSubDir;
 	}
-	
+
 	/**
-	 * @return the Open Weather Map location
+	 * @return the Open Weather Map location longitude
 	 */
-	String getWeatherLocation() {
-		return weatherLocation;
+	Double getWeatherLocationLongitude() {
+		return weatherLocationLongitude;
+	}
+
+	/**
+	 * @return the Open Weather Map location latitude
+	 */
+	Double getWeatherLocationLatitude() {
+		return weatherLocationLatitude;
 	}
 	
 	/**
@@ -592,13 +606,14 @@ public class Configuration {
 		dump += "  mpdFiles="+mpdFiles+" mpdTmpSubDir="+mpdTmpSubDir+"\n";
 		dump += "  cmdServerPort="+port+"\n";
 		dump += "  jsonServerPort="+jsonServerPort+"\n";
-		dump += "  weather location="+weatherLocation+"\n";
+		dump += "  weather location longitude="+weatherLocationLongitude+" latitude="+weatherLocationLatitude+"\n";
 		
 		dump += "  lights\n";
 		for(LightControlSettings lightControlSettings:lightControlSettingsList) {
-			dump += "    id="+lightControlSettings.id+" type="+lightControlSettings.type+" name="+lightControlSettings.name+" deviceAddress=" + lightControlSettings.deviceAddress;
-			dump += "    pwmInversion="+lightControlSettings.pwmInversion+" pwmOffset="+lightControlSettings.pwmOffset+" pwmFullScale="+lightControlSettings.pwmFullScale;
+			dump += "    id="+lightControlSettings.id+" type="+lightControlSettings.type+" name="+lightControlSettings.name+" deviceAddress=" + lightControlSettings.deviceAddress +"\n";
+			dump += "    pwmInversion="+lightControlSettings.pwmInversion+" pwmOffset="+lightControlSettings.pwmOffset+" pwmFullScale="+lightControlSettings.pwmFullScale + "\n";
 			dump += "    ledId: "+lightControlSettings.ledId+"\n";
+			dump += "    skipFarEnd="+lightControlSettings.skipFarEnd+" skipNearEnd="+lightControlSettings.skipNearEnd+" count="+lightControlSettings.count+"\n";
 		}
 		
 		dump += "  button settings:\n";
@@ -656,7 +671,8 @@ public class Configuration {
 	private int                              mpdPort;                   // mpd network port
 	private String                           mpdFiles;                  // directory for MPD sound files
 	private String                           mpdTmpSubDir;              // subdirectory for MPD temporary sound files
-	private String                           weatherLocation;           // Open Weather Map location for weather forecast
+	private Double                           weatherLocationLongitude;  // Open Weather Map location for weather forecast: longiture
+	private Double                           weatherLocationLatitude;   // Open Weather Map location for weather forecast: latitude
 	private List<LightControlSettings>       lightControlSettingsList;  // list of light control settings
 	private List<ButtonSettings>             buttonSettingsList;        // list of button settings
 	private String                           googleCalendarSummary;     // summary name of google calendar (or null)

@@ -19,7 +19,7 @@ public class CalendarProvider implements Callable<String> {
 
 	@Override
 	public String call() throws Exception {
-		log.fine("Retrieveing calendar entries for today");
+		log.fine("Retrieveing calendar entries for "+mode.toString());
 		
 		GoogleCalendar calendar = new GoogleCalendar();
 		if( calendar.connect() ) {

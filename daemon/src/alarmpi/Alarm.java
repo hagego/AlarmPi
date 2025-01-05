@@ -513,6 +513,7 @@ public class Alarm {
 			FileWriter writer = new FileWriter(storagePath.toFile());
 			writer.write(jsonArray.toString());
 			writer.flush();
+			writer.close();
 		} catch (IOException e) {
 			log.severe("Unable to store alarm list as file: "+e.getMessage());
 		}

@@ -65,7 +65,7 @@ class Controller implements Runnable, IMqttMessageListener{
 					break;
 				case WS2801:
 					log.config("creating light control for WS2801");
-					lightControlList.add(new LightControlWS2801(setting.id,setting.name,pi4j));
+					lightControlList.add(new LightControlWS2801(setting.id,setting.name,setting.skipFarEnd,setting.skipNearEnd,setting.count,pi4j));
 					break;
 				case NRF24LO1:
 					log.config("creating light control for nRF24LO1 remote control");
@@ -228,6 +228,7 @@ class Controller implements Runnable, IMqttMessageListener{
 			}
 			
 			if(calendarAnnouncementFile!=null) {
+				log.fine("waiting for calendar announcement file to be created");
 				int retries = 0;
 				while(!calendarAnnouncementFile.isDone() && retries<5) {
 					// wait 1 s
@@ -237,6 +238,7 @@ class Controller implements Runnable, IMqttMessageListener{
 					retries++;
 				}
 				if(calendarAnnouncementFile.isDone()) {
+					log.fine("calendar announcement file created, retries="+retries);
 					try {
 						String file = calendarAnnouncementFile.get();
 						if(file!=null && !file.isEmpty()) {
