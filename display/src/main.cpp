@@ -32,13 +32,13 @@
 
 
 // speed of serial interface for debug messages
-#define SERIAL_SPEED 115200
+#define SERIAL_SPEED 57600
 
 // MQTT broker IP address
 const char* mqtt_server = "192.168.178.27";
 
 // display brightness in percent
-const uint8_t displayBrightnessDefault    = 10;
+const uint8_t displayBrightnessDefault    = 8;
 const uint8_t displayBrightnessAfterTouch = 100;
 
 WiFiClient espClient;
@@ -205,8 +205,12 @@ void setup() {
     Serial.println(F("connection failed"));
   }
 
+  // initialize display
   ui.initTouchScreen();
   ui.setBacklight(displayBrightnessDefault);
+
+  // set default display
+  ui.setDefaultDisplay();
 
   // initialize watchdog timer to 1 hour
   esp_task_wdt_init(600, true);

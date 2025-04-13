@@ -7,14 +7,17 @@
 extern const char* mqttClientName;
 
 // MQTT topics
-#define MQTT_PREFIX "alarmpi/display/"
+#define MQTT_PREFIX "alarmpi/testdisplay/"
 
 // topics to publish
 extern const char* mqttTopicPublishConnected;                   // published after connect
 extern const char* mqttTopicPublishAlive;                       // published periodically as alive signal
 extern const char* mqttTopicPublishButtonLightOn;               // published when light on button is pushed
 extern const char* mqttTopicPublishButtonLightOff;              // published when light on button is pushed
+extern const char* mqttTopicPublishButtonRadioOn;               // published when radio on button is pushed
+extern const char* mqttTopicPublishButtonRadioOff;              // published when radio off button is pushed
 extern const char* mqttTopicPublishButtonSkipAlarm;             // published when skip alarm buttin is pushed
+extern const char* mqttTopicPublishSetAlarm;                    // published when a new alarm time must be set
 
 // topics to subscribe
 extern const char* mqttTopicSubscribeSecondsSinceMidnight;      // sets the local time (integer, seconds since midnight)
