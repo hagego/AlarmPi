@@ -1,0 +1,10 @@
+SSHKEY=$HOME/Documents/Zertifikate/sshkey_generic_raspberry.private-ssh
+HOST=alarmpi
+#HOST=192.168.178.144
+TARGET=alarmpi@$HOST:/opt/alarmpi
+
+mvn install
+scp -i $SSHKEY  target/alarmpi.jar $TARGET/bin
+scp -i $SSHKEY  www/index.html $TARGET/www
+scp -i $SSHKEY  www/alarms.js $TARGET/www
+scp -i $SSHKEY  googleCalendarTokens/StoredCredential alarmpi@$HOST:/etc/alarmpi/googleCalendarTokens

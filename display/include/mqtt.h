@@ -7,7 +7,7 @@
 extern const char* mqttClientName;
 
 // MQTT topics
-#define MQTT_PREFIX "alarmpi/testdisplay/"
+#define MQTT_PREFIX "alarmpi/display/"
 
 // topics to publish
 extern const char* mqttTopicPublishConnected;                   // published after connect

@@ -247,7 +247,7 @@ void UI::handleTouchAlarmTimeScreen(int16_t x, int16_t y) {
       // OK button pressed
       Serial.println("OK button pressed");
       if(selectedAlarmHourCol>=0 && selectedAlarmHourRow>=0 && selectedAlarmMinuteCol>=0 && selectedAlarmMinuteRow>=0) {
-        sprintf(buffer,"%d:%d",alarmHours[selectedAlarmHourRow*colAlarmCount+selectedAlarmHourCol], alarmMinutes[selectedAlarmMinuteRow*colAlarmCount+selectedAlarmMinuteCol]);
+        sprintf(buffer,"%02d:%02d",alarmHours[selectedAlarmHourRow*colAlarmCount+selectedAlarmHourCol], alarmMinutes[selectedAlarmMinuteRow*colAlarmCount+selectedAlarmMinuteCol]);
         mqttClient.publish(mqttTopicPublishSetAlarm, buffer);
         
       }
@@ -303,7 +303,7 @@ void UI::displayTemperature(int8_t temperature) {
   if(mode==DEFAULT_SCREEN) {
     sprintf(buffer,"%d C  ",temperature);
     tft.setTextColor(TFT_BLUE, TFT_BLACK, false);
-    tft.drawString(buffer,  xCol2, yRow3, 4);
+    tft.drawString(buffer,  xCol2, yRow4, 4);
   }
 }
 
@@ -327,13 +327,14 @@ void UI::clearAlarmTime() {
 void UI::displayWasteCollection(const char* wasteCollection) {
   if(mode==DEFAULT_SCREEN) {
     tft.setTextColor(TFT_BLUE, TFT_BLACK, false);
-    tft.drawString(wasteCollection, xCol3, yRow3, 4);
+    tft.drawString(wasteCollection, xCol3, yRow4, 4);
   }
 }
 
 // clears the waste collection display
 void UI::clearWasteCollection() {
   if(mode==DEFAULT_SCREEN) {
-    tft.fillRect(xCol3, yRow3, SCREEN_WIDTH-xCol3, 20, TFT_BLACK);
+    tft.fillRect(xCol3, yRow4, SCREEN_WIDTH-xCol3, 20, TFT_BLACK);
   }
 }
+

@@ -579,6 +579,35 @@ public class Alarm {
 			.min( (alarm1,alarm2) -> alarm1.time.compareTo(alarm2.time))
 			.orElse(null);
 	}
+
+	/**
+	 * skips all alarms today
+	 */
+	static void skipAllAlarmsToday() {
+		alarmList.stream()
+		.filter(alarm -> alarm.getEnabled()==true && alarm.getSkipOnce()==false && alarm.getWeekDays().contains(LocalDate.now().getDayOfWeek()))
+		.forEach(alarm -> alarm.setSkipOnce(true));
+		
+		storeAlarmList();
+	}
+
+	/**
+	 * set a single alarm for today
+	 */
+	static void setAlarmToday(LocalTime time) {
+		skipAllAlarmsToday();
+		Alarm alarm = alarmList.get(alarmList.size()-1);
+		
+		alarm.enabled     = true;
+		alarm.skipOnce    = false;
+		alarm.oneTimeOnly = true;
+		alarm.time        = time;
+		alarm.weekDays.clear();
+		alarm.weekDays.add(LocalDate.now().getDayOfWeek());
+		alarm.modified    = true;
+		
+		storeAlarmList();
+	}
 	
 	/**
 	 * skips all alarms tomorrow
@@ -604,6 +633,7 @@ public class Alarm {
 		alarm.time        = time;
 		alarm.weekDays.clear();
 		alarm.weekDays.add(DayOfWeek.from(LocalDate.now().getDayOfWeek().plus(1)));
+		alarm.modified    = true;
 		
 		storeAlarmList();
 	}

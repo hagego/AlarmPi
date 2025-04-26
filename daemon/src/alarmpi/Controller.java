@@ -151,8 +151,10 @@ class Controller implements Runnable, IMqttMessageListener{
 
 		// subscribe to MQTT topics
 		MqttClient.getMqttClient().subscribe(MQTT_TOPIC_SUB_LIGHT, this);
+		MqttClient.getMqttClient().subscribe(MQTT_TOPIC_SUB_RADIO, this);
 		MqttClient.getMqttClient().subscribe(MQTT_TOPIC_SUB_TEMPERATURE, this);
 		MqttClient.getMqttClient().subscribe(MQTT_TOPIC_SUB_ALL_OFF, this);
+		MqttClient.getMqttClient().subscribe(MQTT_TOPIC_SUB_SET_ALARM, this);
 		
 		if(externalAlarmCount>0) {
 			MqttClient.getMqttClient().subscribe(MQTT_TOPIC_SUB_EXTERNAL_ALARM, this);
@@ -421,26 +423,7 @@ class Controller implements Runnable, IMqttMessageListener{
 				}
 				
 				// check if an alarm was modified and its events need to be processed
-				Alarm.getModifiedAlarmList().stream().forEach(alarm -> {
-					updateAlarmEvents(alarm);
-					
-					// ensure that AlarmPi Display gets updated if needed
-					Alarm nextAlarm = Alarm.getNextAlarmToday();
-					if(nextAlarm==null) {
-						nextAlarm = Alarm.getNextAlarmTomorrow();
-					}
-					if(nextAlarm!=null) {
-						int nextAlarmAsSecondsOfDay = alarm.getTime().getHour()*3600 + alarm.getTime().getMinute()*60;
-						log.fine(String.format("Publishing nextAlarm to Display. Time= %02d:%02d, secondsOfDay=%d",
-								nextAlarm.getTime().getHour(),nextAlarm.getTime().getMinute(),nextAlarmAsSecondsOfDay));
-						MqttClient.getMqttClient().publishToDisplay(MQTT_TOPIC_PUB_DISPLAY_NEXT_ALARM, Integer.toString(nextAlarmAsSecondsOfDay));
-						
-					}
-					else {
-						log.fine("publishing nextAlarm to Display: Clearing");
-						MqttClient.getMqttClient().publishToDisplay(MQTT_TOPIC_PUB_DISPLAY_NEXT_ALARM, null);
-					}
-				});
+				updateAlarmEvents();
 				
 				// check if an event needs to be processed
 				checkForEventsToProcess();
@@ -457,6 +440,32 @@ class Controller implements Runnable, IMqttMessageListener{
 		}
 		
 		log.info("controller thread terminating");
+	}
+
+	/**
+	 * update alarm events if needed
+	 */
+	synchronized private void updateAlarmEvents() {
+		Alarm.getModifiedAlarmList().stream().forEach(alarm -> {
+			updateAlarmEvents(alarm);
+			
+			// ensure that AlarmPi Display gets updated if needed
+			Alarm nextAlarm = Alarm.getNextAlarmToday();
+			if(nextAlarm==null) {
+				nextAlarm = Alarm.getNextAlarmTomorrow();
+			}
+			if(nextAlarm!=null) {
+				int nextAlarmAsSecondsOfDay = alarm.getTime().getHour()*3600 + alarm.getTime().getMinute()*60;
+				log.fine(String.format("Publishing nextAlarm to Display. Time= %02d:%02d, secondsOfDay=%d",
+						nextAlarm.getTime().getHour(),nextAlarm.getTime().getMinute(),nextAlarmAsSecondsOfDay));
+				MqttClient.getMqttClient().publishToDisplay(MQTT_TOPIC_PUB_DISPLAY_NEXT_ALARM, Integer.toString(nextAlarmAsSecondsOfDay));
+				
+			}
+			else {
+				log.fine("publishing nextAlarm to Display: Clearing");
+				MqttClient.getMqttClient().publishToDisplay(MQTT_TOPIC_PUB_DISPLAY_NEXT_ALARM, null);
+			}
+		});
 	}
 	
 	
@@ -1190,6 +1199,35 @@ class Controller implements Runnable, IMqttMessageListener{
 				log.warning("Unable to parse MQTT brightness: "+t.getMessage());
 			}
 		}
+
+		if(topic.endsWith(MQTT_TOPIC_SUB_RADIO)) {
+			log.fine("MQTT radio control message arrived. content="+message);
+			try {
+				int volume = Integer.parseInt(message.toString());
+				if(volume>0) {
+					String soundName = Configuration.getConfiguration().getValue("radio", "sound", null);
+					if(soundName!=null) {
+						Alarm.Sound sound = Configuration.getConfiguration().getSoundList().stream().filter(s -> s.name.equals(soundName)).findAny().get();
+						if(sound!=null) {
+							soundControl.on();
+							soundControl.playSound(sound, volume, false);
+							
+							// set timer to switch off sound
+							setSoundTimer(Configuration.getConfiguration().getValue("radio", "timer", 1800));
+						}
+					}
+					else {
+						log.warning("MQTT radio control: no sound name configured");
+					}
+				}
+				else {
+					soundControl.off();
+				}
+			}
+			catch (Throwable t) {
+				log.warning("Unable to parse MQTT radio volume: "+t.getMessage());
+			}
+		}
 		
 		if(topic.endsWith(MQTT_TOPIC_SUB_TEMPERATURE)) {
 			log.fine("MQTT temperature update message arrived. content="+message);
@@ -1208,6 +1246,40 @@ class Controller implements Runnable, IMqttMessageListener{
 			else {
 				temperature           = null;
 				temperatureLastUpdate = null;
+			}
+		}
+
+		if(topic.endsWith(MQTT_TOPIC_SUB_SET_ALARM)) {
+			log.fine("MQTT setAlarm message arrived. content="+message);
+			// parse content string in "hh:mm" format into LocalTime object
+			String[] time = message.toString().split(":");
+			if(time.length==2) {
+				try {
+					int hour   = Integer.parseInt(time[0]);
+					int minute = Integer.parseInt(time[1]);
+					
+					// check if time is valid
+					if(hour>=0 && hour<24 && minute>=0 && minute<60) {
+						// set alarm for today or tomorrow
+						LocalTime alarmTime = LocalTime.of(hour,minute);
+						if(alarmTime.isBefore(LocalTime.now())) {
+							// set alarm for tomorrow
+							Alarm.setAlarmTomorrow(alarmTime);
+						}
+						else {
+							// set alarm for today
+							Alarm.setAlarmToday(alarmTime);
+						}
+
+						updateAlarmEvents();
+					}
+					else {
+						log.warning("Unable to parse MQTT setAlarm: invalid time format "+message.toString());
+					}
+				}
+				catch(Throwable t) {
+					log.warning("Unable to parse MQTT setAlarm: "+t.getMessage());
+				}
 			}
 		}
 		
@@ -1268,6 +1340,12 @@ class Controller implements Runnable, IMqttMessageListener{
 	// publish to this topic to set light brightness (NUMBER)
 	private final static String MQTT_TOPIC_SUB_LIGHT             = "light";
 	
+	// publish to this topic to set radio volume (NUMBER, 0=off)
+	private final static String MQTT_TOPIC_SUB_RADIO             = "radio";
+
+	// publish to this topic to set an alarm for today or tomorrow
+	private final static String MQTT_TOPIC_SUB_SET_ALARM         = "setAlarm";
+
 	// publish to this topic to trigger an alarm message
 	private final static String MQTT_TOPIC_SUB_EXTERNAL_ALARM    = "externalAlarm";
 	

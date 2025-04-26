@@ -3,7 +3,7 @@
 #include "mqtt.h"
 
 // MQTT client name
-const char* mqttClientName = "alarmpitestdisplay";
+const char* mqttClientName = "alarmpidisplay";
 
 // topics to publish
 const char* mqttTopicPublishConnected          = MQTT_PREFIX "connected";                   // published after connect
