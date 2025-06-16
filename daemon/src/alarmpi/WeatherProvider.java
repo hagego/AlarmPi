@@ -35,7 +35,7 @@ public class WeatherProvider implements Callable<String> {
      */
 	private String getApiKey() {
 		// Precedence: Read from config file
-		String apiKey = Configuration.getConfiguration().getValue(WeatherPanel.class.getSimpleName(), "apiKey", null);
+		String apiKey = Configuration.getConfiguration().getWeatherApiKey();
 
 		if(apiKey==null) {
 			log.warning("No API Key found in configuration file. Trying environment variable as fallback");
@@ -67,7 +67,7 @@ public class WeatherProvider implements Callable<String> {
 		
 		
 		try {
-			url = new URL(String.format("%s?lat=%f&lon=%f&units=metric&lang=de&exclude=current,minutely,hourly,alerts&appid=%s",BASE_URL,latitude,longitude,API_KEY));
+			url = new URL(String.format("%s?lat=%f&lon=%f&units=metric&lang=de&exclude=current,minutely,hourly,alerts&appid=%s",BASE_URL,latitude,longitude,getApiKey()));
 		} catch (MalformedURLException e) {
 			log.severe("Unable to create URL: MalformedURLException: "+e.getMessage());
 		}

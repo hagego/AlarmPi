@@ -247,6 +247,7 @@ public class Configuration {
 		Ini.Section sectionWeather = ini.get("weather");
 		weatherLocationLongitude = sectionWeather.get("longitude", Double.class, null);
 		weatherLocationLatitude  = sectionWeather.get("latitude", Double.class, null);
+		weatherApiKey			 = sectionWeather.get("apiKey", String.class, null);
         
         // mqtt
 		Ini.Section sectionMqtt = ini.get("mqtt");
@@ -516,6 +517,13 @@ public class Configuration {
 	Double getWeatherLocationLatitude() {
 		return weatherLocationLatitude;
 	}
+
+	/**
+  	 * @return the Open Weather Map API Key
+  	 */
+    String getWeatherApiKey() {
+		return weatherApiKey;
+	}
 	
 	/**
 	 * @return light control settings as read-only object
@@ -671,6 +679,7 @@ public class Configuration {
 	private int                              mpdPort;                   // mpd network port
 	private String                           mpdFiles;                  // directory for MPD sound files
 	private String                           mpdTmpSubDir;              // subdirectory for MPD temporary sound files
+	private String                           weatherApiKey;			    // Open Weather Map API key (or null)
 	private Double                           weatherLocationLongitude;  // Open Weather Map location for weather forecast: longiture
 	private Double                           weatherLocationLatitude;   // Open Weather Map location for weather forecast: latitude
 	private List<LightControlSettings>       lightControlSettingsList;  // list of light control settings
