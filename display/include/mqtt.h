@@ -16,6 +16,8 @@ extern const char* mqttTopicPublishButtonLightOn;               // published whe
 extern const char* mqttTopicPublishButtonLightOff;              // published when light on button is pushed
 extern const char* mqttTopicPublishButtonRadioOn;               // published when radio on button is pushed
 extern const char* mqttTopicPublishButtonRadioOff;              // published when radio off button is pushed
+extern const char* mqttTopicPublishButtonVentilatorOn;          // published when ventilator on button is pushed
+extern const char* mqttTopicPublishButtonVentilatorOff;         // published when ventilator off button is pushed
 extern const char* mqttTopicPublishButtonSkipAlarm;             // published when skip alarm buttin is pushed
 extern const char* mqttTopicPublishSetAlarm;                    // published when a new alarm time must be set
 

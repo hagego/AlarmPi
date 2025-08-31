@@ -41,15 +41,18 @@ const char* mqtt_server = "192.168.178.27";
 const uint8_t displayBrightnessDefault    = 8;
 const uint8_t displayBrightnessAfterTouch = 100;
 
-WiFiClient espClient;
-PubSubClient mqttClient(espClient);
-AsyncWebServer server(80);
+WiFiClient               espClient;
+PubSubClient             mqttClient(espClient);
+AsyncWebServer           server(80);
 ESPAsyncHTTPUpdateServer updateServer;
+char                     mqttFullClientName[64];
 
 UI ui(mqttClient);
 
 // buffer for sprintfs
 char buffer[512];
+
+
 
 // time of day separated into hours, minutes, seconds
 uint8_t time_h=0,
@@ -105,14 +108,14 @@ void mqttCallback(char* topic, byte* payload, unsigned int length) {
     return;
   }
 
-  if(strcmp(topic,mqttTopicSubscribeTemperature)==0) {
-    int8_t temperature = atoi(payloadString);
-    sprintf(buffer,"received temperature: %d",temperature);
-    Serial.println(buffer);
-    ui.displayTemperature(temperature);
+  // if(strcmp(topic,mqttTopicSubscribeTemperature)==0) {
+  //   int8_t temperature = atoi(payloadString);
+  //   sprintf(buffer,"received temperature: %d",temperature);
+  //   Serial.println(buffer);
+  //   ui.displayTemperature(temperature);
 
-    return;
-  }
+  //   return;
+  // }
 
   if(strcmp(topic,mqttTopicSubscribeBacklight)==0) {
     uint8_t brightness = atoi(payloadString);
@@ -123,19 +126,19 @@ void mqttCallback(char* topic, byte* payload, unsigned int length) {
     return;
   }
 
-  if(strcmp(topic,mqttTopicSubscribeWasteCollection)==0) {
-    if(length<=1) {
-      Serial.println("clearing waste collection");
-      ui.clearWasteCollection();
-      return;
-    }
+  // if(strcmp(topic,mqttTopicSubscribeWasteCollection)==0) {
+  //   if(length<=1) {
+  //     Serial.println("clearing waste collection");
+  //     ui.clearWasteCollection();
+  //     return;
+  //   }
     
-    sprintf(buffer,"received waste collection: %s",payloadString);
-    Serial.println(buffer);
-    ui.displayWasteCollection(payloadString);
+  //   sprintf(buffer,"received waste collection: %s",payloadString);
+  //   Serial.println(buffer);
+  //   ui.displayWasteCollection(payloadString);
 
-    return;
-  }
+  //   return;
+  // }
 }
 
 void notFound(AsyncWebServerRequest *request) {
@@ -185,14 +188,13 @@ void setup() {
   mqttClient.setServer(mqtt_server, 1883);
   mqttClient.setCallback(mqttCallback);
   
-  char mqttFullClientName[64];
-  sprintf(mqttFullClientName,"%s-%d",mqttClientName,ESP.getEfuseMac());
+  sprintf(mqttFullClientName,"%s-%s",mqttClientName,WiFi.localIP().toString().c_str());
   sprintf(buffer,"Attempting MQTT connection to broker at %s as client %s",mqtt_server,mqttFullClientName);
   Serial.println(buffer);
     
   // Attempt to connect
   if (mqttClient.connect(mqttFullClientName)) {
-    sprintf(buffer,"connected to MQTT broker at %s as client %s, local IP=%s",mqtt_server,mqttFullClientName,WiFi.localIP().toString().c_str());
+    sprintf(buffer,"connected to MQTT broker at %s as client %s",mqtt_server,mqttFullClientName);
     Serial.println(buffer);
 
     // Once connected, publish an announcement...
@@ -235,9 +237,8 @@ void loop() {
     if(WiFi.status() == WL_CONNECTED) {
       Serial.println("WIFI reconnected");
 
-      sprintf(buffer,"%s-%d",mqttClientName,ESP.getEfuseMac());
-      if (mqttClient.connect(buffer)) {
-        sprintf(buffer,"reconnected in loop() to MQTT broker at %s as client %s-%d, local IP=%s",mqtt_server,mqttClientName,ESP.getEfuseMac(),WiFi.localIP().toString().c_str());
+      if (mqttClient.connect(mqttFullClientName)) {
+        sprintf(buffer,"reconnected in loop() to MQTT broker at %s as client %s",mqtt_server,mqttFullClientName);
         Serial.println(buffer);
 
         // Once connected, publish an announcement...

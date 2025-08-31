@@ -114,8 +114,18 @@ void UI::setDefaultDisplay() {
   tft.drawCentreString("aus", xCol4+BUTTON_WIDTH/2, yRow3, 4);
   tft.drawSmoothRoundRect(xCol4,yRow3-5,6,3,BUTTON_WIDTH,BUTTON_HEIGHT,TFT_VIOLET,TFT_VIOLET);
 
-  tft.setTextColor(TFT_BLUE, TFT_BLACK, false);
-  tft.drawString("Temp:", xCol1, yRow4, 4);
+    tft.setTextColor(TFT_BLUE, TFT_BLACK, false);
+  tft.drawString("Ventilator", xCol1, yRow4, 4);
+
+  tft.setTextColor(TFT_BLUE, TFT_SKYBLUE, true);
+  tft.fillRoundRect(xCol3+1,yRow4-4, BUTTON_WIDTH-2, BUTTON_HEIGHT-2, 3, TFT_SKYBLUE);
+  tft.drawCentreString("an", xCol3+BUTTON_WIDTH/2, yRow4, 4);
+  tft.drawSmoothRoundRect(xCol3,yRow4-5,6,3,BUTTON_WIDTH,BUTTON_HEIGHT,TFT_VIOLET,TFT_VIOLET);
+
+  tft.setTextColor(TFT_BLUE, TFT_SKYBLUE, true);
+  tft.fillRoundRect(xCol4+1,yRow4-4, BUTTON_WIDTH-2, BUTTON_HEIGHT-2, 3, TFT_SKYBLUE);
+  tft.drawCentreString("aus", xCol4+BUTTON_WIDTH/2, yRow4, 4);
+  tft.drawSmoothRoundRect(xCol4,yRow4-5,6,3,BUTTON_WIDTH,BUTTON_HEIGHT,TFT_VIOLET,TFT_VIOLET);
 
   mode = DEFAULT_SCREEN;
 }
@@ -155,6 +165,18 @@ void UI::handleTouchDefaultScreen(int16_t x, int16_t y) {
   if (x > xCol4-10 && x < xCol4+BUTTON_WIDTH+10 && y > yRow3-5 && y < yRow3+BUTTON_HEIGHT+5) {
     Serial.println("radio off button pressed");
     mqttClient.publish(mqttTopicPublishButtonRadioOff, "x");
+  }
+
+  // Check if the touch was inside the "ventilator on" button
+  if (x > xCol3-10 && x < xCol3+BUTTON_WIDTH+10 && y > yRow4-5 && y < yRow4+BUTTON_HEIGHT+5) {
+    Serial.println("ventilator on button pressed");
+    mqttClient.publish(mqttTopicPublishButtonVentilatorOn, "x");
+  }
+
+  // Check if the touch was inside the "ventilator off" button
+  if (x > xCol4-10 && x < xCol4+BUTTON_WIDTH+10 && y > yRow4-5 && y < yRow4+BUTTON_HEIGHT+5) {
+    Serial.println("ventilator off button pressed");
+    mqttClient.publish(mqttTopicPublishButtonVentilatorOff, "x");
   }
 }
 

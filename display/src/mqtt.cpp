@@ -6,14 +6,16 @@
 const char* mqttClientName = "alarmpidisplay";
 
 // topics to publish
-const char* mqttTopicPublishConnected          = MQTT_PREFIX "connected";                   // published after connect
-const char* mqttTopicPublishAlive              = MQTT_PREFIX "alive";                       // published periodically as alive signal
-const char* mqttTopicPublishButtonLightOn      = MQTT_PREFIX "buttonLightOn";               // published when light on button is pushed
-const char* mqttTopicPublishButtonLightOff     = MQTT_PREFIX "buttonLightOff";              // published when light on button is pushed
-const char* mqttTopicPublishButtonRadioOn      = MQTT_PREFIX "buttonRadioOn";               // published when radio on button is pushed
-const char* mqttTopicPublishButtonRadioOff     = MQTT_PREFIX "buttonRadioOff";              // published when radio off button is pushed
-const char* mqttTopicPublishButtonSkipAlarm    = MQTT_PREFIX "buttonSkipAlarm";             // published when skip alarm buttin is pushed
-const char* mqttTopicPublishSetAlarm           = MQTT_PREFIX "setAlarm";                    // published when a new alarm time must be set
+const char* mqttTopicPublishConnected           = MQTT_PREFIX "connected";                   // published after connect
+const char* mqttTopicPublishAlive               = MQTT_PREFIX "alive";                       // published periodically as alive signal
+const char* mqttTopicPublishButtonLightOn       = MQTT_PREFIX "buttonLightOn";               // published when light on button is pushed
+const char* mqttTopicPublishButtonLightOff      = MQTT_PREFIX "buttonLightOff";              // published when light on button is pushed
+const char* mqttTopicPublishButtonRadioOn       = MQTT_PREFIX "buttonRadioOn";               // published when radio on button is pushed
+const char* mqttTopicPublishButtonRadioOff      = MQTT_PREFIX "buttonRadioOff";              // published when radio off button is pushed
+const char* mqttTopicPublishButtonVentilatorOn  = MQTT_PREFIX "buttonVentilatorOn";          // published when ventilator on button is pushed
+const char* mqttTopicPublishButtonVentilatorOff = MQTT_PREFIX "buttonVentilatorOff";        // published when ventilator off button is pushed
+const char* mqttTopicPublishButtonSkipAlarm     = MQTT_PREFIX "buttonSkipAlarm";             // published when skip alarm buttin is pushed
+const char* mqttTopicPublishSetAlarm            = MQTT_PREFIX "setAlarm";                    // published when a new alarm time must be set
 
 // topics to subscribe
 const char* mqttTopicSubscribeSecondsSinceMidnight  = MQTT_PREFIX "secondsSinceMidnight";   // sets the local time (integer, seconds since midnight)
