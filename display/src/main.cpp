@@ -197,11 +197,11 @@ void setup() {
     sprintf(buffer,"connected to MQTT broker at %s as client %s",mqtt_server,mqttFullClientName);
     Serial.println(buffer);
 
+    // subscribe to topics
+    mqttClient.subscribe(MQTT_PREFIX "#");
+
     // Once connected, publish an announcement...
     mqttClient.publish(mqttTopicPublishConnected, buffer);
-
-    // subscribe topics
-    mqttClient.subscribe(MQTT_PREFIX "#");
   }
   else {
     Serial.println(F("connection failed"));
@@ -240,6 +240,9 @@ void loop() {
       if (mqttClient.connect(mqttFullClientName)) {
         sprintf(buffer,"reconnected in loop() to MQTT broker at %s as client %s",mqtt_server,mqttFullClientName);
         Serial.println(buffer);
+
+        // subscribe to topics again
+        mqttClient.subscribe(MQTT_PREFIX "#");
 
         // Once connected, publish an announcement...
         mqttClient.publish(mqttTopicPublishConnected, buffer);
