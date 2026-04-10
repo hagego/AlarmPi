@@ -45,10 +45,11 @@ public class MqttClient implements MqttCallbackExtended{
 				mqttClient.connect(connectOptions);
 				
 				// wait until connection is successful, or time out
-				final int TIMEOUT=10;
+				// this can take a rather long time, specifically after a powerr outage
+				final int TIMEOUT=300;
 				int i;
 				for(i=0 ; i<TIMEOUT && isConnected.get()==false ; i++) {
-					Thread.sleep(500);
+					Thread.sleep(1000);
 				}
 				
 				if(i<TIMEOUT) {
