@@ -38,7 +38,7 @@
 const char* mqtt_server = "192.168.178.27";
 
 // display brightness in percent
-const uint8_t displayBrightnessDefault    = 8;
+const uint8_t displayBrightnessDefault    = 6;
 const uint8_t displayBrightnessAfterTouch = 100;
 
 WiFiClient               espClient;
@@ -162,7 +162,7 @@ void setup() {
   static int COUNTER_MAX = 100;
   int counter = 0;
   while (WiFi.status() != WL_CONNECTED && counter<COUNTER_MAX) {
-    delay(100);
+    delay(200);
     Serial.print(".");
     counter++;
   }

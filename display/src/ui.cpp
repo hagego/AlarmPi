@@ -28,6 +28,8 @@
 #define SCREEN_WIDTH 320
 #define SCREEN_HEIGHT 240
 
+static uint16_t DELAY_AFTER_BUTTON_PRESS_MS = 300;
+
 TFT_eSPI tft = TFT_eSPI();
 SPIClass touchscreenSPI = SPIClass(VSPI);
 XPT2046_Touchscreen touchscreen(XPT2046_CS, XPT2046_IRQ);
@@ -131,52 +133,64 @@ void UI::setDefaultDisplay() {
 }
 
 void UI::handleTouchDefaultScreen(int16_t x, int16_t y) {
+  static uint32_t counter = 0;
+  static char buffer[10];
+
+  counter++;
   // Check if the touch was inside the "skip" button
   if (x > xCol3-10 && x < xCol3+BUTTON_WIDTH+10 && y > yRow1-5 && y < yRow1+BUTTON_HEIGHT+5) {
     Serial.println("skip alarm button pressed");
-    mqttClient.publish(mqttTopicPublishButtonSkipAlarm, "x");
+    delay(DELAY_AFTER_BUTTON_PRESS_MS);
+    mqttClient.publish(mqttTopicPublishButtonSkipAlarm, itoa(counter,buffer,10));
   }
 
   // Check if the touch was inside the "set" button
   if (x > xCol4-10 && x < xCol4+BUTTON_WIDTH+10 && y > yRow1-5 && y < yRow1+BUTTON_HEIGHT+5) {
     Serial.println("set alarm button pressed");
+    delay(DELAY_AFTER_BUTTON_PRESS_MS);
     setAlarmTimeDisplay();
   }
 
   // Check if the touch was inside the "light on" button
   if (x > xCol3-10 && x < xCol3+BUTTON_WIDTH+10 && y > yRow2-5 && y < yRow2+BUTTON_HEIGHT+5) {
     Serial.println("light on button pressed");
-    mqttClient.publish(mqttTopicPublishButtonLightOn, "x");
+    delay(DELAY_AFTER_BUTTON_PRESS_MS);
+    mqttClient.publish(mqttTopicPublishButtonLightOn, itoa(counter,buffer,10));
   }
 
   // Check if the touch was inside the "light off" button
   if (x > xCol4-10 && x < xCol4+BUTTON_WIDTH+10 && y > yRow2-5 && y < yRow2+BUTTON_HEIGHT+5) {
     Serial.println("light off button pressed");
-    mqttClient.publish(mqttTopicPublishButtonLightOff, "x");
+    delay(DELAY_AFTER_BUTTON_PRESS_MS);
+    mqttClient.publish(mqttTopicPublishButtonLightOff, itoa(counter,buffer,10));
   }
 
   // Check if the touch was inside the "radio on" button
   if (x > xCol3-10 && x < xCol3+BUTTON_WIDTH+10 && y > yRow3-5 && y < yRow3+BUTTON_HEIGHT+5) {
     Serial.println("radio on button pressed");
-    mqttClient.publish(mqttTopicPublishButtonRadioOn, "x");
+    delay(DELAY_AFTER_BUTTON_PRESS_MS);
+    mqttClient.publish(mqttTopicPublishButtonRadioOn, itoa(counter,buffer,10));
   }
 
   // Check if the touch was inside the "radio off" button
   if (x > xCol4-10 && x < xCol4+BUTTON_WIDTH+10 && y > yRow3-5 && y < yRow3+BUTTON_HEIGHT+5) {
     Serial.println("radio off button pressed");
-    mqttClient.publish(mqttTopicPublishButtonRadioOff, "x");
+    delay(DELAY_AFTER_BUTTON_PRESS_MS);
+    mqttClient.publish(mqttTopicPublishButtonRadioOff, itoa(counter,buffer,10));
   }
 
   // Check if the touch was inside the "ventilator on" button
   if (x > xCol3-10 && x < xCol3+BUTTON_WIDTH+10 && y > yRow4-5 && y < yRow4+BUTTON_HEIGHT+5) {
     Serial.println("ventilator on button pressed");
-    mqttClient.publish(mqttTopicPublishButtonVentilatorOn, "x");
+    delay(DELAY_AFTER_BUTTON_PRESS_MS);
+    mqttClient.publish(mqttTopicPublishButtonVentilatorOn, itoa(counter,buffer,10));
   }
 
   // Check if the touch was inside the "ventilator off" button
   if (x > xCol4-10 && x < xCol4+BUTTON_WIDTH+10 && y > yRow4-5 && y < yRow4+BUTTON_HEIGHT+5) {
     Serial.println("ventilator off button pressed");
-    mqttClient.publish(mqttTopicPublishButtonVentilatorOff, "x");
+    delay(DELAY_AFTER_BUTTON_PRESS_MS);
+    mqttClient.publish(mqttTopicPublishButtonVentilatorOff, itoa(counter,buffer,10));
   }
 }
 
